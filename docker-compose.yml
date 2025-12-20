@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with TimescaleDB for time-series data storage
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: aqi_timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aqi_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aqi_password}
+      POSTGRES_DB: ${POSTGRES_DB:-aqi_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aqi_user} -d ${POSTGRES_DB:-aqi_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API service for data access and model serving
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aqi_api
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-aqi_user}:${POSTGRES_PASSWORD:-aqi_password}@timescaledb:5432/${POSTGRES_DB:-aqi_db}
+      - ENVIRONMENT=production
+    ports:
+      - "8000:8000"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+
+  # Scheduler service for automated data ingestion and imputation
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aqi_scheduler
+    restart: unless-stopped
+    command: python -m app.scheduler
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-aqi_user}:${POSTGRES_PASSWORD:-aqi_password}@timescaledb:5432/${POSTGRES_DB:-aqi_db}
+      - ENVIRONMENT=production
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+
+volumes:
+  timescale_data:
