@@ -9,9 +9,9 @@ All data exchange MUST occur via documented APIs only.
 import httpx
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from app.logger import logger
-from app.database import get_db_context
-from app.models import Station
+from backend.logger import logger
+from backend.database import get_db_context
+from backend.models import Station
 from sqlalchemy import text
 
 
@@ -84,7 +84,7 @@ class APIOrchestrator:
         (not raw SQL - still maintains abstraction)
         """
         try:
-            from app.models import AQIHourly
+            from backend.models import AQIHourly
             from datetime import datetime
 
             # Parse dates

@@ -57,7 +57,7 @@ export default function StationMap({
 }) {
     const mapContainer = useRef(null)
     const map = useRef(null)
-    const markers = useRef([])
+    const markersMap = useRef(new Map()) // Changed from array to Map for efficient lookup
     const [mapLoaded, setMapLoaded] = useState(false)
     const [mapError, setMapError] = useState(null)
 
@@ -111,6 +111,13 @@ export default function StationMap({
 
         // Cleanup on unmount
         return () => {
+            // Remove all markers
+            for (const markerData of markersMap.current.values()) {
+                markerData.marker.remove()
+            }
+            markersMap.current.clear()
+
+            // Remove map
             if (map.current) {
                 map.current.remove()
                 map.current = null
@@ -118,33 +125,58 @@ export default function StationMap({
         }
     }, [])
 
-    // Add/update markers when stations change
+    // Add/update markers when stations change - OPTIMIZED for performance
     useEffect(() => {
         if (!map.current) return
 
-        // Remove existing markers
-        markers.current.forEach(marker => marker.remove())
-        markers.current = []
+        const currentStationIds = new Set(stations.map(s => s.station_id))
 
-        // Add new markers for each station
+        // Remove markers for stations that no longer exist
+        for (const [stationId, markerData] of markersMap.current.entries()) {
+            if (!currentStationIds.has(stationId)) {
+                markerData.marker.remove()
+                markersMap.current.delete(stationId)
+            }
+        }
+
+        // Add or update markers for each station
         stations.forEach(station => {
             const lon = station.lon ?? station.longitude
             const lat = station.lat ?? station.latitude
 
             if (lat == null || lon == null) return
 
+            const stationId = station.station_id
+            const existingMarkerData = markersMap.current.get(stationId)
+            const currentColor = getMarkerColor(station.latest_pm25)
+
+            // If marker exists and hasn't changed, skip
+            if (existingMarkerData &&
+                existingMarkerData.pm25 === station.latest_pm25 &&
+                existingMarkerData.lat === lat &&
+                existingMarkerData.lon === lon) {
+                return
+            }
+
+            // Remove existing marker if it exists (for update)
+            if (existingMarkerData) {
+                existingMarkerData.marker.remove()
+            }
+
             // Create marker element
             const el = document.createElement('div')
+            el.className = 'map-marker' // Add class for potential CSS styling
             el.style.cssText = `
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background-color: ${getMarkerColor(station.latest_pm25)};
-        border: 2px solid white;
-        cursor: pointer;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        transition: transform 0.2s ease;
-      `
+                width: 16px;
+                height: 16px;
+                border-radius: 50%;
+                background-color: ${currentColor};
+                border: 2px solid white;
+                cursor: pointer;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                transition: transform 0.2s ease;
+                will-change: transform;
+            `
 
             // Hover effect
             el.addEventListener('mouseenter', () => {
@@ -164,14 +196,14 @@ export default function StationMap({
                 offset: 15,
                 closeButton: false,
             }).setHTML(`
-        <div style="min-width: 150px; padding: 4px;">
-          <strong style="color: #333;">${station.name_en || station.name_th || station.station_id}</strong><br/>
-          <small style="color: #666;">ID: ${station.station_id}</small><br/>
-          <span style="color: ${getMarkerColor(station.latest_pm25)}; font-weight: bold;">
-            PM2.5: ${station.latest_pm25?.toFixed(1) ?? 'N/A'} μg/m³
-          </span>
-        </div>
-      `)
+                <div style="min-width: 150px; padding: 4px;">
+                    <strong style="color: #333;">${station.name_en || station.name_th || station.station_id}</strong><br/>
+                    <small style="color: #666;">ID: ${station.station_id}</small><br/>
+                    <span style="color: ${currentColor}; font-weight: bold;">
+                        PM2.5: ${station.latest_pm25?.toFixed(1) ?? 'N/A'} μg/m³
+                    </span>
+                </div>
+            `)
 
             // Create and add marker
             const marker = new maplibregl.Marker({ element: el })
@@ -179,9 +211,15 @@ export default function StationMap({
                 .setPopup(popup)
                 .addTo(map.current)
 
-            markers.current.push(marker)
+            // Store marker data for future comparisons
+            markersMap.current.set(stationId, {
+                marker,
+                pm25: station.latest_pm25,
+                lat,
+                lon,
+            })
         })
-    }, [stations, onStationSelect]) // Removed mapLoaded dep to allow markers to add even if load event is late
+    }, [stations, onStationSelect])
 
     // Fly to selected station
     useEffect(() => {
@@ -199,9 +237,9 @@ export default function StationMap({
             })
 
             // Open popup for selected station
-            const markerIndex = stations.findIndex(s => s.station_id === selectedStation)
-            if (markerIndex >= 0 && markers.current[markerIndex]) {
-                markers.current[markerIndex].togglePopup()
+            const markerData = markersMap.current.get(selectedStation)
+            if (markerData) {
+                markerData.marker.togglePopup()
             }
         }
     }, [selectedStation, stations])

@@ -1,25 +1,133 @@
 /**
  * API Service
- * Centralized API calls to backend
+ * Centralized API calls to backend using fetch()
  */
-import axios from 'axios'
 
-const api = axios.create({
-    baseURL: '/api',
-    timeout: 30000,
-    headers: {
-        'Content-Type': 'application/json',
-    },
-})
+const BASE_URL = '/api'
+const TIMEOUT = 30000
 
-// Response interceptor for error handling
-api.interceptors.response.use(
-    response => response.data,
-    error => {
-        console.error('API Error:', error.response?.data || error.message)
+/**
+ * Create a fetch wrapper with timeout support
+ */
+async function fetchWithTimeout(url, options = {}, timeout = TIMEOUT) {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeout)
+
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+        return response
+    } catch (error) {
+        clearTimeout(timeoutId)
+        if (error.name === 'AbortError') {
+            throw new Error('Request timeout')
+        }
         throw error
     }
-)
+}
+
+/**
+ * Handle API response
+ */
+async function handleResponse(response) {
+    const contentType = response.headers.get('content-type')
+    const isJson = contentType?.includes('application/json')
+
+    let data
+    if (isJson) {
+        data = await response.json()
+    } else {
+        data = await response.text()
+    }
+
+    if (!response.ok) {
+        const error = new Error(data.detail || data.message || `HTTP ${response.status}`)
+        error.response = { data, status: response.status }
+        console.error('API Error:', data || error.message)
+        throw error
+    }
+
+    return data
+}
+
+/**
+ * Create API client with methods similar to axios
+ */
+const api = {
+    get: async (endpoint, options = {}) => {
+        const { params, ...fetchOptions } = options
+        let url = `${BASE_URL}${endpoint}`
+
+        // Add query parameters if provided
+        if (params) {
+            const searchParams = new URLSearchParams()
+            Object.entries(params).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) {
+                    searchParams.append(key, value)
+                }
+            })
+            const queryString = searchParams.toString()
+            if (queryString) {
+                url += `?${queryString}`
+            }
+        }
+
+        const response = await fetchWithTimeout(url, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                ...fetchOptions.headers,
+            },
+            ...fetchOptions,
+        })
+
+        return handleResponse(response)
+    },
+
+    post: async (endpoint, data = null, options = {}) => {
+        const response = await fetchWithTimeout(`${BASE_URL}${endpoint}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers,
+            },
+            body: data ? JSON.stringify(data) : undefined,
+            ...options,
+        })
+
+        return handleResponse(response)
+    },
+
+    put: async (endpoint, data = null, options = {}) => {
+        const response = await fetchWithTimeout(`${BASE_URL}${endpoint}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers,
+            },
+            body: data ? JSON.stringify(data) : undefined,
+            ...options,
+        })
+
+        return handleResponse(response)
+    },
+
+    delete: async (endpoint, options = {}) => {
+        const response = await fetchWithTimeout(`${BASE_URL}${endpoint}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers,
+            },
+            ...options,
+        })
+
+        return handleResponse(response)
+    },
+}
 
 // Station endpoints
 export const stationService = {
@@ -65,7 +173,10 @@ export const schedulerService = {
 
 // Health check
 export const healthService = {
-    check: () => axios.get('/health').then(r => r.data),
+    check: () => fetch('/health').then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+    }),
 }
 
 export default api

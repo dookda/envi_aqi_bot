@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 from unittest.mock import MagicMock, patch
 
-from app.services.lstm_model import LSTMModelService
+from backend.services.lstm_model import LSTMModelService
 
 
 class TestLSTMModelService:

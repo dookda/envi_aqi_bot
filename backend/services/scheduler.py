@@ -19,11 +19,11 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.logger import logger
-from app.config import settings
-from app.services.ingestion import ingestion_service
-from app.services.pipeline import pipeline_service
-from app.database import get_db_context
+from backend.logger import logger
+from backend.config import settings
+from backend.services.ingestion import ingestion_service
+from backend.services.pipeline import pipeline_service
+from backend.database import get_db_context
 
 
 class JobStatus(Enum):
@@ -354,10 +354,10 @@ class SchedulerService:
         
         try:
             # Get all stations and retrain models
-            from app.services.lstm_model import lstm_service
+            from backend.services.lstm_model import lstm_service
             
             with get_db_context() as db:
-                from app.models import Station
+                from backend.models import Station
                 stations = db.query(Station).all()
                 station_ids = [s.station_id for s in stations]
             

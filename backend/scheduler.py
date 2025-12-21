@@ -13,11 +13,11 @@ from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from app.config import settings
-from app.logger import logger
-from app.database import check_database_connection
-from app.services.ingestion import ingestion_service
-from app.services.imputation import imputation_service
+from backend.config import settings
+from backend.logger import logger
+from backend.database import check_database_connection
+from backend.services.ingestion import ingestion_service
+from backend.services.imputation import imputation_service
 
 
 class SchedulerService:
@@ -140,8 +140,8 @@ async def main():
         return
     
     # Run initial batch ingestion if no data exists
-    from app.database import get_db_context
-    from app.models import Station
+    from backend.database import get_db_context
+    from backend.models import Station
     
     with get_db_context() as db:
         station_count = db.query(Station).count()

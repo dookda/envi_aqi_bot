@@ -14,11 +14,11 @@ import numpy as np
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.logger import logger
-from app.models import AQIHourly, ImputationLog
-from app.database import get_db_context
-from app.services.lstm_model import lstm_model_service
+from backend.config import settings
+from backend.logger import logger
+from backend.models import AQIHourly, ImputationLog
+from backend.database import get_db_context
+from backend.services.lstm_model import lstm_model_service
 
 
 class ImputationService:
@@ -368,7 +368,7 @@ class ImputationService:
         Returns:
             Summary of imputation cycle
         """
-        from app.models import Station
+        from backend.models import Station
         
         with get_db_context() as db:
             if station_ids is None:

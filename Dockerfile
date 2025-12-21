@@ -13,7 +13,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY app/ ./app/
+COPY backend/ ./backend/
 COPY alembic/ ./alembic/
 COPY alembic.ini .
 
@@ -24,4 +24,4 @@ RUN mkdir -p /app/models /app/logs
 EXPOSE 8000
 
 # Default command: run API server
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

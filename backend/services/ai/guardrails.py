@@ -9,7 +9,7 @@ Layer 3: Intent Validation (Post-LLM)
 import re
 import json
 from typing import Dict, Optional, Any
-from app.logger import logger
+from backend.logger import logger
 
 
 # Layer 1: Keyword Filter
