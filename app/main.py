@@ -40,6 +40,7 @@ from app.services.lstm_model import lstm_model_service
 from app.services.validation import validation_service
 from app.services.scheduler import scheduler_service
 from app.services.anomaly import anomaly_service
+from app.services.ai.chatbot import chatbot_service
 
 
 @asynccontextmanager
@@ -111,6 +112,10 @@ tags_metadata = [
     {
         "name": "Scheduler",
         "description": "Automated hourly data collection and gap filling scheduler",
+    },
+    {
+        "name": "AI Chat",
+        "description": "Natural language chatbot for air quality queries (Thai/English) with local LLM",
     },
 ]
 
@@ -626,7 +631,7 @@ async def get_anomaly_summary(
     
     with get_db_context() as db:
         # Get stations with data
-        stations = db.query(Station).filter(Station.is_active == True).limit(limit).all()
+        stations = db.query(Station).limit(limit).all()
     
     results = []
     for station in stations:
@@ -1121,8 +1126,67 @@ async def trigger_gap_imputation(background_tasks: BackgroundTasks):
 async def trigger_quality_check(background_tasks: BackgroundTasks):
     """
     Manually trigger daily data quality check
-    
+
     Returns completeness rate, remaining gaps, and imputed record counts.
     """
     background_tasks.add_task(scheduler_service.trigger_quality_check)
     return {"message": "Quality check triggered", "status": "processing"}
+
+
+# ============== AI Chat ==============
+
+@app.post("/api/chat/query", response_model=ChatResponse, tags=["AI Chat"])
+async def chat_query(request: ChatQueryRequest):
+    """
+    Process natural language query for air quality data.
+
+    **Supported queries (Thai/English):**
+    - "ขอดูค่า PM2.5 ย้อนหลัง 7 วันของสถานีเชียงใหม่"
+    - "Show me PM2.5 for the last week in Bangkok"
+    - "คุณภาพอากาศวันนี้ที่กรุงเทพฯ"
+    - "Air quality today in Chiang Mai"
+
+    **Three-Layer Guardrails:**
+    1. Keyword filter (pre-LLM) - Rejects non-air-quality queries
+    2. Domain-restricted prompt - LLM only handles air quality
+    3. Intent validation (post-LLM) - Validates structured output
+
+    **Security:**
+    - NO direct database access
+    - NO SQL generation
+    - All data via whitelisted APIs only
+    - Maximum query length: 300 characters
+
+    **Response includes:**
+    - `intent`: Parsed query parameters
+    - `data`: Time-series data points
+    - `summary`: Statistics (min, max, mean, trend, AQI level)
+    - `output_type`: Presentation hint (text, chart, map, infographic)
+    """
+    try:
+        result = await chatbot_service.process_query(request.query)
+        return ChatResponse(**result)
+    except Exception as e:
+        logger.error(f"Chat query error: {e}")
+        return ChatResponse(
+            status="error",
+            message="An error occurred processing your query. Please try again.",
+            intent=None,
+            data=None,
+            summary=None,
+            output_type=None
+        )
+
+
+@app.get("/api/chat/health", tags=["AI Chat"])
+async def chat_health_check():
+    """
+    Check health of AI chatbot components.
+
+    Returns status of:
+    - LLM service (Ollama)
+    - API orchestrator
+    - Guardrail system
+    """
+    health = await chatbot_service.health_check()
+    return health

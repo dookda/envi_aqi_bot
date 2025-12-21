@@ -47,7 +47,12 @@ class Settings(BaseSettings):
     # Imputation Configuration
     max_gap_hours: int = 24  # Maximum gap to impute
     min_context_hours: int = 24  # Minimum historical context required
-    
+
+    # AI Chatbot Configuration (Local LLM)
+    ollama_url: str = "http://ollama:11434"
+    ollama_model: str = "qwen2.5:7b"  # qwen2.5:7b, llama3.1:8b, or mistral:7b
+    ollama_timeout: float = 30.0
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

@@ -56,6 +56,12 @@ export default function Dashboard() {
                         </div>
                         <div className="flex items-center gap-4">
                             <a
+                                href="/chat"
+                                className="text-dark-400 hover:text-white transition text-sm"
+                            >
+                                🤖 AI Chat
+                            </a>
+                            <a
                                 href="/models"
                                 className="text-dark-400 hover:text-white transition text-sm"
                             >

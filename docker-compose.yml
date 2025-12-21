@@ -88,8 +88,27 @@ services:
     networks:
       - aqi_network
 
+  # Ollama - Local LLM inference server for AI chatbot
+  ollama:
+    image: ollama/ollama:latest
+    container_name: aqi_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - aqi_network
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    # Pull model on startup
+    # Run: docker exec -it aqi_ollama ollama pull qwen2.5:7b
+
 volumes:
   timescale_data:
+  ollama_data:
 
 
 networks:
