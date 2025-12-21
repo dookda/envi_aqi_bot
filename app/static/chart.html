@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AQI Time Series Visualization</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-purple: #8b5cf6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, #1a1a2e 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        select,
+        input {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 1rem;
+            min-width: 180px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        select:hover,
+        input:hover {
+            border-color: var(--accent-blue);
+        }
+
+        select:focus,
+        input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 1.25rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent-blue);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .stat-card.completeness .stat-value {
+            color: var(--accent-green);
+        }
+
+        .stat-card.imputed .stat-value {
+            color: var(--accent-orange);
+        }
+
+        .stat-card.missing .stat-value {
+            color: var(--accent-red);
+        }
+
+        .stat-card.mean .stat-value {
+            color: var(--accent-blue);
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        #aqiChart {
+            width: 100%;
+            height: 450px;
+        }
+
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 400px;
+            gap: 1rem;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--accent-red);
+            color: var(--accent-red);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .info-section {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid var(--accent-blue);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .info-section h3 {
+            color: var(--accent-blue);
+            margin-bottom: 1rem;
+        }
+
+        .info-section ul {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 0.5rem;
+        }
+
+        .info-section li {
+            padding: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .info-section li::before {
+            content: "•";
+            color: var(--accent-blue);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .control-group {
+                width: 100%;
+            }
+
+            select,
+            input {
+                width: 100%;
+            }
+
+            #aqiChart {
+                height: 350px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🌍 AQI Time Series Dashboard</h1>
+            <p class="subtitle">PM2.5 data visualization with LSTM-imputed gap filling</p>
+        </header>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="stationSelect">Station</label>
+                <select id="stationSelect">
+                    <option value="">Loading stations...</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="daysSelect">Time Period</label>
+                <select id="daysSelect">
+                    <option value="1">Last 24 hours</option>
+                    <option value="3">Last 3 days</option>
+                    <option value="7" selected>Last 7 days</option>
+                    <option value="14">Last 14 days</option>
+                    <option value="30">Last 30 days</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>&nbsp;</label>
+                <button class="btn btn-primary" onclick="loadChartData()">
+                    📊 Load Data
+                </button>
+            </div>
+            <div class="control-group">
+                <label>&nbsp;</label>
+                <button class="btn btn-secondary" onclick="refreshData()">
+                    🔄 Refresh
+                </button>
+            </div>
+        </div>
+
+        <div id="statsGrid" class="stats-grid" style="display: none;">
+            <div class="stat-card completeness">
+                <div class="stat-value" id="completenessValue">-</div>
+                <div class="stat-label">Data Completeness</div>
+            </div>
+            <div class="stat-card mean">
+                <div class="stat-value" id="meanValue">-</div>
+                <div class="stat-label">Average PM2.5 (μg/m³)</div>
+            </div>
+            <div class="stat-card imputed">
+                <div class="stat-value" id="imputedValue">-</div>
+                <div class="stat-label">Imputed (Gap-Filled)</div>
+            </div>
+            <div class="stat-card missing">
+                <div class="stat-value" id="missingValue">-</div>
+                <div class="stat-label">Still Missing</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div id="loading" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Loading chart data...</p>
+            </div>
+            <div id="error" class="error" style="display: none;"></div>
+            <div id="aqiChart"></div>
+        </div>
+
+        <div class="info-section">
+            <h3>📌 Understanding the Chart</h3>
+            <ul>
+                <li><strong>Blue line:</strong> Original PM2.5 readings from Air4Thai sensors</li>
+                <li><strong>Orange circles:</strong> Values predicted by LSTM model to fill gaps</li>
+                <li><strong>Red dashed regions:</strong> Periods where data was missing</li>
+                <li><strong>Completeness:</strong> Percentage of hours with valid PM2.5 readings</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '';
+        let chart = null;
+
+        // Initialize ECharts
+        document.addEventListener('DOMContentLoaded', async () => {
+            chart = echarts.init(document.getElementById('aqiChart'), 'dark');
+
+            // Handle resize
+            window.addEventListener('resize', () => {
+                chart.resize();
+            });
+
+            await loadStations();
+        });
+
+        async function loadStations() {
+            try {
+                const response = await fetch(`${API_BASE}/api/stations?limit=200`);
+                const stations = await response.json();
+
+                const select = document.getElementById('stationSelect');
+                select.innerHTML = '';
+
+                stations.forEach(station => {
+                    const option = document.createElement('option');
+                    option.value = station.station_id;
+                    option.textContent = `${station.station_id} - ${station.name_en || station.name_th}`;
+                    select.appendChild(option);
+                });
+
+                // Auto-load first station
+                if (stations.length > 0) {
+                    loadChartData();
+                }
+            } catch (error) {
+                console.error('Failed to load stations:', error);
+                document.getElementById('stationSelect').innerHTML =
+                    '<option value="">Error loading stations</option>';
+            }
+        }
+
+        async function loadChartData() {
+            const stationId = document.getElementById('stationSelect').value;
+            const days = document.getElementById('daysSelect').value;
+
+            if (!stationId) {
+                showError('Please select a station');
+                return;
+            }
+
+            showLoading(true);
+            hideError();
+
+            try {
+                const response = await fetch(
+                    `${API_BASE}/api/aqi/${stationId}/chart?days=${days}&include_imputed=true`
+                );
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                renderChart(data);
+                updateStats(data.statistics);
+                document.getElementById('statsGrid').style.display = 'grid';
+
+            } catch (error) {
+                console.error('Failed to load chart data:', error);
+                showError(`Failed to load data: ${error.message}`);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function renderChart(data) {
+            // Prepare data series - we need to connect imputed values with their neighbors
+            const allData = [];  // Combined data for continuous display
+            const originalData = [];
+            const imputedSegments = [];  // Each segment is a line connecting gap
+
+            // First pass: build all data points
+            for (let i = 0; i < data.series.timestamps.length; i++) {
+                const time = data.series.timestamps[i];
+                const value = data.series.values[i];
+                const isImputed = data.series.is_imputed[i];
+
+                allData.push({
+                    time: time,
+                    value: value,
+                    isImputed: isImputed
+                });
+
+                if (value !== null && !isImputed) {
+                    originalData.push([time, value]);
+                } else {
+                    originalData.push([time, null]);
+                }
+            }
+
+            // Second pass: build imputed line segments (including connecting points)
+            // Find imputed regions and include one point before and after for connection
+            let i = 0;
+            while (i < allData.length) {
+                if (allData[i].isImputed && allData[i].value !== null) {
+                    // Start of an imputed segment
+                    const segment = [];
+
+                    // Add the point before (for connection) if it exists and has value
+                    if (i > 0 && allData[i - 1].value !== null) {
+                        segment.push([allData[i - 1].time, allData[i - 1].value]);
+                    }
+
+                    // Add all consecutive imputed points
+                    while (i < allData.length && allData[i].isImputed && allData[i].value !== null) {
+                        segment.push([allData[i].time, allData[i].value]);
+                        i++;
+                    }
+
+                    // Add the point after (for connection) if it exists and has value
+                    if (i < allData.length && allData[i].value !== null) {
+                        segment.push([allData[i].time, allData[i].value]);
+                    }
+
+                    if (segment.length > 0) {
+                        imputedSegments.push(segment);
+                    }
+                } else {
+                    i++;
+                }
+            }
+
+            // Flatten all imputed segments into one series with null breaks
+            const imputedLineData = [];
+            imputedSegments.forEach((segment, idx) => {
+                segment.forEach(point => {
+                    imputedLineData.push(point);
+                });
+                // Add null to create a break between segments
+                if (idx < imputedSegments.length - 1) {
+                    imputedLineData.push([null, null]);
+                }
+            });
+
+            // Create imputed points for markers (only actual imputed values, not connectors)
+            const imputedMarkers = allData
+                .filter(d => d.isImputed && d.value !== null)
+                .map(d => [d.time, d.value]);
+
+            // Create mark areas for remaining gaps (unfilled)
+            const markAreas = data.gaps.map(gap => [{
+                xAxis: gap.start,
+                itemStyle: {
+                    color: 'rgba(239, 68, 68, 0.15)'
+                }
+            }, {
+                xAxis: gap.end
+            }]);
+
+            const option = {
+                backgroundColor: 'transparent',
+                title: {
+                    text: `PM2.5 Time Series - Station ${data.station_id}`,
+                    left: 'center',
+                    textStyle: {
+                        color: '#f1f5f9',
+                        fontSize: 16,
+                        fontWeight: 600
+                    }
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    textStyle: {
+                        color: '#f1f5f9'
+                    },
+                    formatter: function (params) {
+                        if (!params || params.length === 0) return '';
+
+                        const date = new Date(params[0].axisValue);
+                        const dateStr = date.toLocaleString();
+
+                        let content = `<strong>${dateStr}</strong><br/>`;
+
+                        params.forEach(param => {
+                            if (param.value !== null && param.value[1] !== null) {
+                                const isImputed = param.seriesName.includes('Imputed');
+                                const icon = isImputed ? '🔮' : '📊';
+                                const label = isImputed ? 'LSTM Imputed' : 'Original PM2.5';
+                                content += `${icon} ${label}: <strong>${param.value[1].toFixed(1)} μg/m³</strong><br/>`;
+                            }
+                        });
+
+                        return content;
+                    }
+                },
+                legend: {
+                    data: ['Original PM2.5', 'LSTM Imputed (Filled Gap)'],
+                    bottom: 10,
+                    textStyle: {
+                        color: '#94a3b8'
+                    },
+                    itemWidth: 20,
+                    itemHeight: 12
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%',
+                    top: '15%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'time',
+                    axisLine: {
+                        lineStyle: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    },
+                    axisLabel: {
+                        color: '#94a3b8',
+                        formatter: function (value) {
+                            const date = new Date(value);
+                            return `${date.getMonth() + 1}/${date.getDate()}\n${date.getHours()}:00`;
+                        }
+                    },
+                    splitLine: {
+                        show: true,
+                        lineStyle: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        }
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: 'PM2.5 (μg/m³)',
+                    nameTextStyle: {
+                        color: '#94a3b8'
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    },
+                    axisLabel: {
+                        color: '#94a3b8'
+                    },
+                    splitLine: {
+                        lineStyle: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        }
+                    },
+                    min: 0
+                },
+                dataZoom: [
+                    {
+                        type: 'inside',
+                        start: 0,
+                        end: 100
+                    },
+                    {
+                        type: 'slider',
+                        start: 0,
+                        end: 100,
+                        bottom: '5%',
+                        height: 20,
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        fillerColor: 'rgba(59, 130, 246, 0.2)',
+                        handleStyle: {
+                            color: '#3b82f6'
+                        },
+                        textStyle: {
+                            color: '#94a3b8'
+                        }
+                    }
+                ],
+                series: [
+                    {
+                        name: 'Original PM2.5',
+                        type: 'line',
+                        data: originalData,
+                        smooth: true,
+                        symbol: 'circle',
+                        symbolSize: 3,
+                        lineStyle: {
+                            color: '#3b82f6',
+                            width: 2
+                        },
+                        itemStyle: {
+                            color: '#3b82f6'
+                        },
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: 'rgba(59, 130, 246, 0.2)' },
+                                { offset: 1, color: 'rgba(59, 130, 246, 0.02)' }
+                            ])
+                        },
+                        connectNulls: false,
+                        markArea: {
+                            silent: true,
+                            data: markAreas
+                        },
+                        z: 1
+                    },
+                    {
+                        name: 'LSTM Imputed (Filled Gap)',
+                        type: 'line',
+                        data: imputedLineData,
+                        smooth: true,
+                        symbol: 'circle',
+                        symbolSize: 8,
+                        lineStyle: {
+                            color: '#f59e0b',
+                            width: 3,
+                            type: 'solid'
+                        },
+                        itemStyle: {
+                            color: '#f59e0b',
+                            borderColor: '#fbbf24',
+                            borderWidth: 2
+                        },
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: 'rgba(245, 158, 11, 0.3)' },
+                                { offset: 1, color: 'rgba(245, 158, 11, 0.05)' }
+                            ])
+                        },
+                        emphasis: {
+                            lineStyle: {
+                                width: 4
+                            },
+                            itemStyle: {
+                                shadowBlur: 15,
+                                shadowColor: 'rgba(245, 158, 11, 0.7)'
+                            }
+                        },
+                        connectNulls: false,
+                        z: 10
+                    }
+                ],
+                animation: true,
+                animationDuration: 1000,
+                animationEasing: 'cubicOut'
+            };
+
+            chart.setOption(option, true);
+        }
+
+        function updateStats(stats) {
+            document.getElementById('completenessValue').textContent =
+                `${stats.completeness || 0}%`;
+            document.getElementById('meanValue').textContent =
+                stats.mean !== null ? stats.mean.toFixed(1) : '-';
+            document.getElementById('imputedValue').textContent =
+                stats.imputed_points || 0;
+            document.getElementById('missingValue').textContent =
+                stats.missing_points || 0;
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'flex' : 'none';
+            document.getElementById('aqiChart').style.visibility = show ? 'hidden' : 'visible';
+        }
+
+        function showError(message) {
+            const errorEl = document.getElementById('error');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function refreshData() {
+            loadChartData();
+        }
+    </script>
+</body>
+
+</html>

@@ -410,24 +410,29 @@ class LSTMModelService:
         
         stat = model_path.stat()
         
+        training_info = None
         with get_db_context() as db:
             # Get latest training log
             log = db.query(ModelTrainingLog)\
                 .filter(ModelTrainingLog.station_id == station_id)\
                 .order_by(ModelTrainingLog.created_at.desc())\
                 .first()
+            
+            # Extract data while in session context
+            if log:
+                training_info = {
+                    "model_version": log.model_version,
+                    "val_rmse": log.val_rmse,
+                    "val_mae": log.val_mae,
+                    "training_samples": log.training_samples,
+                }
         
         return {
             "station_id": station_id,
             "model_path": str(model_path),
             "model_size_bytes": stat.st_size,
             "created_at": datetime.fromtimestamp(stat.st_ctime),
-            "training_info": {
-                "model_version": log.model_version if log else None,
-                "val_rmse": log.val_rmse if log else None,
-                "val_mae": log.val_mae if log else None,
-                "training_samples": log.training_samples if log else None,
-            } if log else None
+            "training_info": training_info
         }
 
 

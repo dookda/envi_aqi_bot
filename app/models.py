@@ -2,12 +2,12 @@
 SQLAlchemy ORM models for the AQI data pipeline
 """
 
-from datetime import datetime
+from datetime import datetime as dt
 from typing import Optional
 
 from sqlalchemy import (
     Column, String, Float, Boolean, Integer, 
-    DateTime, Text, ForeignKey, CheckConstraint
+    DateTime, Text, ForeignKey, CheckConstraint, func
 )
 from sqlalchemy.orm import relationship
 
@@ -25,8 +25,8 @@ class Station(Base):
     lat = Column(Float)
     lon = Column(Float)
     station_type = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
     # Relationships
     measurements = relationship("AQIHourly", back_populates="station", cascade="all, delete-orphan")
@@ -45,7 +45,7 @@ class AQIHourly(Base):
     pm25 = Column(Float, nullable=True)
     is_imputed = Column(Boolean, default=False)
     model_version = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=func.now())
     
     # Relationships
     station = relationship("Station", back_populates="measurements")
@@ -67,7 +67,7 @@ class ImputationLog(Base):
     input_window_end = Column(DateTime, nullable=False)
     model_version = Column(String, nullable=False)
     rmse_score = Column(Float, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=func.now())
     
     def __repr__(self):
         return f"<ImputationLog(station={self.station_id}, datetime={self.datetime}, value={self.imputed_value})>"
@@ -89,7 +89,7 @@ class ModelTrainingLog(Base):
     val_mae = Column(Float)
     epochs_completed = Column(Integer)
     training_duration_seconds = Column(Float)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=func.now())
     
     def __repr__(self):
         return f"<ModelTrainingLog(station={self.station_id}, version={self.model_version})>"
@@ -110,7 +110,7 @@ class IngestionLog(Base):
     missing_detected = Column(Integer, default=0)
     status = Column(String, default="running")  # 'running', 'completed', 'failed'
     error_message = Column(Text, nullable=True)
-    started_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime, default=func.now())
     completed_at = Column(DateTime, nullable=True)
     
     __table_args__ = (

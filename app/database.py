@@ -5,7 +5,7 @@ Database connection and session management using SQLAlchemy
 from contextlib import contextmanager
 from typing import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy.pool import QueuePool
 
@@ -68,7 +68,7 @@ def check_database_connection() -> bool:
     """Check if database connection is healthy"""
     try:
         with get_db_context() as db:
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
         logger.info("Database connection successful")
         return True
     except Exception as e:
