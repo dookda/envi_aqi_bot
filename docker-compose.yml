@@ -18,6 +18,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - aqi_network
 
   # API service for data access and model serving
   api:
@@ -28,7 +30,7 @@ services:
     restart: unless-stopped
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-aqi_user}:${POSTGRES_PASSWORD:-aqi_password}@timescaledb:5432/${POSTGRES_DB:-aqi_db}
-      - ENVIRONMENT=development
+      - ENVIRONMENT=${ENVIRONMENT:-development}
     ports:
       - "8000:8000"
     depends_on:
@@ -38,6 +40,33 @@ services:
       - ./app:/app/app
       - ./models:/app/models
       - ./logs:/app/logs
+    networks:
+      - aqi_network
+    # Scale API for higher load
+    # docker compose up --scale api=3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # Frontend served by Nginx (scalable, cacheable)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: aqi_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    networks:
+      - aqi_network
+    # Scale frontend independently
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
   # Scheduler service for automated data ingestion and imputation
   scheduler:
@@ -56,6 +85,13 @@ services:
     volumes:
       - ./models:/app/models
       - ./logs:/app/logs
+    networks:
+      - aqi_network
 
 volumes:
   timescale_data:
+
+
+networks:
+  aqi_network:
+    driver: bridge
