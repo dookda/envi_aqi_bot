@@ -37,6 +37,7 @@ from app.services.imputation import imputation_service
 from app.services.lstm_model import lstm_model_service
 from app.services.validation import validation_service
 from app.services.scheduler import scheduler_service
+from app.services.anomaly import anomaly_service
 
 
 @asynccontextmanager
@@ -451,10 +452,115 @@ async def get_chart_data(
             len(valid_values) / len(data) * 100, 2
         ) if data else 0
     
+    # Add anomaly detection
+    try:
+        anomaly_data = anomaly_service.get_chart_data_with_anomalies(station_id, days)
+        chart_data["anomalies"] = anomaly_data["anomalies"]
+        chart_data["anomaly_timestamps"] = anomaly_data["anomaly_timestamps"]
+        chart_data["statistics"]["anomaly_count"] = anomaly_data["summary"]["anomaly_count"]
+    except Exception as e:
+        logger.warning(f"Failed to detect anomalies for {station_id}: {e}")
+        chart_data["anomalies"] = []
+        chart_data["anomaly_timestamps"] = []
+        chart_data["statistics"]["anomaly_count"] = 0
+    
     return chart_data
 
 
-# ============== Ingestion ==============
+# ============== Anomaly Detection ==============
+
+@app.get("/api/aqi/{station_id}/anomalies", tags=["AQI Data"])
+async def detect_anomalies(
+    station_id: str,
+    days: int = Query(default=7, ge=1, le=90, description="Number of days to analyze"),
+    method: str = Query(default="all", description="Detection method: all, statistical, threshold, rate")
+):
+    """
+    Detect anomalies in PM2.5 data for a station.
+    
+    **Detection Methods:**
+    - `statistical`: Z-score based outlier detection
+    - `threshold`: AQI threshold exceedances (unhealthy levels)
+    - `rate`: Sudden spikes or drops in values
+    - `all`: Combine all methods
+    
+    **Returns:**
+    - List of anomalies with timestamps, values, types, and severity
+    - Summary statistics including anomaly rate
+    """
+    from datetime import datetime, timedelta
+    
+    end_datetime = datetime.now()
+    start_datetime = end_datetime - timedelta(days=days)
+    
+    result = anomaly_service.detect_anomalies(
+        station_id=station_id,
+        start_datetime=start_datetime,
+        end_datetime=end_datetime,
+        method=method
+    )
+    
+    return result
+
+
+@app.get("/api/anomalies/summary", tags=["AQI Data"])
+async def get_anomaly_summary(
+    days: int = Query(default=7, ge=1, le=30, description="Number of days to analyze"),
+    limit: int = Query(default=20, ge=1, le=100, description="Number of stations to check")
+):
+    """
+    Get anomaly summary across all stations.
+    
+    Returns stations with the most anomalies for quick identification
+    of problematic monitoring stations or areas with poor air quality.
+    """
+    from datetime import datetime, timedelta
+    
+    end_datetime = datetime.now()
+    start_datetime = end_datetime - timedelta(days=days)
+    
+    with get_db_context() as db:
+        # Get stations with data
+        stations = db.query(Station).filter(Station.is_active == True).limit(limit).all()
+    
+    results = []
+    for station in stations:
+        try:
+            anomaly_data = anomaly_service.detect_anomalies(
+                station_id=station.station_id,
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                method="all"
+            )
+            
+            if anomaly_data["summary"]["anomaly_count"] > 0:
+                results.append({
+                    "station_id": station.station_id,
+                    "station_name": station.name_en or station.name_th,
+                    "anomaly_count": anomaly_data["summary"]["anomaly_count"],
+                    "anomaly_rate": anomaly_data["summary"]["anomaly_rate"],
+                    "anomaly_types": anomaly_data["summary"]["anomaly_types"],
+                    "max_pm25": anomaly_data["summary"]["max_pm25"],
+                })
+        except Exception as e:
+            logger.warning(f"Error checking anomalies for {station.station_id}: {e}")
+    
+    # Sort by anomaly count descending
+    results.sort(key=lambda x: x["anomaly_count"], reverse=True)
+    
+    return {
+        "period": {
+            "start": start_datetime.isoformat(),
+            "end": end_datetime.isoformat(),
+            "days": days
+        },
+        "stations_analyzed": len(stations),
+        "stations_with_anomalies": len(results),
+        "results": results
+    }
+
+
+
 
 @app.post("/api/ingest/batch", tags=["🚀 Quick Start", "Ingestion"])
 async def start_batch_ingestion(
@@ -581,6 +687,80 @@ async def get_model_info(station_id: str):
         raise HTTPException(status_code=404, detail="Model not found")
     
     return info
+
+
+@app.get("/api/models/status", tags=["Model Training"])
+async def get_all_models_status(
+    db: Session = Depends(get_db),
+    limit: int = Query(default=100, ge=1, le=500)
+):
+    """
+    Get status of all LSTM models and gap-filling capability per station.
+    
+    Returns:
+    - Model availability per station
+    - Training metrics (RMSE, MAE)
+    - Data availability for training
+    - Gap-filling readiness
+    """
+    stations = db.query(Station).filter(Station.is_active == True).limit(limit).all()
+    
+    results = []
+    for station in stations:
+        station_id = station.station_id
+        
+        # Get model info
+        model_info = lstm_model_service.get_model_info(station_id)
+        
+        # Count data points
+        data_count = db.execute(text("""
+            SELECT 
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE pm25 IS NOT NULL) as valid,
+                COUNT(*) FILTER (WHERE is_imputed = TRUE) as imputed,
+                COUNT(*) FILTER (WHERE pm25 IS NULL) as missing
+            FROM aqi_hourly WHERE station_id = :station_id
+        """), {"station_id": station_id}).fetchone()
+        
+        # Determine gap-fill capability
+        has_model = model_info is not None
+        has_enough_data = data_count.valid >= 24 if data_count else False
+        can_gap_fill = has_model and has_enough_data
+        
+        results.append({
+            "station_id": station_id,
+            "station_name": station.name_en or station.name_th,
+            "model_status": {
+                "has_model": has_model,
+                "model_path": model_info.get("model_path") if model_info else None,
+                "created_at": model_info.get("created_at").isoformat() if model_info and model_info.get("created_at") else None,
+                "training_info": model_info.get("training_info") if model_info else None,
+            },
+            "data_status": {
+                "total_points": data_count.total if data_count else 0,
+                "valid_points": data_count.valid if data_count else 0,
+                "imputed_points": data_count.imputed if data_count else 0,
+                "missing_points": data_count.missing if data_count else 0,
+                "has_enough_data": has_enough_data,
+            },
+            "gap_fill_ready": can_gap_fill,
+        })
+    
+    # Summary
+    total_stations = len(results)
+    models_trained = sum(1 for r in results if r["model_status"]["has_model"])
+    gap_fill_ready = sum(1 for r in results if r["gap_fill_ready"])
+    
+    return {
+        "summary": {
+            "total_stations": total_stations,
+            "models_trained": models_trained,
+            "gap_fill_ready": gap_fill_ready,
+            "coverage_percent": round(models_trained / total_stations * 100, 1) if total_stations else 0,
+        },
+        "stations": results
+    }
+
 
 
 @app.get("/api/model/training-logs", response_model=List[ModelTrainingLogResponse], tags=["Model Training"])

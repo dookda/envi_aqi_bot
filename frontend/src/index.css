@@ -6,10 +6,6 @@
    ============================================ */
 
 @theme {
-  /* ==========================================
-     COLOR PALETTE
-     ========================================== */
-
   /* Primary Brand Colors */
   --color-primary-50: #eff6ff;
   --color-primary-100: #dbeafe;
@@ -22,47 +18,21 @@
   --color-primary-800: #1e40af;
   --color-primary-900: #1e3a8a;
 
-  /* Secondary/Accent Colors */
-  --color-secondary-50: #faf5ff;
-  --color-secondary-100: #f3e8ff;
-  --color-secondary-200: #e9d5ff;
-  --color-secondary-300: #d8b4fe;
+  /* Secondary Colors */
   --color-secondary-400: #c084fc;
   --color-secondary-500: #a855f7;
-  --color-secondary-600: #9333ea;
-  --color-secondary-700: #7e22ce;
-  --color-secondary-800: #6b21a8;
-  --color-secondary-900: #581c87;
 
   /* Semantic Colors */
-  --color-success-50: #ecfdf5;
-  --color-success-100: #d1fae5;
-  --color-success-200: #a7f3d0;
-  --color-success-300: #6ee7b7;
   --color-success-400: #34d399;
   --color-success-500: #10b981;
-  --color-success-600: #059669;
-  --color-success-700: #047857;
 
-  --color-warning-50: #fffbeb;
-  --color-warning-100: #fef3c7;
-  --color-warning-200: #fde68a;
-  --color-warning-300: #fcd34d;
   --color-warning-400: #fbbf24;
   --color-warning-500: #f59e0b;
-  --color-warning-600: #d97706;
-  --color-warning-700: #b45309;
 
-  --color-danger-50: #fef2f2;
-  --color-danger-100: #fee2e2;
-  --color-danger-200: #fecaca;
-  --color-danger-300: #fca5a5;
   --color-danger-400: #f87171;
   --color-danger-500: #ef4444;
-  --color-danger-600: #dc2626;
-  --color-danger-700: #b91c1c;
 
-  /* Dark Theme Background Colors */
+  /* Dark Theme Colors */
   --color-dark-950: #030712;
   --color-dark-900: #0f172a;
   --color-dark-800: #1e293b;
@@ -74,128 +44,14 @@
   --color-dark-200: #e2e8f0;
   --color-dark-100: #f1f5f9;
 
-  /* AQI Level Colors (Thailand Standard) */
+  /* AQI Level Colors */
   --color-aqi-excellent: #009966;
-  /* 0-25: Excellent */
   --color-aqi-good: #00e400;
-  /* 26-50: Good */
   --color-aqi-moderate: #ffff00;
-  /* 51-100: Moderate */
   --color-aqi-unhealthy-sensitive: #ff7e00;
-  /* 101-200: Unhealthy for Sensitive */
   --color-aqi-unhealthy: #ff0000;
-  /* 201-300: Unhealthy */
   --color-aqi-very-unhealthy: #8f3f97;
-  /* 301+: Very Unhealthy */
   --color-aqi-hazardous: #7e0023;
-  /* Emergency */
-
-  /* Chart Colors */
-  --color-chart-original: #3b82f6;
-  --color-chart-imputed: #f59e0b;
-  --color-chart-gap: #ef4444;
-  --color-chart-grid: rgba(255, 255, 255, 0.05);
-  --color-chart-axis: rgba(255, 255, 255, 0.1);
-
-  /* ==========================================
-     TYPOGRAPHY
-     ========================================== */
-
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
-
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.25rem;
-  --text-2xl: 1.5rem;
-  --text-3xl: 1.875rem;
-  --text-4xl: 2.25rem;
-  --text-5xl: 3rem;
-
-  --leading-tight: 1.25;
-  --leading-normal: 1.5;
-  --leading-relaxed: 1.75;
-
-  --tracking-tight: -0.025em;
-  --tracking-normal: 0;
-  --tracking-wide: 0.025em;
-
-  /* ==========================================
-     SPACING
-     ========================================== */
-
-  --spacing-0: 0;
-  --spacing-1: 0.25rem;
-  --spacing-2: 0.5rem;
-  --spacing-3: 0.75rem;
-  --spacing-4: 1rem;
-  --spacing-5: 1.25rem;
-  --spacing-6: 1.5rem;
-  --spacing-8: 2rem;
-  --spacing-10: 2.5rem;
-  --spacing-12: 3rem;
-  --spacing-16: 4rem;
-  --spacing-20: 5rem;
-  --spacing-24: 6rem;
-
-  /* ==========================================
-     BORDER RADIUS
-     ========================================== */
-
-  --radius-none: 0;
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
-  --radius-3xl: 1.5rem;
-  --radius-full: 9999px;
-
-  /* ==========================================
-     SHADOWS
-     ========================================== */
-
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
-  --shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
-
-  /* Glow Shadows */
-  --shadow-glow-primary: 0 0 20px rgb(59 130 246 / 0.3);
-  --shadow-glow-success: 0 0 20px rgb(16 185 129 / 0.3);
-  --shadow-glow-warning: 0 0 20px rgb(245 158 11 / 0.3);
-  --shadow-glow-danger: 0 0 20px rgb(239 68 68 / 0.3);
-
-  /* ==========================================
-     TRANSITIONS
-     ========================================== */
-
-  --duration-fast: 150ms;
-  --duration-normal: 300ms;
-  --duration-slow: 500ms;
-
-  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-in: cubic-bezier(0.4, 0, 1, 1);
-  --ease-out: cubic-bezier(0, 0, 0.2, 1);
-  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
-
-  /* ==========================================
-     Z-INDEX SCALE
-     ========================================== */
-
-  --z-dropdown: 100;
-  --z-sticky: 200;
-  --z-fixed: 300;
-  --z-modal-backdrop: 400;
-  --z-modal: 500;
-  --z-popover: 600;
-  --z-tooltip: 700;
-  --z-toast: 800;
 }
 
 /* ============================================
@@ -211,9 +67,12 @@ html {
 }
 
 body {
-  @apply bg-dark-900 text-dark-100 antialiased;
-  font-family: var(--font-sans);
-  line-height: var(--leading-normal);
+  background-color: var(--color-dark-900);
+  color: var(--color-dark-100);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ============================================
@@ -222,34 +81,23 @@ body {
 
 /* Glass Morphism */
 .glass {
-  @apply bg-white/5 backdrop-blur-md border border-white/10;
-}
-
-.glass-dark {
-  @apply bg-dark-900/80 backdrop-blur-md border border-white/5;
-}
-
-/* Cards */
-.card {
-  @apply glass rounded-xl transition-all duration-300;
-}
-
-.card-hover:hover {
-  @apply border-primary-500/50 shadow-lg;
+  background-color: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Gradient Backgrounds */
-.gradient-primary {
-  @apply bg-gradient-to-r from-primary-500 to-secondary-500;
-}
-
 .gradient-dark {
   background: linear-gradient(135deg, var(--color-dark-900) 0%, #1a1a2e 100%);
 }
 
 /* Text Gradients */
 .text-gradient {
-  @apply bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent;
+  background: linear-gradient(90deg, var(--color-primary-400), var(--color-secondary-400));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 /* AQI Badge Styles */
@@ -314,42 +162,6 @@ body {
   }
 }
 
-@keyframes slide-down {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes pulse-glow {
-
-  0%,
-  100% {
-    box-shadow: 0 0 5px var(--shadow-glow-primary);
-  }
-
-  50% {
-    box-shadow: 0 0 25px var(--shadow-glow-primary);
-  }
-}
-
 @keyframes spin {
   from {
     transform: rotate(0deg);
@@ -361,23 +173,11 @@ body {
 }
 
 .animate-fade-in {
-  animation: fade-in var(--duration-normal) var(--ease-out);
+  animation: fade-in 0.3s ease-out;
 }
 
 .animate-slide-up {
-  animation: slide-up var(--duration-normal) var(--ease-out);
-}
-
-.animate-slide-down {
-  animation: slide-down var(--duration-normal) var(--ease-out);
-}
-
-.animate-scale-in {
-  animation: scale-in var(--duration-normal) var(--ease-out);
-}
-
-.animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+  animation: slide-up 0.3s ease-out;
 }
 
 .animate-spin {
@@ -399,7 +199,7 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: var(--color-dark-600);
-  border-radius: var(--radius-full);
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -411,17 +211,34 @@ body {
    ============================================ */
 
 .maplibregl-popup-content {
-  @apply bg-dark-800 text-white rounded-lg shadow-xl border border-white/10 p-3;
+  background: var(--color-dark-800) !important;
+  color: white !important;
+  border-radius: 8px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px;
 }
 
 .maplibregl-popup-close-button {
-  @apply text-white hover:text-primary-400;
+  color: white;
+}
+
+.maplibregl-popup-close-button:hover {
+  color: var(--color-primary-400);
 }
 
 .maplibregl-ctrl-group {
-  @apply bg-dark-800 border border-white/10 rounded-lg overflow-hidden;
+  background: var(--color-dark-800) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
 }
 
 .maplibregl-ctrl-group button {
-  @apply bg-dark-800 text-white hover:bg-dark-700;
+  background: var(--color-dark-800) !important;
+  color: white;
+}
+
+.maplibregl-ctrl-group button:hover {
+  background: var(--color-dark-700) !important;
 }
