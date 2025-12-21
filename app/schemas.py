@@ -189,3 +189,45 @@ class HealthResponse(BaseModel):
     database: str
     version: str
     environment: str
+
+
+# AQI History Endpoint Schemas (for AI Layer)
+class AQIHistoryDataPoint(BaseModel):
+    """Single data point in AQI history response"""
+    time: str  # ISO-8601 datetime
+    value: Optional[float] = None
+
+
+class AQIHistoryRequest(BaseModel):
+    """Request for AQI history data"""
+    station_id: str
+    pollutant: str = Field(default="pm25", description="pm25 | pm10 | aqi | o3 | no2 | so2 | co")
+    start_date: datetime
+    end_date: datetime
+    interval: str = Field(default="15min", description="15min | hour | day")
+
+
+# AI Chat Schemas
+class ChatQueryRequest(BaseModel):
+    """Natural language query for air quality data"""
+    query: str = Field(..., max_length=300, description="Natural language query in Thai or English")
+
+
+class ChatIntent(BaseModel):
+    """Parsed intent from LLM"""
+    station_id: str
+    pollutant: str = Field(description="pm25 | pm10 | aqi | o3 | no2 | so2 | co")
+    start_date: str = Field(description="ISO-8601 datetime")
+    end_date: str = Field(description="ISO-8601 datetime")
+    interval: str = Field(description="15min | hour | day")
+    output_type: str = Field(description="text | chart | map | infographic")
+
+
+class ChatResponse(BaseModel):
+    """Response from AI chat endpoint"""
+    status: str  # success | out_of_scope | invalid_request | error
+    message: Optional[str] = None
+    intent: Optional[ChatIntent] = None
+    data: Optional[List[AQIHistoryDataPoint]] = None
+    summary: Optional[dict] = None
+    output_type: Optional[str] = None

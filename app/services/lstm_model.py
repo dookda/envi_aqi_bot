@@ -301,6 +301,16 @@ class LSTMModelService:
             train_mae = np.mean(np.abs(y_train - train_pred))
             val_mae = np.mean(np.abs(y_val - val_pred))
             
+            # Calculate R² (coefficient of determination)
+            # R² = 1 - (SS_res / SS_tot)
+            ss_res_val = np.sum((y_val - val_pred) ** 2)
+            ss_tot_val = np.sum((y_val - np.mean(y_val)) ** 2)
+            val_r2 = 1 - (ss_res_val / ss_tot_val) if ss_tot_val > 0 else 0.0
+            
+            ss_res_train = np.sum((y_train - train_pred) ** 2)
+            ss_tot_train = np.sum((y_train - np.mean(y_train)) ** 2)
+            train_r2 = 1 - (ss_res_train / ss_tot_train) if ss_tot_train > 0 else 0.0
+            
             training_duration = time.time() - start_time
             epochs_completed = len(history.history['loss'])
             
@@ -314,15 +324,20 @@ class LSTMModelService:
                 val_rmse=float(val_rmse),
                 train_mae=float(train_mae),
                 val_mae=float(val_mae),
+                train_r2=float(train_r2),
+                val_r2=float(val_r2),
                 epochs_completed=epochs_completed,
                 training_duration_seconds=training_duration
             )
             db.add(training_log)
             db.commit()
             
+            # Convert R² to percentage for logging
+            accuracy_percent = val_r2 * 100
+            
             logger.bind(context="imputation").info(
                 f"Training completed for {station_id}: "
-                f"RMSE={val_rmse:.4f}, MAE={val_mae:.4f}, "
+                f"RMSE={val_rmse:.4f}, MAE={val_mae:.4f}, R²={val_r2:.4f} ({accuracy_percent:.1f}%), "
                 f"epochs={epochs_completed}, time={training_duration:.1f}s"
             )
             
@@ -336,6 +351,9 @@ class LSTMModelService:
                 "val_rmse": float(val_rmse),
                 "train_mae": float(train_mae),
                 "val_mae": float(val_mae),
+                "train_r2": float(train_r2),
+                "val_r2": float(val_r2),
+                "accuracy_percent": round(val_r2 * 100, 2),
                 "epochs_completed": epochs_completed,
                 "training_duration_seconds": training_duration
             }
@@ -420,10 +438,13 @@ class LSTMModelService:
             
             # Extract data while in session context
             if log:
+                val_r2 = log.val_r2 if hasattr(log, 'val_r2') and log.val_r2 is not None else None
                 training_info = {
                     "model_version": log.model_version,
                     "val_rmse": log.val_rmse,
                     "val_mae": log.val_mae,
+                    "val_r2": val_r2,
+                    "accuracy_percent": round(val_r2 * 100, 1) if val_r2 is not None else None,
                     "training_samples": log.training_samples,
                 }
         

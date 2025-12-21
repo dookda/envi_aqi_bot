@@ -144,8 +144,8 @@ export default function Models() {
                                     key={opt.value}
                                     onClick={() => setFilter(opt.value)}
                                     className={`px-4 py-2 rounded-lg transition ${filter === opt.value
-                                            ? 'bg-primary-500 text-white'
-                                            : 'bg-dark-700 text-dark-300 hover:bg-dark-600'
+                                        ? 'bg-primary-500 text-white'
+                                        : 'bg-dark-700 text-dark-300 hover:bg-dark-600'
                                         }`}
                                 >
                                     {opt.label}
@@ -191,6 +191,29 @@ export default function Models() {
 
                                 {station.model_status.training_info && (
                                     <>
+                                        {/* Accuracy (R²) - Most prominent */}
+                                        {station.model_status.training_info.accuracy_percent != null && (
+                                            <div className="flex justify-between text-sm mb-2">
+                                                <span className="text-dark-400">Accuracy (R²):</span>
+                                                <span className={`font-bold ${station.model_status.training_info.accuracy_percent >= 80
+                                                    ? 'text-success-400'
+                                                    : station.model_status.training_info.accuracy_percent >= 60
+                                                        ? 'text-warning-400'
+                                                        : 'text-danger-400'
+                                                    }`}>
+                                                    {station.model_status.training_info.accuracy_percent.toFixed(1)}%
+                                                </span>
+                                            </div>
+                                        )}
+                                        {/* Validation R² Raw Value */}
+                                        {station.model_status.training_info.val_r2 != null && (
+                                            <div className="flex justify-between text-sm">
+                                                <span className="text-dark-400">R² Score:</span>
+                                                <span className="text-white">
+                                                    {station.model_status.training_info.val_r2.toFixed(4)}
+                                                </span>
+                                            </div>
+                                        )}
                                         <div className="flex justify-between text-sm">
                                             <span className="text-dark-400">RMSE:</span>
                                             <span className="text-primary-400">

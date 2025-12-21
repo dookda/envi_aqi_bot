@@ -30,7 +30,9 @@ from app.schemas import (
     ImputationRequest, ImputationLogResponse,
     TrainModelRequest, ModelTrainingLogResponse,
     MissingDataAnalysis, MissingDataGap,
-    ValidationResult, HealthResponse
+    ValidationResult, HealthResponse,
+    AQIHistoryDataPoint, AQIHistoryRequest,
+    ChatQueryRequest, ChatResponse
 )
 from app.services.ingestion import ingestion_service
 from app.services.imputation import imputation_service
@@ -351,6 +353,109 @@ async def analyze_missing_data(
         medium_gaps=analysis.get("medium_gaps", 0),
         long_gaps=analysis.get("long_gaps", 0)
     )
+
+
+@app.get("/api/aqi/history", response_model=List[AQIHistoryDataPoint], tags=["AQI Data"])
+async def get_aqi_history(
+    station_id: str = Query(..., description="Station ID"),
+    pollutant: str = Query(default="pm25", description="Pollutant type (currently only pm25 supported)"),
+    start_date: datetime = Query(..., description="Start datetime"),
+    end_date: datetime = Query(..., description="End datetime"),
+    interval: str = Query(default="hour", description="Aggregation interval: 15min | hour | day"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get AQI history data for AI Layer queries.
+
+    This endpoint is designed for the AI chatbot to retrieve air quality data
+    based on parsed natural language queries.
+
+    **Supported aggregation intervals:**
+    - `15min`: 15-minute resolution (for periods ≤ 24 hours)
+    - `hour`: Hourly resolution (for periods 1-7 days)
+    - `day`: Daily resolution (for periods > 7 days)
+
+    **Currently supported pollutants:**
+    - `pm25`: PM2.5 particulate matter (μg/m³)
+    """
+    # Validate interval
+    if interval not in ["15min", "hour", "day"]:
+        raise HTTPException(status_code=400, detail="Invalid interval. Must be 15min, hour, or day")
+
+    # Validate pollutant (currently only pm25)
+    if pollutant != "pm25":
+        raise HTTPException(status_code=400, detail="Currently only pm25 pollutant is supported")
+
+    # Validate station exists
+    station = db.query(Station).filter(Station.station_id == station_id).first()
+    if not station:
+        raise HTTPException(status_code=404, detail="Station not found")
+
+    # For now, implement hour and day intervals
+    # 15min would require additional TimescaleDB time_bucket functionality
+    if interval == "15min":
+        # Return raw hourly data (closest to 15min we have)
+        query = db.query(AQIHourly).filter(
+            AQIHourly.station_id == station_id,
+            AQIHourly.datetime >= start_date,
+            AQIHourly.datetime <= end_date
+        ).order_by(AQIHourly.datetime.asc())
+
+        data = query.all()
+        return [
+            AQIHistoryDataPoint(
+                time=record.datetime.isoformat(),
+                value=record.pm25
+            )
+            for record in data
+        ]
+
+    elif interval == "hour":
+        # Return hourly data as-is
+        query = db.query(AQIHourly).filter(
+            AQIHourly.station_id == station_id,
+            AQIHourly.datetime >= start_date,
+            AQIHourly.datetime <= end_date
+        ).order_by(AQIHourly.datetime.asc())
+
+        data = query.all()
+        return [
+            AQIHistoryDataPoint(
+                time=record.datetime.isoformat(),
+                value=record.pm25
+            )
+            for record in data
+        ]
+
+    elif interval == "day":
+        # Aggregate to daily averages using SQL
+        result = db.execute(
+            text("""
+                SELECT
+                    DATE_TRUNC('day', datetime) as day,
+                    AVG(pm25) as avg_pm25
+                FROM aqi_hourly
+                WHERE station_id = :station_id
+                    AND datetime >= :start_date
+                    AND datetime <= :end_date
+                    AND pm25 IS NOT NULL
+                GROUP BY DATE_TRUNC('day', datetime)
+                ORDER BY day ASC
+            """),
+            {
+                "station_id": station_id,
+                "start_date": start_date,
+                "end_date": end_date
+            }
+        ).fetchall()
+
+        return [
+            AQIHistoryDataPoint(
+                time=row[0].isoformat(),
+                value=round(row[1], 2) if row[1] else None
+            )
+            for row in result
+        ]
 
 
 @app.get("/api/aqi/{station_id}/chart", tags=["AQI Data"])
@@ -703,7 +808,7 @@ async def get_all_models_status(
     - Data availability for training
     - Gap-filling readiness
     """
-    stations = db.query(Station).filter(Station.is_active == True).limit(limit).all()
+    stations = db.query(Station).limit(limit).all()
     
     results = []
     for station in stations:

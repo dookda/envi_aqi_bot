@@ -87,12 +87,15 @@ class ModelTrainingLog(Base):
     val_rmse = Column(Float)
     train_mae = Column(Float)
     val_mae = Column(Float)
+    train_r2 = Column(Float)  # R² for training data
+    val_r2 = Column(Float)    # R² for validation data (accuracy %)
     epochs_completed = Column(Integer)
     training_duration_seconds = Column(Float)
     created_at = Column(DateTime, default=func.now())
     
     def __repr__(self):
         return f"<ModelTrainingLog(station={self.station_id}, version={self.model_version})>"
+
 
 
 class IngestionLog(Base):
