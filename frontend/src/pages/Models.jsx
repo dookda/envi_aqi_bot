@@ -3,7 +3,7 @@
  * Shows LSTM model status and gap-fill availability for each station
  */
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Button, Card, Badge, Spinner } from '../components/atoms'
 import { StatCard } from '../components/molecules'
 import { Navbar } from '../components/organisms'
@@ -18,6 +18,7 @@ export default function Models() {
 
     const { t } = useLanguage()
     const { isLight } = useTheme()
+    const navigate = useNavigate()
 
     const fetchModelsStatus = async () => {
         try {
@@ -272,7 +273,7 @@ export default function Models() {
                                 <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => window.location.href = `/?station=${station.station_id}`}
+                                    onClick={() => navigate(`/?station=${station.station_id}`)}
                                     className="flex-1"
                                 >
                                     {t('models.viewChart')}
