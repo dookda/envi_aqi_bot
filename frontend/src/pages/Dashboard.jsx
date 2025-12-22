@@ -3,6 +3,7 @@
  * Main dashboard with map and chart
  */
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { Button, Select, Card } from '../components/atoms'
 import { StatCard, StationSelector } from '../components/molecules'
 import { AQIChart, StationMap, Navbar } from '../components/organisms'
@@ -51,18 +52,18 @@ export default function Dashboard() {
                 title={t('dashboard.title')}
                 subtitle={t('dashboard.subtitle')}
             >
-                <a
-                    href="/chat"
+                <Link
+                    to="/chat"
                     className={`transition text-sm ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
                     {t('dashboard.aiChat')}
-                </a>
-                <a
-                    href="/models"
+                </Link>
+                <Link
+                    to="/models"
                     className={`transition text-sm ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
                     {t('dashboard.modelsStatus')}
-                </a>
+                </Link>
                 <label className={`flex items-center gap-2 text-sm cursor-pointer ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
                     <input
                         type="checkbox"

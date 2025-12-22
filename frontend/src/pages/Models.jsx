@@ -3,6 +3,7 @@
  * Shows LSTM model status and gap-fill availability for each station
  */
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { Button, Card, Badge, Spinner } from '../components/atoms'
 import { StatCard } from '../components/molecules'
 import { Navbar } from '../components/organisms'
@@ -82,12 +83,12 @@ export default function Models() {
                 title={t('models.title')}
                 subtitle={t('models.subtitle')}
             >
-                <a
-                    href="/"
+                <Link
+                    to="/"
                     className={`transition ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
                     {t('models.backToDashboard')}
-                </a>
+                </Link>
                 <Button
                     onClick={handleTrainAll}
                     loading={trainingStation === 'all'}

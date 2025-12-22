@@ -5,6 +5,7 @@
  * Supports Thai and English queries
  */
 import { useState, useRef, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { Button, Card } from '../components/atoms'
 import { Navbar } from '../components/organisms'
 import { useChat } from '../hooks'
@@ -47,18 +48,18 @@ export default function Chat() {
                 title={t('chat.title')}
                 subtitle={t('chat.subtitle')}
             >
-                <a
-                    href="/"
+                <Link
+                    to="/"
                     className={`transition text-sm ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
                     {t('chat.dashboard')}
-                </a>
-                <a
-                    href="/models"
+                </Link>
+                <Link
+                    to="/models"
                     className={`transition text-sm ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
                     {t('chat.models')}
-                </a>
+                </Link>
             </Navbar>
 
             <main className="max-w-5xl mx-auto px-4 py-6">
