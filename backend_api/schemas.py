@@ -214,20 +214,61 @@ class ChatQueryRequest(BaseModel):
 
 
 class ChatIntent(BaseModel):
-    """Parsed intent from LLM"""
-    station_id: str
-    pollutant: str = Field(description="pm25 | pm10 | aqi | o3 | no2 | so2 | co")
-    start_date: str = Field(description="ISO-8601 datetime")
-    end_date: str = Field(description="ISO-8601 datetime")
-    interval: str = Field(description="15min | hour | day")
-    output_type: str = Field(description="text | chart | map | infographic")
+    """Parsed intent from LLM - supports both data queries and search queries"""
+    intent_type: Optional[str] = Field(default="get_data", description="search_stations | get_data")
+    # For search_stations intent
+    search_query: Optional[str] = Field(default=None, description="Location search query")
+    # For get_data intent
+    station_id: Optional[str] = Field(default=None, description="Station ID or name")
+    pollutant: Optional[str] = Field(default=None, description="pm25 | pm10 | aqi | o3 | no2 | so2 | co")
+    start_date: Optional[str] = Field(default=None, description="ISO-8601 datetime")
+    end_date: Optional[str] = Field(default=None, description="ISO-8601 datetime")
+    interval: Optional[str] = Field(default=None, description="15min | hour | day")
+    output_type: Optional[str] = Field(default=None, description="text | chart | map | infographic")
 
 
 class ChatResponse(BaseModel):
     """Response from AI chat endpoint"""
     status: str  # success | out_of_scope | invalid_request | error
     message: Optional[str] = None
-    intent: Optional[ChatIntent] = None
-    data: Optional[List[AQIHistoryDataPoint]] = None
+    intent: Optional[dict] = None  # Changed to dict to support both intent types
+    data: Optional[List] = None  # Changed to generic List to support both data types
     summary: Optional[dict] = None
     output_type: Optional[str] = None
+
+
+
+# Station Search Schemas
+class StationSearchRequest(BaseModel):
+    """Request to search for stations by name or location"""
+    query: str = Field(..., max_length=100, description="Search query (e.g., 'Chiang Mai', 'เชียงใหม่')")
+    include_summary: bool = Field(default=True, description="Include recent AQI summary for each station")
+
+
+class StationSummary(BaseModel):
+    """Summary of station with recent AQI data"""
+    station_id: str
+    name_th: Optional[str] = None
+    name_en: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    station_type: Optional[str] = None
+    # Recent data summary
+    latest_pm25: Optional[float] = None
+    latest_datetime: Optional[str] = None
+    avg_pm25_24h: Optional[float] = None
+    avg_pm25_7d: Optional[float] = None
+    min_pm25_7d: Optional[float] = None
+    max_pm25_7d: Optional[float] = None  
+    aqi_level: Optional[str] = None
+    trend_7d: Optional[str] = None
+    data_completeness_7d: Optional[float] = None
+    total_records: Optional[int] = None
+
+
+class StationSearchResponse(BaseModel):
+    """Response from station search"""
+    query: str
+    total_found: int
+    stations: List[StationSummary]
+    search_summary: Optional[str] = None

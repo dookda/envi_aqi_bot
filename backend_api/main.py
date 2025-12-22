@@ -234,6 +234,47 @@ async def list_stations(
     return stations
 
 
+@app.get("/api/stations/search", tags=["Stations", "AI Chat"])
+async def search_stations(
+    query: str = Query(..., description="Search query (e.g., 'Chiang Mai', 'เชียงใหม่', 'Bangkok')"),
+    include_summary: bool = Query(default=True, description="Include recent AQI summary for each station")
+):
+    """
+    Search for air quality monitoring stations by location name.
+
+    **Supports Thai and English queries:**
+    - "Chiang Mai" / "เชียงใหม่"
+    - "Bangkok" / "กรุงเทพ"
+    - Any station ID or partial name
+
+    **Returns:**
+    - List of matching stations with metadata
+    - Recent AQI summary (7-day average, trend, AQI level) if `include_summary=true`
+    - Overall search summary
+
+    **Example:**
+    ```
+    GET /api/stations/search?query=Chiang%20Mai
+    ```
+    """
+    from backend_api.services.ai.orchestrator import get_api_orchestrator
+    
+    orchestrator = get_api_orchestrator()
+    
+    if include_summary:
+        result = await orchestrator.search_stations_with_summary(query)
+    else:
+        stations = orchestrator.search_stations(query)
+        result = {
+            "query": query,
+            "total_found": len(stations),
+            "stations": stations,
+            "search_summary": f"Found {len(stations)} station(s) matching '{query}'"
+        }
+    
+    return result
+
+
 @app.get("/api/stations/{station_id}", response_model=StationWithStats, tags=["Stations"])
 async def get_station(station_id: str, db: Session = Depends(get_db)):
     """Get station details with data statistics (total records, missing, imputed)"""
@@ -1146,6 +1187,12 @@ async def chat_query(request: ChatQueryRequest):
     - "คุณภาพอากาศวันนี้ที่กรุงเทพฯ"
     - "Air quality today in Chiang Mai"
 
+    **NEW: Station Search Queries:**
+    - "Search for Chiang Mai stations"
+    - "ค้นหาสถานีเชียงใหม่"
+    - "List stations in Bangkok"
+    - "Show me stations"
+
     **Three-Layer Guardrails:**
     1. Keyword filter (pre-LLM) - Rejects non-air-quality queries
     2. Domain-restricted prompt - LLM only handles air quality
@@ -1159,8 +1206,8 @@ async def chat_query(request: ChatQueryRequest):
 
     **Response includes:**
     - `intent`: Parsed query parameters
-    - `data`: Time-series data points
-    - `summary`: Statistics (min, max, mean, trend, AQI level)
+    - `data`: Time-series data points OR station search results
+    - `summary`: Statistics (min, max, mean, trend, AQI level) OR search summary
     - `output_type`: Presentation hint (text, chart, map, infographic)
     """
     try:

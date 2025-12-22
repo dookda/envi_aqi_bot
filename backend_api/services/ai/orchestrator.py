@@ -173,6 +173,30 @@ class APIOrchestrator:
                     logger.info(f"Resolved '{station_name_or_id}' to station_id: {station.station_id}")
                     return station.station_id
 
+                # Try without spaces (e.g., "Chiang Mai" -> "Chiangmai")
+                normalized = station_name_or_id.replace(" ", "")
+                station = db.query(Station).filter(
+                    (Station.name_th.ilike(f"%{normalized}%")) |
+                    (Station.name_en.ilike(f"%{normalized}%"))
+                ).first()
+
+                if station:
+                    logger.info(f"Resolved '{station_name_or_id}' (normalized) to station_id: {station.station_id}")
+                    return station.station_id
+
+                # Try individual words for multi-word names
+                words = station_name_or_id.split()
+                if len(words) > 1:
+                    for word in words:
+                        if len(word) >= 3:  # Only search for words with 3+ chars
+                            station = db.query(Station).filter(
+                                (Station.name_th.ilike(f"%{word}%")) |
+                                (Station.name_en.ilike(f"%{word}%"))
+                            ).first()
+                            if station:
+                                logger.info(f"Resolved '{station_name_or_id}' (word '{word}') to station_id: {station.station_id}")
+                                return station.station_id
+
                 logger.warning(f"Could not resolve station: {station_name_or_id}")
                 return None
 
@@ -203,6 +227,253 @@ class APIOrchestrator:
         except Exception as e:
             logger.error(f"Error fetching stations: {e}")
             return []
+
+    def search_stations(self, query: str) -> List[Dict[str, Any]]:
+        """
+        Search for stations matching a query string (supports Thai/English)
+        
+        Args:
+            query: Search query (e.g., 'Chiang Mai', 'เชียงใหม่')
+            
+        Returns:
+            List of matching stations with basic info
+        """
+        try:
+            with get_db_context() as db:
+                # Fuzzy search on Thai and English names
+                stations = db.query(Station).filter(
+                    (Station.name_th.ilike(f"%{query}%")) |
+                    (Station.name_en.ilike(f"%{query}%")) |
+                    (Station.station_id.ilike(f"%{query}%"))
+                ).all()
+                
+                logger.info(f"Found {len(stations)} stations matching '{query}'")
+                
+                return [
+                    {
+                        "station_id": s.station_id,
+                        "name_th": s.name_th,
+                        "name_en": s.name_en,
+                        "lat": s.lat,
+                        "lon": s.lon,
+                        "station_type": s.station_type
+                    }
+                    for s in stations
+                ]
+        except Exception as e:
+            logger.error(f"Error searching stations: {e}")
+            return []
+
+    def get_station_summary(self, station_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get comprehensive summary of a station including recent AQI data
+        
+        Args:
+            station_id: Station identifier
+            
+        Returns:
+            Station summary with recent AQI statistics
+        """
+        from datetime import datetime, timedelta
+        
+        try:
+            with get_db_context() as db:
+                # Get station info
+                station = db.query(Station).filter(
+                    Station.station_id == station_id
+                ).first()
+                
+                if not station:
+                    return None
+                
+                now = datetime.now()
+                last_24h = now - timedelta(hours=24)
+                last_7d = now - timedelta(days=7)
+                
+                # Get latest reading
+                from backend_model.models import AQIHourly
+                latest = db.query(AQIHourly).filter(
+                    AQIHourly.station_id == station_id,
+                    AQIHourly.pm25.isnot(None)
+                ).order_by(AQIHourly.datetime.desc()).first()
+                
+                # Get 24-hour average
+                result_24h = db.execute(
+                    text("""
+                        SELECT AVG(pm25), COUNT(*) 
+                        FROM aqi_hourly 
+                        WHERE station_id = :station_id 
+                            AND datetime >= :start_date 
+                            AND pm25 IS NOT NULL
+                    """),
+                    {"station_id": station_id, "start_date": last_24h}
+                ).first()
+                
+                # Get 7-day statistics
+                result_7d = db.execute(
+                    text("""
+                        SELECT 
+                            AVG(pm25) as avg_pm25,
+                            MIN(pm25) as min_pm25,
+                            MAX(pm25) as max_pm25,
+                            COUNT(*) as valid_count
+                        FROM aqi_hourly 
+                        WHERE station_id = :station_id 
+                            AND datetime >= :start_date 
+                            AND pm25 IS NOT NULL
+                    """),
+                    {"station_id": station_id, "start_date": last_7d}
+                ).first()
+                
+                # Get total expected hours in 7 days (168 hours)
+                total_records = db.execute(
+                    text("""
+                        SELECT COUNT(*) FROM aqi_hourly 
+                        WHERE station_id = :station_id
+                    """),
+                    {"station_id": station_id}
+                ).scalar() or 0
+                
+                # Calculate trend (compare first half vs second half of 7 days)
+                trend = "insufficient_data"
+                if result_7d and result_7d[3] and result_7d[3] >= 48:  # At least 2 days of data
+                    mid_point = now - timedelta(days=3.5)
+                    
+                    first_half = db.execute(
+                        text("""
+                            SELECT AVG(pm25) FROM aqi_hourly 
+                            WHERE station_id = :station_id 
+                                AND datetime >= :start_date 
+                                AND datetime < :mid_date
+                                AND pm25 IS NOT NULL
+                        """),
+                        {"station_id": station_id, "start_date": last_7d, "mid_date": mid_point}
+                    ).scalar()
+                    
+                    second_half = db.execute(
+                        text("""
+                            SELECT AVG(pm25) FROM aqi_hourly 
+                            WHERE station_id = :station_id 
+                                AND datetime >= :mid_date 
+                                AND pm25 IS NOT NULL
+                        """),
+                        {"station_id": station_id, "mid_date": mid_point}
+                    ).scalar()
+                    
+                    if first_half and second_half:
+                        if second_half > first_half * 1.1:
+                            trend = "increasing"
+                        elif second_half < first_half * 0.9:
+                            trend = "decreasing"
+                        else:
+                            trend = "stable"
+                
+                # Calculate AQI level based on average PM2.5
+                aqi_level = "unknown"
+                avg_pm25 = result_7d[0] if result_7d else None
+                if avg_pm25:
+                    avg_pm25 = round(avg_pm25, 2)
+                    if avg_pm25 <= 25:
+                        aqi_level = "excellent"
+                    elif avg_pm25 <= 50:
+                        aqi_level = "good"
+                    elif avg_pm25 <= 100:
+                        aqi_level = "moderate"
+                    elif avg_pm25 <= 200:
+                        aqi_level = "unhealthy_sensitive"
+                    else:
+                        aqi_level = "unhealthy"
+                
+                # Calculate data completeness (7 days = 168 hours)
+                valid_count_7d = result_7d[3] if result_7d else 0
+                completeness = round((valid_count_7d / 168) * 100, 1) if valid_count_7d else 0
+                
+                return {
+                    "station_id": station.station_id,
+                    "name_th": station.name_th,
+                    "name_en": station.name_en,
+                    "lat": station.lat,
+                    "lon": station.lon,
+                    "station_type": station.station_type,
+                    "latest_pm25": round(latest.pm25, 2) if latest and latest.pm25 else None,
+                    "latest_datetime": latest.datetime.isoformat() if latest else None,
+                    "avg_pm25_24h": round(result_24h[0], 2) if result_24h and result_24h[0] else None,
+                    "avg_pm25_7d": avg_pm25,
+                    "min_pm25_7d": round(result_7d[1], 2) if result_7d and result_7d[1] else None,
+                    "max_pm25_7d": round(result_7d[2], 2) if result_7d and result_7d[2] else None,
+                    "aqi_level": aqi_level,
+                    "trend_7d": trend,
+                    "data_completeness_7d": completeness,
+                    "total_records": total_records
+                }
+                
+        except Exception as e:
+            logger.error(f"Error getting station summary: {e}")
+            return None
+
+    async def search_stations_with_summary(self, query: str) -> Dict[str, Any]:
+        """
+        Search for stations and include AQI summary for each
+        
+        Args:
+            query: Search query string
+            
+        Returns:
+            Search results with station summaries
+        """
+        stations = self.search_stations(query)
+        
+        if not stations:
+            return {
+                "query": query,
+                "total_found": 0,
+                "stations": [],
+                "search_summary": f"No stations found matching '{query}'"
+            }
+        
+        # Get summary for each station
+        summaries = []
+        for station in stations:
+            summary = self.get_station_summary(station["station_id"])
+            if summary:
+                summaries.append(summary)
+        
+        # Generate search summary text
+        if summaries:
+            avg_pm25_values = [s["avg_pm25_7d"] for s in summaries if s.get("avg_pm25_7d")]
+            overall_avg = round(sum(avg_pm25_values) / len(avg_pm25_values), 2) if avg_pm25_values else None
+            
+            max_pm25 = max([s.get("max_pm25_7d", 0) or 0 for s in summaries])
+            min_pm25 = min([s.get("min_pm25_7d", 999) or 999 for s in summaries])
+            
+            # Determine overall AQI level
+            overall_aqi = "unknown"
+            if overall_avg:
+                if overall_avg <= 25:
+                    overall_aqi = "excellent"
+                elif overall_avg <= 50:
+                    overall_aqi = "good"
+                elif overall_avg <= 100:
+                    overall_aqi = "moderate"
+                elif overall_avg <= 200:
+                    overall_aqi = "unhealthy for sensitive groups"
+                else:
+                    overall_aqi = "unhealthy"
+            
+            search_summary = (
+                f"Found {len(summaries)} station(s) matching '{query}'. "
+                f"7-day average PM2.5: {overall_avg or 'N/A'} μg/m³ (AQI Level: {overall_aqi}). "
+                f"Range: {min_pm25 if min_pm25 != 999 else 'N/A'} - {max_pm25 or 'N/A'} μg/m³."
+            )
+        else:
+            search_summary = f"Found {len(stations)} station(s) matching '{query}', but no recent data available."
+        
+        return {
+            "query": query,
+            "total_found": len(summaries),
+            "stations": summaries,
+            "search_summary": search_summary
+        }
 
     async def close(self):
         """Close HTTP client"""

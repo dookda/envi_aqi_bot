@@ -27,6 +27,12 @@ AIR_QUALITY_KEYWORDS = [
     "dust",
     "particulate",
     "pollutant",
+    # Search/info related
+    "station", "stations",
+    "search", "find", "list", "show",
+    "chiang mai", "เชียงใหม่",
+    "bangkok", "กรุงเทพ",
+    "information", "info", "summary",
 
     # Thai
     "คุณภาพอากาศ",
@@ -37,6 +43,9 @@ AIR_QUALITY_KEYWORDS = [
     "ค่า pm",
     "พีเอ็ม",
     "สถานี",
+    "ค้นหา",
+    "แสดง",
+    "ข้อมูล",
 ]
 
 
@@ -79,6 +88,7 @@ You are allowed to handle ONLY:
 - Monitoring stations
 - Historical or aggregated air quality information
 - Data intended for charts, maps, or infographics
+- Searching for stations by location (e.g., "Chiang Mai", "Bangkok")
 
 Your task is to parse the user's natural language query into a structured JSON format.
 
@@ -87,8 +97,16 @@ If the query is not related to air quality, return ONLY:
   "status": "out_of_scope"
 }}
 
-If the query is related to air quality, extract the following information and return as JSON:
+**For STATION SEARCH queries** (e.g., "search for Chiang Mai stations", "list stations in Bangkok", "show me stations"):
 {{
+  "intent_type": "search_stations",
+  "search_query": "<location name or station keyword>",
+  "output_type": "text"
+}}
+
+**For AIR QUALITY DATA queries** (e.g., "PM2.5 in Chiang Mai", "air quality last week"):
+{{
+  "intent_type": "get_data",
   "station_id": "<station_id or station name>",
   "pollutant": "<pm25|pm10|aqi|o3|no2|so2|co>",
   "start_date": "<ISO-8601 datetime>",
@@ -98,25 +116,28 @@ If the query is related to air quality, extract the following information and re
 }}
 
 IMPORTANT RULES:
-1. Convert relative time expressions to absolute ISO-8601 datetimes
-   - "ย้อนหลัง 7 วัน" = last 7 days from now
-   - "เมื่อวาน" = yesterday
-   - "วันนี้" = today
+1. Determine the intent_type first:
+   - If user asks to "search", "find", "list", "show stations", use "search_stations"
+   - If user asks for specific data (PM2.5, AQI, etc.) over time, use "get_data"
 
-2. For Thai station names, try to identify the station_id:
-   - "เชียงใหม่" = try to find Chiang Mai station
-   - If unsure, use the Thai name as station_id
+2. For search_stations intent:
+   - Extract the location from the query (e.g., "Chiang Mai", "เชียงใหม่")
+   - search_query can be Thai or English
 
-3. Select appropriate interval based on time range:
-   - ≤ 24 hours: use "15min"
-   - 1-7 days: use "hour"
-   - > 7 days: use "day"
+3. For get_data intent:
+   - Convert relative time expressions to absolute ISO-8601 datetimes
+     - "ย้อนหลัง 7 วัน" = last 7 days from now
+     - "เมื่อวาน" = yesterday
+     - "วันนี้" = today
+   - Default pollutant is "pm25" if not specified
+   - Select appropriate interval based on time range:
+     - ≤ 24 hours: use "15min"
+     - 1-7 days: use "hour"
+     - > 7 days: use "day"
 
-4. Default pollutant is "pm25" if not specified
+4. Default output_type is "chart" for time-series queries, "text" for search/summary queries
 
-5. Default output_type is "chart" for time-series queries, "text" for summary queries
-
-6. DO NOT add explanations or additional text. Return ONLY valid JSON.
+5. DO NOT add explanations or additional text. Return ONLY valid JSON.
 
 Current datetime: {current_datetime}
 """
@@ -131,14 +152,19 @@ def get_system_prompt(current_datetime: str) -> str:
 VALID_POLLUTANTS = ["pm25", "pm10", "aqi", "o3", "no2", "so2", "co"]
 VALID_INTERVALS = ["15min", "hour", "day"]
 VALID_OUTPUT_TYPES = ["text", "chart", "map", "infographic"]
+VALID_INTENT_TYPES = ["search_stations", "get_data"]
 
-REQUIRED_INTENT_FIELDS = [
+REQUIRED_DATA_FIELDS = [
     "station_id",
     "pollutant",
     "start_date",
     "end_date",
     "interval",
     "output_type"
+]
+
+REQUIRED_SEARCH_FIELDS = [
+    "search_query"
 ]
 
 
@@ -151,6 +177,10 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
     - Contains only approved fields
     - No SQL, code, or instructions
     - References only air-quality concepts
+
+    Supports two intent types:
+    - search_stations: Search for stations by location/name
+    - get_data: Get air quality data for a specific station
 
     Args:
         llm_output: Raw output from LLM
@@ -222,14 +252,96 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
             "message": "This system answers air quality-related questions only."
         }
 
-    # Validate required fields
-    missing_fields = [field for field in REQUIRED_INTENT_FIELDS if field not in intent]
-    if missing_fields:
-        logger.error(f"Intent validation failed - missing fields: {missing_fields}")
+    # Check for SQL injection attempts early
+    dangerous_keywords = ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "EXEC", "EXECUTE", "--", ";"]
+    intent_str = json.dumps(intent).upper()
+    if any(keyword in intent_str for keyword in dangerous_keywords):
+        logger.error("Intent validation failed - potential SQL injection detected")
         return {
             "valid": False,
             "status": "invalid_request",
-            "message": "Unable to interpret air quality parameters."
+            "message": "Invalid request parameters."
+        }
+
+    # Determine intent type (default to get_data for backward compatibility)
+    intent_type = intent.get("intent_type", "get_data")
+    
+    # Validate intent_type
+    if intent_type not in VALID_INTENT_TYPES:
+        # Try to infer intent type from fields
+        if "search_query" in intent:
+            intent_type = "search_stations"
+            intent["intent_type"] = intent_type
+        else:
+            intent_type = "get_data"
+            intent["intent_type"] = intent_type
+
+    # ============ VALIDATE SEARCH_STATIONS INTENT ============
+    if intent_type == "search_stations":
+        missing_fields = [field for field in REQUIRED_SEARCH_FIELDS if field not in intent or not intent[field]]
+        if missing_fields:
+            logger.error(f"Intent validation failed - missing search fields: {missing_fields}")
+            return {
+                "valid": False,
+                "status": "invalid_request",
+                "message": "Please specify a location to search for stations."
+            }
+        
+        # Validate search_query is not empty
+        if not intent["search_query"] or not intent["search_query"].strip():
+            return {
+                "valid": False,
+                "status": "invalid_request",
+                "message": "Please specify a location to search for stations."
+            }
+        
+        # Set default output_type for search
+        if "output_type" not in intent or intent["output_type"] not in VALID_OUTPUT_TYPES:
+            intent["output_type"] = "text"
+        
+        logger.info(f"Intent validation passed (search_stations): {intent}")
+        return {
+            "valid": True,
+            "intent": intent
+        }
+
+    # ============ VALIDATE GET_DATA INTENT ============
+    # For backward compatibility, if no intent_type, treat as get_data
+    
+    from datetime import datetime, timezone, timedelta
+    
+    # Set defaults for optional fields before validation
+    if "pollutant" not in intent or not intent["pollutant"]:
+        intent["pollutant"] = "pm25"
+        logger.info("Defaulting pollutant to pm25")
+    
+    if "interval" not in intent or not intent["interval"]:
+        intent["interval"] = "hour"
+        logger.info("Defaulting interval to hour")
+    
+    if "output_type" not in intent or not intent["output_type"]:
+        intent["output_type"] = "chart"
+        logger.info("Defaulting output_type to chart")
+    
+    # Set defaults for dates if missing (default to today)
+    now = datetime.now(timezone.utc)
+    if "start_date" not in intent or not intent["start_date"] or intent["start_date"] in ["None", "null", ""]:
+        # Default to start of today
+        intent["start_date"] = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        logger.info(f"Defaulting start_date to today: {intent['start_date']}")
+    
+    if "end_date" not in intent or not intent["end_date"] or intent["end_date"] in ["None", "null", ""]:
+        # Default to now
+        intent["end_date"] = now.isoformat()
+        logger.info(f"Defaulting end_date to now: {intent['end_date']}")
+    
+    # Check for truly required field only (station_id)
+    if "station_id" not in intent or not intent["station_id"]:
+        logger.error("Intent validation failed - missing station_id")
+        return {
+            "valid": False,
+            "status": "invalid_request",
+            "message": "Please specify a station for your query. Try adding a location like 'Chiang Mai' or 'Bangkok'."
         }
 
     # Validate pollutant
@@ -259,31 +371,58 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
             "message": f"Invalid output type. Supported: {', '.join(VALID_OUTPUT_TYPES)}"
         }
 
-    # Check for SQL injection attempts
-    dangerous_keywords = ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "EXEC", "EXECUTE", "--", ";"]
-    intent_str = json.dumps(intent).upper()
-    if any(keyword in intent_str for keyword in dangerous_keywords):
-        logger.error("Intent validation failed - potential SQL injection detected")
-        return {
-            "valid": False,
-            "status": "invalid_request",
-            "message": "Invalid request parameters."
-        }
+    # Validate and normalize datetime format
+    from dateutil import parser as date_parser
+    from datetime import datetime, timezone, timedelta
 
-    # Validate datetime format (basic check)
-    for date_field in ["start_date", "end_date"]:
-        date_value = intent.get(date_field, "")
-        # Check if it looks like ISO-8601 (contains T and has reasonable length)
-        if not isinstance(date_value, str) or "T" not in date_value:
-            logger.error(f"Intent validation failed - invalid datetime format: {date_field}={date_value}")
+    # Handle missing or null dates by using defaults
+    start_date = intent.get("start_date")
+    end_date = intent.get("end_date")
+
+    # If start_date is None/null/empty, default to today
+    if not start_date or start_date == "None" or (isinstance(start_date, str) and not start_date.strip()):
+        start_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        logger.info(f"Defaulting start_date to today: {start_date.isoformat()}")
+    else:
+        # Try to parse the datetime string
+        try:
+            start_date = date_parser.parse(start_date)
+            if start_date.tzinfo is None:
+                start_date = start_date.replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid start_date: {start_date}, error: {e}")
             return {
                 "valid": False,
                 "status": "invalid_request",
                 "message": "Invalid datetime format. Expected ISO-8601."
             }
 
-    logger.info(f"Intent validation passed: {intent}")
+    # If end_date is None/null/empty, default to start_date (same day query)
+    if not end_date or end_date == "None" or (isinstance(end_date, str) and not end_date.strip()):
+        end_date = start_date
+        logger.info(f"Defaulting end_date to start_date: {end_date.isoformat()}")
+    else:
+        # Try to parse the datetime string
+        try:
+            end_date = date_parser.parse(end_date)
+            if end_date.tzinfo is None:
+                end_date = end_date.replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid end_date: {end_date}, error: {e}")
+            return {
+                "valid": False,
+                "status": "invalid_request",
+                "message": "Invalid datetime format. Expected ISO-8601."
+            }
+
+    # Update intent with normalized ISO-8601 format
+    intent["start_date"] = start_date.isoformat()
+    intent["end_date"] = end_date.isoformat()
+    intent["intent_type"] = "get_data"
+
+    logger.info(f"Intent validation passed (get_data): {intent}")
     return {
         "valid": True,
         "intent": intent
     }
+
