@@ -116,7 +116,7 @@ services:
       dockerfile: Dockerfile
     container_name: aqi_scheduler
     restart: always
-    command: python -m backend.scheduler
+    command: python -m backend_api.scheduler
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@timescaledb:5432/${POSTGRES_DB}
       - ENVIRONMENT=production

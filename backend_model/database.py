@@ -9,8 +9,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy.pool import QueuePool
 
-from backend.config import settings
-from backend.logger import logger
+from backend_model.config import settings
+from backend_model.logger import logger
 
 
 # Create SQLAlchemy engine with connection pooling

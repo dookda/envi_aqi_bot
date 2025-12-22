@@ -7,8 +7,8 @@ Supports stateless inference with no external tool access.
 
 import httpx
 from typing import Optional, Dict, Any
-from backend.logger import logger
-from backend.config import settings
+from backend_model.logger import logger
+from backend_model.config import settings
 
 
 class OllamaAdapter:

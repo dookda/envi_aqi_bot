@@ -12,9 +12,9 @@ from typing import Dict, Any, List, Optional
 import numpy as np
 from sqlalchemy import text
 
-from backend.config import settings
-from backend.logger import logger
-from backend.database import get_db_context
+from backend_model.config import settings
+from backend_model.logger import logger
+from backend_model.database import get_db_context
 
 
 class AnomalyDetectionService:

@@ -10,7 +10,7 @@ Main service that orchestrates:
 
 from typing import Dict, Any, Optional, List
 from datetime import datetime
-from backend.logger import logger
+from backend_model.logger import logger
 from .guardrails import (
     keyword_filter,
     get_system_prompt,

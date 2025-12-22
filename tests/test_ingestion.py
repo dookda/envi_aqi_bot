@@ -6,7 +6,7 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock, AsyncMock
 
-from backend.services.ingestion import IngestionService
+from backend_model.services.ingestion import IngestionService
 
 
 class TestIngestionService:

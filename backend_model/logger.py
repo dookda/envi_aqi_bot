@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from loguru import logger
 
-from backend.config import settings
+from backend_model.config import settings
 
 
 def setup_logging():

@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from backend.services.validation import ValidationService
+from backend_model.services.validation import ValidationService
 
 
 class TestValidationService:
@@ -67,7 +67,7 @@ class TestValidationService:
     
     def test_gap_classification(self):
         """Test gap type classification"""
-        from backend.services.imputation import ImputationService
+        from backend_model.services.imputation import ImputationService
         imputation = ImputationService()
         
         assert imputation.classify_gap(1) == "short"

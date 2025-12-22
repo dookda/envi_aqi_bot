@@ -10,11 +10,11 @@ Provides high-level orchestration for:
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 
-from backend.logger import logger
-from backend.database import get_db_context
-from backend.models import Station, AQIHourly
-from backend.services.ingestion import ingestion_service
-from backend.services.imputation import imputation_service
+from backend_model.logger import logger
+from backend_model.database import get_db_context
+from backend_model.models import Station, AQIHourly
+from backend_model.services.ingestion import ingestion_service
+from backend_model.services.imputation import imputation_service
 
 
 class PipelineService:

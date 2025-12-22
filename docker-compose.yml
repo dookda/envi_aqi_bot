@@ -37,7 +37,8 @@ services:
       timescaledb:
         condition: service_healthy
     volumes:
-      - ./backend:/app/backend
+      - ./backend_model:/app/backend_model
+      - ./backend_api:/app/backend_api
       - ./models:/app/models
       - ./logs:/app/logs
     networks:
@@ -75,7 +76,7 @@ services:
       dockerfile: Dockerfile
     container_name: aqi_scheduler
     restart: unless-stopped
-    command: python -m backend.scheduler
+    command: python -m backend_api.scheduler
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-aqi_user}:${POSTGRES_PASSWORD:-aqi_password}@timescaledb:5432/${POSTGRES_DB:-aqi_db}
       - ENVIRONMENT=production

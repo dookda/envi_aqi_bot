@@ -6,31 +6,33 @@ from datetime import datetime as dt
 from typing import Optional
 
 from sqlalchemy import (
-    Column, String, Float, Boolean, Integer, 
+    Column, String, Float, Boolean, Integer,
     DateTime, Text, ForeignKey, CheckConstraint, func
 )
 from sqlalchemy.orm import relationship
+from geoalchemy2 import Geometry
 
-from backend.database import Base
+from backend_model.database import Base
 
 
 class Station(Base):
-    """Station metadata model"""
-    
+    """Station metadata model with PostGIS support"""
+
     __tablename__ = "stations"
-    
+
     station_id = Column(String, primary_key=True)
     name_th = Column(Text)
     name_en = Column(Text)
     lat = Column(Float)
     lon = Column(Float)
+    location = Column(Geometry('POINT', srid=4326))  # PostGIS geometry point (WGS84)
     station_type = Column(String)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
+
     # Relationships
     measurements = relationship("AQIHourly", back_populates="station", cascade="all, delete-orphan")
-    
+
     def __repr__(self):
         return f"<Station(id={self.station_id}, name={self.name_en})>"
 

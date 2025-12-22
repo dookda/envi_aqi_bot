@@ -17,10 +17,10 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from scipy import interpolate
 
-from backend.config import settings
-from backend.logger import logger
-from backend.database import get_db_context
-from backend.services.lstm_model import lstm_model_service
+from backend_model.config import settings
+from backend_model.logger import logger
+from backend_model.database import get_db_context
+from backend_model.services.lstm_model import lstm_model_service
 
 
 class ValidationService:
@@ -250,7 +250,7 @@ class ValidationService:
         Returns:
             Summary of validation results
         """
-        from backend.models import Station
+        from backend_model.models import Station
         
         with get_db_context() as db:
             stations = db.query(Station).all()

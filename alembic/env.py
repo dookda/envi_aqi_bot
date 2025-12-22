@@ -8,8 +8,8 @@ from sqlalchemy import pool
 from alembic import context
 
 # Import models for autogenerate support
-from backend.models import Base
-from backend.config import settings
+from backend_model.models import Base
+from backend_model.config import settings
 
 # this is the Alembic Config object
 config = context.config

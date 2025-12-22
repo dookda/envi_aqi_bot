@@ -31,10 +31,10 @@ from keras.optimizers import Adam
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.config import settings
-from backend.logger import logger
-from backend.models import ModelTrainingLog
-from backend.database import get_db_context
+from backend_model.config import settings
+from backend_model.logger import logger
+from backend_model.models import ModelTrainingLog
+from backend_model.database import get_db_context
 
 
 class LSTMModelService:

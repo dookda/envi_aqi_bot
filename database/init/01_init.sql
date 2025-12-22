@@ -1,6 +1,9 @@
 -- Enable TimescaleDB extension
 CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 
+-- Enable PostGIS extension for spatial data
+CREATE EXTENSION IF NOT EXISTS postgis CASCADE;
+
 -- Stations table for storing station metadata
 CREATE TABLE IF NOT EXISTS stations (
     station_id TEXT PRIMARY KEY,
@@ -8,6 +11,7 @@ CREATE TABLE IF NOT EXISTS stations (
     name_en TEXT,
     lat DOUBLE PRECISION,
     lon DOUBLE PRECISION,
+    location GEOMETRY(POINT, 4326),  -- WGS84 coordinate system
     station_type TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
@@ -82,6 +86,9 @@ CREATE INDEX IF NOT EXISTS idx_aqi_hourly_imputed ON aqi_hourly(is_imputed) WHER
 CREATE INDEX IF NOT EXISTS idx_imputation_log_station ON imputation_log(station_id);
 CREATE INDEX IF NOT EXISTS idx_ingestion_log_status ON ingestion_log(status);
 
+-- Spatial index for location queries
+CREATE INDEX IF NOT EXISTS idx_stations_location ON stations USING GIST(location);
+
 -- Function to update timestamps
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -91,11 +98,28 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Trigger for stations table
+-- Trigger for stations table updated_at
 CREATE TRIGGER update_stations_updated_at
     BEFORE UPDATE ON stations
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+-- Function to auto-update geometry from lat/lon
+CREATE OR REPLACE FUNCTION update_station_location()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF (NEW.lat IS NOT NULL AND NEW.lon IS NOT NULL) THEN
+        NEW.location = ST_SetSRID(ST_MakePoint(NEW.lon, NEW.lat), 4326);
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to auto-update location when lat/lon changes
+CREATE TRIGGER trigger_update_station_location
+    BEFORE INSERT OR UPDATE OF lat, lon ON stations
+    FOR EACH ROW
+    EXECUTE FUNCTION update_station_location();
 
 -- View for missing data summary
 CREATE OR REPLACE VIEW missing_data_summary AS

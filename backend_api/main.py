@@ -20,11 +20,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app import __version__
-from backend.config import settings
-from backend.logger import logger
-from backend.database import get_db, check_database_connection
-from backend.models import Station, AQIHourly, IngestionLog, ImputationLog, ModelTrainingLog
-from backend.schemas import (
+from backend_model.config import settings
+from backend_model.logger import logger
+from backend_model.database import get_db, check_database_connection
+from backend_model.models import Station, AQIHourly, IngestionLog, ImputationLog, ModelTrainingLog
+from backend_api.schemas import (
     StationResponse, StationWithStats, AQIHourlyResponse,
     IngestionRequest, IngestionLogResponse,
     ImputationRequest, ImputationLogResponse,
@@ -34,13 +34,13 @@ from backend.schemas import (
     AQIHistoryDataPoint, AQIHistoryRequest,
     ChatQueryRequest, ChatResponse
 )
-from backend.services.ingestion import ingestion_service
-from backend.services.imputation import imputation_service
-from backend.services.lstm_model import lstm_model_service
-from backend.services.validation import validation_service
-from backend.services.scheduler import scheduler_service
-from backend.services.anomaly import anomaly_service
-from backend.services.ai.chatbot import chatbot_service
+from backend_api.services.ingestion import ingestion_service
+from backend_model.services.imputation import imputation_service
+from backend_model.services.lstm_model import lstm_model_service
+from backend_model.services.validation import validation_service
+from backend_api.services.scheduler import scheduler_service
+from backend_model.services.anomaly import anomaly_service
+from backend_api.services.ai.chatbot import chatbot_service
 
 
 @asynccontextmanager
@@ -278,7 +278,7 @@ async def sync_stations(background_tasks: BackgroundTasks):
 async def _sync_stations_task():
     """Background task for station sync"""
     stations = await ingestion_service.fetch_stations()
-    from backend.database import get_db_context
+    from backend_model.database import get_db_context
     with get_db_context() as db:
         ingestion_service.save_stations(db, stations)
 
@@ -780,7 +780,7 @@ async def train_all_models(
 
 async def _train_all_models_task(force_retrain: bool):
     """Background task for training all models"""
-    from backend.database import get_db_context
+    from backend_model.database import get_db_context
     with get_db_context() as db:
         stations = db.query(Station).all()
     
