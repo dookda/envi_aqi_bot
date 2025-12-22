@@ -3,7 +3,8 @@
  * Centralized API calls to backend using fetch()
  */
 
-const BASE_URL = '/api'
+// Get base URL from Vite config (respects base path like /ebot/)
+const BASE_URL = `${import.meta.env.BASE_URL}api`.replace(/\/+/g, '/').replace(/\/$/, '')
 const TIMEOUT = 30000
 
 /**
@@ -173,7 +174,7 @@ export const schedulerService = {
 
 // Health check
 export const healthService = {
-    check: () => fetch('/health').then(async (r) => {
+    check: () => fetch(`${import.meta.env.BASE_URL}health`).then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
     }),
