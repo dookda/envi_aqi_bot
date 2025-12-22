@@ -824,9 +824,10 @@ async def _train_all_models_task(force_retrain: bool):
     from backend_model.database import get_db_context
     with get_db_context() as db:
         stations = db.query(Station).all()
-    
-    for station in stations:
-        lstm_model_service.train_model(station.station_id, force_retrain=force_retrain)
+        station_ids = [station.station_id for station in stations]
+
+    for station_id in station_ids:
+        lstm_model_service.train_model(station_id, force_retrain=force_retrain)
 
 
 @app.get("/api/model/{station_id}/info", tags=["Model Training"])
