@@ -3,7 +3,9 @@
  */
 import { useState, useCallback } from 'react'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// Use empty string to make relative URLs (proxied through Nginx)
+// Set VITE_API_URL environment variable to override if needed
+const API_URL = import.meta.env.VITE_API_URL || ''
 
 export default function useChat() {
     const [messages, setMessages] = useState([])

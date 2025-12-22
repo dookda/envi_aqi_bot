@@ -4,6 +4,8 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Set base path for deployment under /ebot/ prefix
+  base: '/ebot/',
   plugins: [
     react(),
     tailwindcss(),
