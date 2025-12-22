@@ -13,7 +13,7 @@ from typing import Dict, Any, List, Optional
 from backend_model.logger import logger
 from backend_model.database import get_db_context
 from backend_model.models import Station, AQIHourly
-from backend_model.services.ingestion import ingestion_service
+from backend_api.services.ingestion import ingestion_service
 from backend_model.services.imputation import imputation_service
 
 

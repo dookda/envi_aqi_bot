@@ -55,6 +55,63 @@
 }
 
 /* ============================================
+   CSS DESIGN TOKENS - Theme Variables
+   These tokens provide consistent theming
+   ============================================ */
+
+:root {
+  /* Dark Theme (Default) */
+  --theme-bg-primary: var(--color-dark-900);
+  --theme-bg-secondary: var(--color-dark-800);
+  --theme-bg-card: var(--color-dark-800);
+  --theme-bg-input: var(--color-dark-800);
+  --theme-bg-hover: var(--color-dark-700);
+
+  --theme-text-primary: var(--color-dark-100);
+  --theme-text-secondary: var(--color-dark-300);
+  --theme-text-muted: var(--color-dark-400);
+  --theme-text-hint: var(--color-dark-500);
+
+  --theme-border-primary: rgba(255, 255, 255, 0.1);
+  --theme-border-secondary: var(--color-dark-600);
+
+  --theme-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  --theme-shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+
+  --theme-glass-bg: rgba(255, 255, 255, 0.05);
+  --theme-glass-border: rgba(255, 255, 255, 0.1);
+
+  --theme-gradient-start: var(--color-dark-900);
+  --theme-gradient-end: #1a1a2e;
+}
+
+/* Light Theme Token Overrides */
+.light-theme {
+  --theme-bg-primary: #f8fafc;
+  --theme-bg-secondary: #ffffff;
+  --theme-bg-card: #ffffff;
+  --theme-bg-input: #f1f5f9;
+  --theme-bg-hover: #e2e8f0;
+
+  --theme-text-primary: #0f172a;
+  --theme-text-secondary: #334155;
+  --theme-text-muted: #64748b;
+  --theme-text-hint: #94a3b8;
+
+  --theme-border-primary: rgba(0, 0, 0, 0.08);
+  --theme-border-secondary: #e2e8f0;
+
+  --theme-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  --theme-shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+
+  --theme-glass-bg: rgba(255, 255, 255, 0.85);
+  --theme-glass-border: rgba(0, 0, 0, 0.08);
+
+  --theme-gradient-start: #f8fafc;
+  --theme-gradient-end: #e2e8f0;
+}
+
+/* ============================================
    BASE STYLES
    ============================================ */
 
@@ -241,4 +298,206 @@ body {
 
 .maplibregl-ctrl-group button:hover {
   background: var(--color-dark-700) !important;
+}
+
+/* ============================================
+   LIGHT THEME OVERRIDES
+   ============================================ */
+
+.light-theme {
+  /* Light Theme Background Colors */
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-input: #f1f5f9;
+
+  /* Light Theme Text Colors */
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-hint: #94a3b8;
+
+  /* Light Theme Border Colors */
+  --border-primary: #e2e8f0;
+  --border-secondary: #cbd5e1;
+}
+
+.light-theme body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Light Theme Gradient */
+.light-theme .gradient-dark {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f1f5f9 100%);
+}
+
+/* Light Theme Glass Morphism */
+.light-theme .glass {
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+/* Light Theme Text Gradient */
+.text-gradient-light {
+  background: linear-gradient(90deg, #2563eb, #7c3aed);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Light Theme Cards */
+.light-theme .bg-dark-800 {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0;
+}
+
+.light-theme .bg-dark-700 {
+  background-color: #f8fafc !important;
+}
+
+.light-theme .bg-dark-900 {
+  background-color: #f1f5f9 !important;
+}
+
+/* Light Theme Text Colors */
+.light-theme .text-white {
+  color: #0f172a !important;
+}
+
+.light-theme .text-dark-100 {
+  color: #1e293b !important;
+}
+
+.light-theme .text-dark-200 {
+  color: #334155 !important;
+}
+
+.light-theme .text-dark-300 {
+  color: #475569 !important;
+}
+
+.light-theme .text-dark-400 {
+  color: #64748b !important;
+}
+
+.light-theme .text-dark-500 {
+  color: #94a3b8 !important;
+}
+
+/* Light Theme Borders */
+.light-theme .border-white\/10,
+.light-theme .border-dark-600 {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.light-theme .border-dark-700 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Light Theme Inputs */
+.light-theme input,
+.light-theme select,
+.light-theme textarea {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.light-theme input::placeholder,
+.light-theme textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+.light-theme input:focus,
+.light-theme select:focus,
+.light-theme textarea:focus {
+  border-color: var(--color-primary-500) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+/* Light Theme Buttons */
+.light-theme .hover\:bg-dark-600:hover {
+  background-color: #e2e8f0 !important;
+}
+
+.light-theme .hover\:bg-dark-700:hover {
+  background-color: #f1f5f9 !important;
+}
+
+/* Light Theme Scrollbar */
+.light-theme ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.light-theme ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+.light-theme ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Light Theme MapLibre Overrides */
+.light-theme .maplibregl-popup-content {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.light-theme .maplibregl-popup-close-button {
+  color: #64748b;
+}
+
+.light-theme .maplibregl-popup-close-button:hover {
+  color: var(--color-primary-500);
+}
+
+.light-theme .maplibregl-ctrl-group {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.light-theme .maplibregl-ctrl-group button {
+  background: #ffffff !important;
+  color: #0f172a;
+}
+
+.light-theme .maplibregl-ctrl-group button:hover {
+  background: #f1f5f9 !important;
+}
+
+/* Light Theme Semantic Colors (keep brand colors same) */
+.light-theme .text-primary-400 {
+  color: var(--color-primary-600) !important;
+}
+
+.light-theme .text-success-400 {
+  color: #059669 !important;
+}
+
+.light-theme .text-warning-400 {
+  color: #d97706 !important;
+}
+
+.light-theme .text-danger-400 {
+  color: #dc2626 !important;
+}
+
+/* Animation transitions */
+body,
+.glass,
+.gradient-dark,
+input,
+select,
+textarea,
+button {
+  transition: background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
 }

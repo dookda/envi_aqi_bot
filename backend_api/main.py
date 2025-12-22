@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from app import __version__
+from backend_api import __version__
 from backend_model.config import settings
 from backend_model.logger import logger
 from backend_model.database import get_db, check_database_connection

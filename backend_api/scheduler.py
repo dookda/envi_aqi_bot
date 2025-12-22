@@ -62,17 +62,17 @@ async def main():
     logger.info("Initializing production scheduler...")
     scheduler_service.initialize()
 
-    # Display scheduled jobs
-    logger.info("Scheduled jobs:")
-    for job in scheduler_service.get_jobs():
-        logger.info(f"  - {job['name']}: {job['trigger']}")
-        logger.info(f"    Next run: {job['next_run']}")
-
     logger.info("=" * 60)
 
     # Start the scheduler
     scheduler_service.start()
     logger.info("Scheduler started successfully")
+
+    # Display scheduled jobs (after scheduler is started so next_run_time is calculated)
+    logger.info("Scheduled jobs:")
+    for job in scheduler_service.get_jobs():
+        logger.info(f"  - {job['name']}: {job['trigger']}")
+        logger.info(f"    Next run: {job['next_run']}")
 
     # Run initial hourly ingestion immediately
     logger.info("Running initial data ingestion...")

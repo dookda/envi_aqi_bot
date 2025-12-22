@@ -1,7 +1,7 @@
 services:
-  # PostgreSQL with TimescaleDB for time-series data storage
+  # PostgreSQL with TimescaleDB and PostGIS for time-series and spatial data storage
   timescaledb:
-    image: timescale/timescaledb:latest-pg15
+    image: timescale/timescaledb-ha:pg15-latest
     container_name: aqi_timescaledb
     restart: unless-stopped
     environment:

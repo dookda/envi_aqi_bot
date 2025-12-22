@@ -1,6 +1,6 @@
 /**
  * StationMap Organism
- * Interactive map showing station locations using MapLibre GL JS
+ * Interactive map showing station locations using MapLibre GL JS with native circle layers
  */
 import { useRef, useEffect, useState } from 'react'
 import PropTypes from 'prop-types'
@@ -12,7 +12,7 @@ import { Card, Spinner } from '../atoms'
 const THAILAND_CENTER = [100.5018, 13.7563]
 const THAILAND_ZOOM = 6
 
-// MapLibre style URL - using OpenFreeMap which is free and reliable
+// MapLibre style URL - using OpenStreetMap tiles
 const MAP_STYLE = {
     version: 8,
     sources: {
@@ -36,15 +36,15 @@ const MAP_STYLE = {
     ],
 }
 
-// Get marker color based on PM2.5 value
+// Get marker color based on PM2.5 value (AQI standard colors)
 function getMarkerColor(pm25) {
-    if (pm25 === null || pm25 === undefined) return '#64748b'
-    if (pm25 <= 25) return '#009966'
-    if (pm25 <= 50) return '#00e400'
-    if (pm25 <= 100) return '#ffff00'
-    if (pm25 <= 200) return '#ff7e00'
-    if (pm25 <= 300) return '#ff0000'
-    return '#8f3f97'
+    if (pm25 === null || pm25 === undefined) return '#64748b' // Gray for no data
+    if (pm25 <= 25) return '#009966'   // Good (green)
+    if (pm25 <= 50) return '#00e400'   // Moderate (yellow-green)
+    if (pm25 <= 100) return '#ffff00'  // Unhealthy for sensitive (yellow)
+    if (pm25 <= 200) return '#ff7e00'  // Unhealthy (orange)
+    if (pm25 <= 300) return '#ff0000'  // Very unhealthy (red)
+    return '#8f3f97'                   // Hazardous (purple)
 }
 
 export default function StationMap({
@@ -57,9 +57,9 @@ export default function StationMap({
 }) {
     const mapContainer = useRef(null)
     const map = useRef(null)
-    const markersMap = useRef(new Map()) // Changed from array to Map for efficient lookup
     const [mapLoaded, setMapLoaded] = useState(false)
     const [mapError, setMapError] = useState(null)
+    const hoveredStationId = useRef(null)
 
     // Initialize map
     useEffect(() => {
@@ -87,15 +87,150 @@ export default function StationMap({
             // Add navigation controls
             map.current.addControl(new maplibregl.NavigationControl(), 'top-right')
 
-            // FORCE Load state after a short delay just in case events don't fire
-            // This ensures the user isn't stuck on a spinner forever
-            setTimeout(() => {
-                console.log('StationMap: Force setting mapLoaded to true')
-                setMapLoaded(true)
-            }, 1000)
-
             map.current.on('load', () => {
-                console.log('StationMap: Map loaded event fired')
+                console.log('StationMap: Map loaded, adding layers...')
+
+                // Add GeoJSON source for stations
+                map.current.addSource('stations', {
+                    type: 'geojson',
+                    data: {
+                        type: 'FeatureCollection',
+                        features: []
+                    }
+                })
+
+                // Add circle layer for station markers
+                map.current.addLayer({
+                    id: 'station-circles',
+                    type: 'circle',
+                    source: 'stations',
+                    paint: {
+                        'circle-radius': [
+                            'interpolate', ['linear'], ['zoom'],
+                            5, 4,      // At zoom 5, radius = 4px
+                            8, 6,      // At zoom 8, radius = 6px
+                            12, 10,    // At zoom 12, radius = 10px
+                            15, 14     // At zoom 15, radius = 14px
+                        ],
+                        'circle-color': ['get', 'color'],
+                        'circle-stroke-color': '#ffffff',
+                        'circle-stroke-width': 2,
+                        'circle-opacity': ['case',
+                            ['boolean', ['feature-state', 'hover'], false],
+                            0.9,
+                            1
+                        ]
+                    }
+                })
+
+                // Add circle layer for hover effect (slightly larger)
+                map.current.addLayer({
+                    id: 'station-circles-hover',
+                    type: 'circle',
+                    source: 'stations',
+                    paint: {
+                        'circle-radius': [
+                            'interpolate', ['linear'], ['zoom'],
+                            5, 6,      // At zoom 5, radius = 6px (2px larger)
+                            8, 9,      // At zoom 8, radius = 9px
+                            12, 14,    // At zoom 12, radius = 14px
+                            15, 19     // At zoom 15, radius = 19px
+                        ],
+                        'circle-color': ['get', 'color'],
+                        'circle-opacity': 0,
+                        'circle-stroke-color': '#ffffff',
+                        'circle-stroke-width': 3,
+                        'circle-stroke-opacity': ['case',
+                            ['boolean', ['feature-state', 'hover'], false],
+                            1,
+                            0
+                        ]
+                    }
+                })
+
+                // Change cursor on hover
+                map.current.on('mouseenter', 'station-circles', () => {
+                    map.current.getCanvas().style.cursor = 'pointer'
+                })
+
+                map.current.on('mouseleave', 'station-circles', () => {
+                    map.current.getCanvas().style.cursor = ''
+                })
+
+                // Handle hover state
+                map.current.on('mousemove', 'station-circles', (e) => {
+                    if (e.features.length > 0) {
+                        // Remove hover from previous feature
+                        if (hoveredStationId.current !== null) {
+                            map.current.setFeatureState(
+                                { source: 'stations', id: hoveredStationId.current },
+                                { hover: false }
+                            )
+                        }
+
+                        // Set hover on current feature
+                        hoveredStationId.current = e.features[0].id
+                        map.current.setFeatureState(
+                            { source: 'stations', id: hoveredStationId.current },
+                            { hover: true }
+                        )
+                    }
+                })
+
+                map.current.on('mouseleave', 'station-circles', () => {
+                    if (hoveredStationId.current !== null) {
+                        map.current.setFeatureState(
+                            { source: 'stations', id: hoveredStationId.current },
+                            { hover: false }
+                        )
+                        hoveredStationId.current = null
+                    }
+                })
+
+                // Handle click
+                map.current.on('click', 'station-circles', (e) => {
+                    if (e.features.length > 0) {
+                        const feature = e.features[0]
+                        const stationId = feature.properties.station_id
+                        onStationSelect?.(stationId)
+                    }
+                })
+
+                // Create popup
+                const popup = new maplibregl.Popup({
+                    closeButton: false,
+                    closeOnClick: false,
+                    offset: 15
+                })
+
+                // Show popup on hover
+                map.current.on('mouseenter', 'station-circles', (e) => {
+                    if (e.features.length > 0) {
+                        const feature = e.features[0]
+                        const coords = feature.geometry.coordinates.slice()
+                        const props = feature.properties
+
+                        const pm25 = props.pm25 !== null ? parseFloat(props.pm25) : null
+                        const color = getMarkerColor(pm25)
+
+                        popup.setLngLat(coords)
+                            .setHTML(`
+                                <div style="min-width: 150px; padding: 4px;">
+                                    <strong style="color: #333;">${props.name || props.station_id}</strong><br/>
+                                    <small style="color: #666;">ID: ${props.station_id}</small><br/>
+                                    <span style="color: ${color}; font-weight: bold;">
+                                        PM2.5: ${pm25 !== null ? pm25.toFixed(1) : 'N/A'} μg/m³
+                                    </span>
+                                </div>
+                            `)
+                            .addTo(map.current)
+                    }
+                })
+
+                map.current.on('mouseleave', 'station-circles', () => {
+                    popup.remove()
+                })
+
                 setMapLoaded(true)
             })
 
@@ -111,121 +246,66 @@ export default function StationMap({
 
         // Cleanup on unmount
         return () => {
-            // Remove all markers
-            for (const markerData of markersMap.current.values()) {
-                markerData.marker.remove()
-            }
-            markersMap.current.clear()
-
-            // Remove map
             if (map.current) {
                 map.current.remove()
                 map.current = null
             }
         }
-    }, [])
+    }, [onStationSelect])
 
-    // Add/update markers when stations change - OPTIMIZED for performance
+    // Update station data when stations change
     useEffect(() => {
-        if (!map.current) return
+        if (!map.current || !mapLoaded) return
 
-        const currentStationIds = new Set(stations.map(s => s.station_id))
+        const source = map.current.getSource('stations')
+        if (!source) return
 
-        // Remove markers for stations that no longer exist
-        for (const [stationId, markerData] of markersMap.current.entries()) {
-            if (!currentStationIds.has(stationId)) {
-                markerData.marker.remove()
-                markersMap.current.delete(stationId)
-            }
-        }
-
-        // Add or update markers for each station
-        stations.forEach(station => {
-            const lon = station.lon ?? station.longitude
-            const lat = station.lat ?? station.latitude
-
-            if (lat == null || lon == null) return
-
-            const stationId = station.station_id
-            const existingMarkerData = markersMap.current.get(stationId)
-            const currentColor = getMarkerColor(station.latest_pm25)
-
-            // If marker exists and hasn't changed, skip
-            if (existingMarkerData &&
-                existingMarkerData.pm25 === station.latest_pm25 &&
-                existingMarkerData.lat === lat &&
-                existingMarkerData.lon === lon) {
-                return
-            }
-
-            // Remove existing marker if it exists (for update)
-            if (existingMarkerData) {
-                existingMarkerData.marker.remove()
-            }
-
-            // Create marker element
-            const el = document.createElement('div')
-            el.className = 'map-marker' // Add class for potential CSS styling
-            el.style.cssText = `
-                width: 16px;
-                height: 16px;
-                border-radius: 50%;
-                background-color: ${currentColor};
-                border: 2px solid white;
-                cursor: pointer;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                transition: transform 0.2s ease;
-                will-change: transform;
-            `
-
-            // Hover effect
-            el.addEventListener('mouseenter', () => {
-                el.style.transform = 'scale(1.3)'
+        // Convert stations to GeoJSON features
+        const features = stations
+            .filter(station => {
+                const lon = station.lon ?? station.longitude
+                const lat = station.lat ?? station.latitude
+                return lat != null && lon != null
             })
-            el.addEventListener('mouseleave', () => {
-                el.style.transform = 'scale(1)'
+            .map((station, index) => {
+                const lon = station.lon ?? station.longitude
+                const lat = station.lat ?? station.latitude
+                const pm25 = station.latest_pm25
+                const color = getMarkerColor(pm25)
+                const name = station.name_en || station.name_th || station.station_id
+
+                return {
+                    type: 'Feature',
+                    id: index, // Use index as feature ID for feature-state
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [lon, lat]
+                    },
+                    properties: {
+                        station_id: station.station_id,
+                        name: name,
+                        pm25: pm25,
+                        color: color
+                    }
+                }
             })
 
-            // Click handler
-            el.addEventListener('click', () => {
-                onStationSelect?.(station.station_id)
-            })
-
-            // Create popup
-            const popup = new maplibregl.Popup({
-                offset: 15,
-                closeButton: false,
-            }).setHTML(`
-                <div style="min-width: 150px; padding: 4px;">
-                    <strong style="color: #333;">${station.name_en || station.name_th || station.station_id}</strong><br/>
-                    <small style="color: #666;">ID: ${station.station_id}</small><br/>
-                    <span style="color: ${currentColor}; font-weight: bold;">
-                        PM2.5: ${station.latest_pm25?.toFixed(1) ?? 'N/A'} μg/m³
-                    </span>
-                </div>
-            `)
-
-            // Create and add marker
-            const marker = new maplibregl.Marker({ element: el })
-                .setLngLat([lon, lat])
-                .setPopup(popup)
-                .addTo(map.current)
-
-            // Store marker data for future comparisons
-            markersMap.current.set(stationId, {
-                marker,
-                pm25: station.latest_pm25,
-                lat,
-                lon,
-            })
+        // Update the source data
+        source.setData({
+            type: 'FeatureCollection',
+            features: features
         })
-    }, [stations, onStationSelect])
+
+        console.log(`StationMap: Updated ${features.length} station markers`)
+    }, [stations, mapLoaded])
 
     // Fly to selected station
     useEffect(() => {
-        if (!map.current || !selectedStation) return
+        if (!map.current || !mapLoaded || !selectedStation) return
 
         const station = stations.find(s => s.station_id === selectedStation)
+        if (!station) return
+
         const lon = station?.lon ?? station?.longitude
         const lat = station?.lat ?? station?.latitude
 
@@ -235,14 +315,8 @@ export default function StationMap({
                 zoom: 10,
                 duration: 1500,
             })
-
-            // Open popup for selected station
-            const markerData = markersMap.current.get(selectedStation)
-            if (markerData) {
-                markerData.marker.togglePopup()
-            }
         }
-    }, [selectedStation, stations])
+    }, [selectedStation, stations, mapLoaded])
 
     // Show error state
     if (mapError) {
