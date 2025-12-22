@@ -58,6 +58,8 @@ CREATE TABLE IF NOT EXISTS model_training_log (
     val_rmse DOUBLE PRECISION,
     train_mae DOUBLE PRECISION,
     val_mae DOUBLE PRECISION,
+    train_r2 DOUBLE PRECISION,     -- R² for training data
+    val_r2 DOUBLE PRECISION,       -- R² for validation data (accuracy %)
     epochs_completed INTEGER,
     training_duration_seconds DOUBLE PRECISION,
     created_at TIMESTAMP DEFAULT NOW()
