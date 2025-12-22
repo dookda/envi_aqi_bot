@@ -88,6 +88,8 @@ services:
       timescaledb:
         condition: service_healthy
     volumes:
+      - ./backend_model:/app/backend_model
+      - ./backend_api:/app/backend_api
       - ./models:/app/models
       - ./logs:/app/logs
     networks:
