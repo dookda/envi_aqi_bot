@@ -3,9 +3,9 @@
  */
 import { useState, useCallback } from 'react'
 
-// Use empty string to make relative URLs (proxied through Nginx)
+// Use BASE_URL from Vite config to ensure /ebot/ prefix is included
 // Set VITE_API_URL environment variable to override if needed
-const API_URL = import.meta.env.VITE_API_URL || ''
+const API_URL = import.meta.env.VITE_API_URL || `${import.meta.env.BASE_URL}api`.replace(/\/+/g, '/').replace(/\/$/, '')
 
 export default function useChat() {
     const [messages, setMessages] = useState([])
@@ -28,7 +28,7 @@ export default function useChat() {
         setError(null)
 
         try {
-            const response = await fetch(`${API_URL}/api/chat/query`, {
+            const response = await fetch(`${API_URL}/chat/query`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
