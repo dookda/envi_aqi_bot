@@ -185,9 +185,19 @@ class ImputationService:
         try:
             predicted_value = lstm_model_service.predict(model, scaler, context)
             
-            # Get model version
+            # Get model version with robust null handling
             model_info = lstm_model_service.get_model_info(station_id)
-            model_version = model_info.get("training_info", {}).get("model_version", "unknown") if model_info else "unknown"
+            if model_info and model_info.get("training_info"):
+                model_version = model_info["training_info"].get("model_version", "v1.0")
+            elif model_info:
+                # Use created_at timestamp as version if no training log
+                created = model_info.get("created_at")
+                if created:
+                    model_version = created.strftime("v%Y%m%d")
+                else:
+                    model_version = "v1.0"
+            else:
+                model_version = "v1.0"
             
             # Update database
             db.execute(

@@ -145,7 +145,7 @@ def get_ollama_adapter() -> OllamaAdapter:
     if _ollama_adapter is None:
         # Get configuration from environment
         ollama_url = getattr(settings, "ollama_url", "http://ollama:11434")
-        ollama_model = getattr(settings, "ollama_model", "qwen2.5:3b")
+        ollama_model = getattr(settings, "ollama_model", "qwen2.5:1.5b")
         ollama_timeout = getattr(settings, "ollama_timeout", 60.0)
 
         _ollama_adapter = OllamaAdapter(
