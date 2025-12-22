@@ -50,8 +50,8 @@ class Settings(BaseSettings):
 
     # AI Chatbot Configuration (Local LLM)
     ollama_url: str = "http://ollama:11434"
-    ollama_model: str = "qwen2.5:7b"  # qwen2.5:7b, llama3.1:8b, or mistral:7b
-    ollama_timeout: float = 30.0
+    ollama_model: str = "qwen2.5:3b"  # Using 3b for lower memory (7b needs 4.3GB, 3b needs ~2GB)
+    ollama_timeout: float = 60.0  # Increased timeout for initial model loading
 
     class Config:
         env_file = ".env"

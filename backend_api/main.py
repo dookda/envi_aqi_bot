@@ -1167,7 +1167,9 @@ async def chat_query(request: ChatQueryRequest):
         result = await chatbot_service.process_query(request.query)
         return ChatResponse(**result)
     except Exception as e:
+        import traceback
         logger.error(f"Chat query error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return ChatResponse(
             status="error",
             message="An error occurred processing your query. Please try again.",

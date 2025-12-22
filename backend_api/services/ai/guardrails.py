@@ -83,19 +83,19 @@ You are allowed to handle ONLY:
 Your task is to parse the user's natural language query into a structured JSON format.
 
 If the query is not related to air quality, return ONLY:
-{
+{{
   "status": "out_of_scope"
-}
+}}
 
 If the query is related to air quality, extract the following information and return as JSON:
-{
+{{
   "station_id": "<station_id or station name>",
   "pollutant": "<pm25|pm10|aqi|o3|no2|so2|co>",
   "start_date": "<ISO-8601 datetime>",
   "end_date": "<ISO-8601 datetime>",
   "interval": "<15min|hour|day>",
   "output_type": "<text|chart|map|infographic>"
-}
+}}
 
 IMPORTANT RULES:
 1. Convert relative time expressions to absolute ISO-8601 datetimes
@@ -158,8 +158,21 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
     Returns:
         Dict with validation result and parsed intent (if valid)
     """
-    # Remove markdown code blocks if present
+    # Log raw output for debugging
+    logger.debug(f"Raw LLM output: {llm_output[:200] if llm_output else 'None'}...")
+    
+    if not llm_output or not llm_output.strip():
+        logger.error("Intent validation failed - empty LLM output")
+        return {
+            "valid": False,
+            "status": "error",
+            "message": "AI service temporarily unavailable. Please try again."
+        }
+    
+    # Clean up the output
     llm_output = llm_output.strip()
+    
+    # Remove markdown code blocks if present
     if llm_output.startswith("```"):
         # Extract JSON from markdown code block
         lines = llm_output.split("\n")
@@ -169,15 +182,31 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
             if line.startswith("```"):
                 in_code_block = not in_code_block
                 continue
-            if in_code_block or (not line.startswith("```")):
+            if in_code_block:
                 json_lines.append(line)
         llm_output = "\n".join(json_lines).strip()
+    
+    # Try to extract JSON from mixed content
+    # Look for JSON object pattern
+    if not llm_output.startswith("{"):
+        # Try to find JSON object in the output
+        import re
+        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', llm_output, re.DOTALL)
+        if json_match:
+            llm_output = json_match.group()
+        else:
+            logger.error(f"Intent validation failed - no JSON found in output: {llm_output[:100]}")
+            return {
+                "valid": False,
+                "status": "invalid_request",
+                "message": "Unable to interpret air quality parameters."
+            }
 
     # Try to parse JSON
     try:
         intent = json.loads(llm_output)
     except json.JSONDecodeError as e:
-        logger.error(f"Intent validation failed - invalid JSON: {e}")
+        logger.error(f"Intent validation failed - invalid JSON: {e}, output: {llm_output[:100]}")
         return {
             "valid": False,
             "status": "invalid_request",
