@@ -53,8 +53,8 @@ class SchedulerService:
     Scheduler for automated data collection and maintenance tasks
     
     Schedule Overview:
-    - Hourly (XX:05): Fetch latest AQI data from Air4Thai
-    - Every 6 hours (00:30, 06:30, 12:30, 18:30): Run gap detection and LSTM imputation
+    - Hourly (XX:05): Fetch latest AQI data + scan gaps + fill with LSTM models
+    - Every 6 hours (00:30, 06:30, 12:30, 18:30): Additional gap detection & imputation (safety net)
     - Daily (02:00): Full data quality check and cleanup
     - Weekly (Sunday 03:00): Retrain LSTM models with fresh data
     """
@@ -196,10 +196,11 @@ class SchedulerService:
     
     async def _hourly_ingest_job(self) -> None:
         """
-        Hourly data ingestion job
+        Hourly data ingestion job with automatic gap filling
         
-        Best Practice: Fetch data at XX:05 to ensure Air4Thai has updated
-        their data for the previous hour.
+        Best Practice: 
+        1. Fetch data at XX:05 to ensure Air4Thai has updated their data
+        2. Immediately scan for gaps and fill with trained LSTM models
         """
         job_id = f"hourly_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         result = JobResult(
@@ -212,21 +213,48 @@ class SchedulerService:
         logger.info("Starting hourly data ingestion")
         
         try:
-            # Fetch last 2 hours of data (overlap for safety)
+            # Step 1: Fetch last 24 hours of data (overlap for safety)
             ingest_result = await ingestion_service.ingest_hourly_update()
+            
+            records_processed = sum(
+                r.get("records", 0) for r in ingest_result.get("results", [])
+            )
+            
+            logger.info(
+                f"Data ingestion completed: {records_processed} records from "
+                f"{ingest_result.get('completed', 0)}/{ingest_result.get('stations', 0)} stations"
+            )
+            
+            # Step 2: Scan for gaps and fill with trained models
+            gaps_filled = 0
+            try:
+                logger.info("Scanning for gaps and filling with trained models...")
+                impute_result = await pipeline_service.run_imputation_only()
+                gaps_filled = impute_result.get("total_imputed", 0)
+                
+                if gaps_filled > 0:
+                    logger.info(f"Gap filling completed: {gaps_filled} gaps filled")
+                else:
+                    logger.info("No gaps found to fill")
+                    
+            except Exception as impute_error:
+                logger.warning(f"Gap imputation after ingestion failed: {impute_error}")
+                # Don't fail the whole job if imputation fails
             
             result.status = JobStatus.COMPLETED
             result.completed_at = datetime.now()
-            result.records_processed = sum(
-                r.get("records", 0) for r in ingest_result.get("results", [])
-            )
-            result.details = ingest_result
+            result.records_processed = records_processed
+            result.gaps_filled = gaps_filled
+            result.details = {
+                **ingest_result,
+                "gaps_filled": gaps_filled,
+            }
             
             self.last_hourly_run = datetime.now()
             
             logger.info(
-                f"Hourly ingestion completed: {result.records_processed} records from "
-                f"{ingest_result.get('completed', 0)}/{ingest_result.get('stations', 0)} stations"
+                f"Hourly job completed: {records_processed} records ingested, "
+                f"{gaps_filled} gaps filled"
             )
             
         except Exception as e:

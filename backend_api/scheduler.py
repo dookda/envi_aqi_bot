@@ -89,10 +89,19 @@ async def main():
         logger.error(f"Initial ingestion failed: {e}")
 
     # Check if LSTM models need to be trained on first startup
-    logger.info("Checking if LSTM models need initial training...")
+    logger.info("=" * 60)
+    logger.info("CHECKING LSTM MODEL STATUS")
+    logger.info("=" * 60)
+    
     try:
         from backend_model.services.lstm_model import lstm_model_service
         from backend_model.models import Station
+        from pathlib import Path
+        
+        # Ensure models directory exists
+        models_dir = Path("/app/models")
+        models_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Models directory: {models_dir} (exists: {models_dir.exists()})")
 
         with get_db_context() as db:
             stations = db.query(Station).all()
@@ -100,18 +109,33 @@ async def main():
 
             if total_stations > 0:
                 # Check how many models already exist
-                existing_models = sum(1 for s in stations if lstm_model_service.model_exists(s.station_id))
+                existing_models = []
+                missing_models = []
+                
+                for s in stations:
+                    if lstm_model_service.model_exists(s.station_id):
+                        existing_models.append(s.station_id)
+                    else:
+                        missing_models.append(s)
+                
+                logger.info(f"Total stations: {total_stations}")
+                logger.info(f"Models found: {len(existing_models)}")
+                logger.info(f"Models missing: {len(missing_models)}")
 
-                if existing_models == 0:
-                    logger.info(f"No LSTM models found. Training models for {total_stations} stations...")
+                if len(missing_models) > 0:
+                    logger.info("=" * 60)
+                    logger.info("FIRST-TIME TRAINING MODE")
+                    logger.info(f"Training {len(missing_models)} LSTM models...")
                     logger.info("This may take 10-30 minutes depending on data size.")
+                    logger.info("Models will be saved to /app/models for later use.")
+                    logger.info("=" * 60)
 
                     trained_count = 0
                     failed_count = 0
 
-                    for i, station in enumerate(stations, 1):
+                    for i, station in enumerate(missing_models, 1):
                         try:
-                            logger.info(f"Training model {i}/{total_stations}: {station.station_id} ({station.name_en})")
+                            logger.info(f"[{i}/{len(missing_models)}] Training: {station.station_id} ({station.name_en})")
                             result = lstm_model_service.train_model(
                                 station_id=station.station_id,
                                 force_retrain=False
@@ -120,31 +144,33 @@ async def main():
                             if result and result.get("status") == "completed":
                                 trained_count += 1
                                 accuracy = result.get("accuracy_percent", 0)
-                                logger.info(f"  ✓ Model trained: {accuracy}% accuracy (R²)")
+                                logger.info(f"  ✓ Model saved: {accuracy:.1f}% accuracy (R²)")
                             else:
                                 failed_count += 1
                                 reason = result.get("reason", "unknown") if result else "no result"
-                                logger.warning(f"  ✗ Training skipped/failed: {reason}")
+                                logger.warning(f"  ✗ Training skipped: {reason}")
 
                         except Exception as e:
                             failed_count += 1
-                            logger.error(f"  ✗ Training failed for {station.station_id}: {e}")
+                            logger.error(f"  ✗ Training failed: {e}")
 
                     logger.info("=" * 60)
-                    logger.info(f"Initial model training completed:")
-                    logger.info(f"  - Trained: {trained_count}/{total_stations}")
-                    logger.info(f"  - Failed/Skipped: {failed_count}/{total_stations}")
+                    logger.info("INITIAL MODEL TRAINING COMPLETE")
+                    logger.info(f"  - Successfully trained: {trained_count}/{len(missing_models)}")
+                    logger.info(f"  - Failed/Skipped: {failed_count}/{len(missing_models)}")
+                    logger.info(f"  - Total models now: {len(existing_models) + trained_count}/{total_stations}")
                     logger.info("=" * 60)
-
-                elif existing_models < total_stations:
-                    logger.info(f"Found {existing_models}/{total_stations} models. Missing models will be trained weekly.")
                 else:
-                    logger.info(f"All {total_stations} LSTM models already exist. Skipping initial training.")
+                    logger.info(f"✓ All {total_stations} LSTM models already exist. Skipping training.")
+                    logger.info("  Models are loaded from /app/models directory.")
             else:
-                logger.warning("No stations found. Skipping model training.")
+                logger.warning("No stations found in database. Skipping model training.")
+                logger.warning("Run initial data ingestion first.")
 
     except Exception as e:
         logger.error(f"Initial model training check failed: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
 
     # Keep the service running
     try:
