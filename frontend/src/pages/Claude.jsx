@@ -1,18 +1,18 @@
 /**
- * Chat Page - AI-powered Air Quality Chatbot
+ * Claude AI Chat Page - AI-powered Air Quality Chatbot
  *
- * Natural language interface for querying air quality data
- * Supports Thai and English queries
+ * Uses Anthropic Claude API for faster inference
+ * Compare performance with local Ollama version
  */
 import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, Card, Icon } from '../components/atoms'
 import { Navbar } from '../components/organisms'
-import { useChat } from '../hooks'
+import { useClaude } from '../hooks'
 import { useLanguage, useTheme } from '../contexts'
 
-export default function Chat() {
-    const { messages, loading, sendMessage, clearMessages } = useChat()
+export default function Claude() {
+    const { messages, loading, lastResponseTime, sendMessage, clearMessages } = useClaude()
     const [inputText, setInputText] = useState('')
     const messagesEndRef = useRef(null)
 
@@ -43,60 +43,68 @@ export default function Chat() {
 
     return (
         <div className="min-h-screen gradient-dark">
-            {/* Header with Language/Theme toggles */}
+            {/* Header */}
             <Navbar
-                title={t('chat.title')}
-                subtitle={t('chat.subtitle')}
+                title="🧠 Claude AI Air Quality"
+                subtitle="Powered by Anthropic Claude-3-Haiku"
             >
                 <Link
-                    to="/chat/claude"
-                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-purple-600 hover:text-purple-800' : 'text-purple-400 hover:text-purple-300'}`}
+                    to="/chat"
+                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
-                    <Icon name="psychology" size="sm" />
-                    🧠 Claude AI
+                    <Icon name="smart_toy" size="sm" />
+                    Ollama Chat
                 </Link>
                 <Link
                     to="/"
                     className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
                     <Icon name="dashboard" size="sm" />
-                    {t('chat.dashboard')}
-                </Link>
-                <Link
-                    to="/models"
-                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
-                >
-                    <Icon name="psychology" size="sm" />
-                    {t('chat.models')}
+                    Dashboard
                 </Link>
             </Navbar>
 
             <main className="max-w-5xl mx-auto px-4 py-6">
+                {/* Performance Badge */}
+                <div className={`mb-4 p-3 rounded-lg flex items-center justify-between ${isLight ? 'bg-purple-50 border border-purple-200' : 'bg-purple-900/20 border border-purple-700/30'}`}>
+                    <div className="flex items-center gap-2">
+                        <Icon name="psychology" color="primary" />
+                        <span className={`text-sm font-medium ${isLight ? 'text-purple-800' : 'text-purple-300'}`}>
+                            Claude AI Mode - Fast cloud inference by Anthropic
+                        </span>
+                    </div>
+                    {lastResponseTime && (
+                        <span className={`text-sm font-mono px-2 py-1 rounded ${isLight ? 'bg-purple-100 text-purple-700' : 'bg-purple-800/40 text-purple-200'}`}>
+                            Last: {lastResponseTime}ms
+                        </span>
+                    )}
+                </div>
+
                 {/* Info Card */}
                 {messages.length === 0 && (
                     <Card className="mb-6 p-6">
                         <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isLight ? 'text-gray-800' : ''}`}>
-                            <Icon name="help" color="primary" />
-                            {t('chat.howToUse')}
+                            <Icon name="psychology" color="primary" />
+                            Claude AI vs Ollama Performance
                         </h3>
                         <div className={`space-y-3 text-sm mb-6 ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
                             <p className="flex items-start gap-2">
-                                <Icon name="check_circle" size="sm" color="success" />
-                                {t('chat.instruction1')}
+                                <Icon name="speed" size="sm" color="success" />
+                                <strong>Claude AI:</strong> ~1-3 seconds response time (cloud)
                             </p>
                             <p className="flex items-start gap-2">
-                                <Icon name="check_circle" size="sm" color="success" />
-                                {t('chat.instruction2')}
+                                <Icon name="memory" size="sm" color="warning" />
+                                <strong>Ollama:</strong> ~7-10 seconds response time (local)
                             </p>
                             <p className="flex items-start gap-2">
-                                <Icon name="check_circle" size="sm" color="success" />
-                                {t('chat.instruction3')}
+                                <Icon name="info" size="sm" color="primary" />
+                                Requires ANTHROPIC_API_KEY environment variable
                             </p>
                         </div>
 
                         <h4 className={`font-medium mb-3 text-sm flex items-center gap-2 ${isLight ? 'text-gray-700' : ''}`}>
                             <Icon name="lightbulb" size="sm" color="warning" />
-                            {t('chat.exampleQueries')}
+                            Try these queries:
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             {exampleQueries.map((query, index) => (
@@ -104,8 +112,8 @@ export default function Chat() {
                                     key={index}
                                     onClick={() => setInputText(query)}
                                     className={`text-left px-3 py-2 rounded-lg text-xs transition border flex items-center gap-2 ${isLight
-                                        ? 'bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200 hover:border-primary-500'
-                                        : 'bg-dark-800 hover:bg-dark-700 text-dark-300 border-dark-600 hover:border-primary-500'
+                                        ? 'bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200 hover:border-purple-500'
+                                        : 'bg-dark-800 hover:bg-dark-700 text-dark-300 border-dark-600 hover:border-purple-500'
                                         }`}
                                 >
                                     <Icon name="arrow_forward" size="xs" color="primary" />
@@ -121,8 +129,9 @@ export default function Chat() {
                     {messages.length === 0 ? (
                         <div className={`flex items-center justify-center h-full ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
                             <div className="text-center">
-                                <Icon name="chat" size="2xl" className="mb-4" />
-                                <p>{t('chat.startConversation')}</p>
+                                <Icon name="psychology" size="2xl" className="mb-4" />
+                                <p>Ask me anything about air quality!</p>
+                                <p className="text-xs mt-2">🧠 Powered by Claude AI</p>
                             </div>
                         </div>
                     ) : (
@@ -132,16 +141,16 @@ export default function Chat() {
                             ))}
                             {loading && (
                                 <div className="flex items-start gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center flex-shrink-0">
-                                        <Icon name="smart_toy" size="sm" color="white" />
+                                    <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center flex-shrink-0">
+                                        <Icon name="psychology" size="sm" color="white" />
                                     </div>
                                     <div className={`flex-1 rounded-lg p-4 ${isLight ? 'bg-gray-100' : 'bg-dark-800'}`}>
                                         <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 bg-primary-400 rounded-full animate-pulse"></div>
-                                            <div className="w-2 h-2 bg-primary-400 rounded-full animate-pulse delay-75"></div>
-                                            <div className="w-2 h-2 bg-primary-400 rounded-full animate-pulse delay-150"></div>
+                                            <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                                            <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse delay-75"></div>
+                                            <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse delay-150"></div>
                                             <span className={`text-sm ml-2 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                                {t('chat.processing')}
+                                                Claude is thinking...
                                             </span>
                                         </div>
                                     </div>
@@ -159,8 +168,8 @@ export default function Chat() {
                             type="text"
                             value={inputText}
                             onChange={(e) => setInputText(e.target.value)}
-                            placeholder={t('chat.placeholder')}
-                            className={`flex-1 px-4 py-3 border rounded-lg transition focus:outline-none focus:border-primary-500 ${isLight
+                            placeholder="Ask about air quality in Thai or English..."
+                            className={`flex-1 px-4 py-3 border rounded-lg transition focus:outline-none focus:border-purple-500 ${isLight
                                 ? 'bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400'
                                 : 'bg-dark-800 border-dark-600 text-white placeholder-dark-500'
                                 }`}
@@ -171,9 +180,10 @@ export default function Chat() {
                             type="submit"
                             loading={loading}
                             disabled={!inputText.trim() || loading}
+                            className="bg-purple-600 hover:bg-purple-700"
                         >
-                            <Icon name="send" size="sm" />
-                            {t('chat.send')}
+                            <Icon name="psychology" size="sm" />
+                            Send
                         </Button>
                         {messages.length > 0 && (
                             <Button
@@ -183,12 +193,12 @@ export default function Chat() {
                                 disabled={loading}
                             >
                                 <Icon name="delete" size="sm" />
-                                {t('chat.clear')}
+                                Clear
                             </Button>
                         )}
                     </form>
                     <p className={`text-xs mt-2 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
-                        {t('chat.maxLength')} {inputText.length}/300 {t('chat.characters')}
+                        🧠 Claude AI Mode | {inputText.length}/300 characters
                     </p>
                 </Card>
             </main>
@@ -198,6 +208,7 @@ export default function Chat() {
 
 function ChatMessage({ message, isLight, t }) {
     const isUser = message.type === 'user'
+    const isClaude = message.llm_provider === 'claude'
 
     // Determine if this is a station search result
     const isStationSearch = message.summary?.stations && message.summary?.search_summary
@@ -205,9 +216,9 @@ function ChatMessage({ message, isLight, t }) {
     return (
         <div className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
             {/* Avatar */}
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isUser ? 'bg-success-500' : 'bg-primary-500'
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isUser ? 'bg-success-500' : 'bg-purple-500'
                 }`}>
-                <Icon name={isUser ? 'person' : 'smart_toy'} size="sm" color="white" />
+                <Icon name={isUser ? 'person' : 'psychology'} size="sm" color="white" />
             </div>
 
             {/* Message Content */}
@@ -220,6 +231,15 @@ function ChatMessage({ message, isLight, t }) {
                             ? 'bg-gray-100 border border-gray-200'
                             : 'bg-dark-800 border border-dark-600'
                     }`}>
+
+                    {/* Response time badge */}
+                    {!isUser && message.response_time_ms && (
+                        <div className={`text-xs mb-2 inline-flex items-center gap-1 px-2 py-0.5 rounded ${isLight ? 'bg-purple-100 text-purple-700' : 'bg-purple-800/40 text-purple-200'}`}>
+                            <Icon name="psychology" size="xs" />
+                            {message.response_time_ms}ms
+                        </div>
+                    )}
+
                     {/* Text */}
                     <p className={`whitespace-pre-wrap text-sm leading-relaxed ${isLight ? 'text-gray-800' : 'text-white'}`}>
                         {message.text}
@@ -250,6 +270,7 @@ function ChatMessage({ message, isLight, t }) {
                             hour: '2-digit',
                             minute: '2-digit'
                         })}
+                        {isClaude && <span className="ml-2 text-purple-400">🧠 Claude</span>}
                     </p>
                 </div>
             </div>
@@ -260,7 +281,6 @@ function ChatMessage({ message, isLight, t }) {
 function StationSearchResults({ stations, isLight, t }) {
     if (!stations || stations.length === 0) return null
 
-    // AQI level colors
     const getAqiColor = (level) => {
         switch (level) {
             case 'excellent': return 'text-green-500'
@@ -299,15 +319,6 @@ function StationSearchResults({ stations, isLight, t }) {
         }
     }
 
-    const getTrendIcon = (trend) => {
-        switch (trend) {
-            case 'increasing': return 'trending_up'
-            case 'decreasing': return 'trending_down'
-            case 'stable': return 'trending_flat'
-            default: return 'help'
-        }
-    }
-
     return (
         <div className="space-y-3">
             <div className={`text-xs font-medium mb-2 flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
@@ -316,7 +327,7 @@ function StationSearchResults({ stations, isLight, t }) {
             </div>
 
             <div className="space-y-2 max-h-64 overflow-y-auto">
-                {stations.slice(0, 10).map((station, index) => (
+                {stations.slice(0, 5).map((station, index) => (
                     <div
                         key={station.station_id || index}
                         className={`p-3 rounded-lg border ${isLight
@@ -330,11 +341,6 @@ function StationSearchResults({ stations, isLight, t }) {
                                     <Icon name="location_on" size="sm" color="primary" />
                                     {station.name_en || station.name_th || station.station_id}
                                 </div>
-                                {station.name_th && station.name_en && (
-                                    <div className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                        {station.name_th}
-                                    </div>
-                                )}
                             </div>
                             <span className={`text-xs flex items-center gap-1 ${getAqiColor(station.aqi_level)}`}>
                                 <Icon name={getAqiIcon(station.aqi_level)} size="sm" />
@@ -351,43 +357,10 @@ function StationSearchResults({ stations, isLight, t }) {
                                 <span className="font-medium">7-day Avg:</span>{' '}
                                 {station.avg_pm25_7d ? `${station.avg_pm25_7d} μg/m³` : 'N/A'}
                             </div>
-                            <div className={isLight ? 'text-gray-600' : 'text-dark-300'}>
-                                <span className="font-medium">Range (7d):</span>{' '}
-                                {station.min_pm25_7d && station.max_pm25_7d
-                                    ? `${station.min_pm25_7d} - ${station.max_pm25_7d}`
-                                    : 'N/A'}
-                            </div>
-                            <div className={`flex items-center gap-1 ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
-                                <span className="font-medium">Trend:</span>
-                                <Icon name={getTrendIcon(station.trend_7d)} size="sm" />
-                                {station.trend_7d || 'N/A'}
-                            </div>
                         </div>
-
-                        {station.data_completeness_7d && (
-                            <div className="mt-2">
-                                <div className={`text-xs flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                    <Icon name="pie_chart" size="xs" />
-                                    Data completeness: {station.data_completeness_7d}%
-                                </div>
-                                <div className={`w-full h-1 rounded-full mt-1 ${isLight ? 'bg-gray-200' : 'bg-dark-600'}`}>
-                                    <div
-                                        className="h-1 rounded-full bg-primary-500"
-                                        style={{ width: `${Math.min(station.data_completeness_7d, 100)}%` }}
-                                    />
-                                </div>
-                            </div>
-                        )}
                     </div>
                 ))}
             </div>
-
-            {stations.length > 10 && (
-                <div className={`text-xs text-center flex items-center justify-center gap-1 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
-                    <Icon name="more_horiz" size="sm" />
-                    ... and {stations.length - 10} more stations
-                </div>
-            )}
         </div>
     )
 }
@@ -395,7 +368,6 @@ function StationSearchResults({ stations, isLight, t }) {
 function MiniChart({ data, summary, isLight, t }) {
     if (!data || data.length === 0) return null
 
-    // Check if data is station data (has station_id) vs time series (has value)
     const isTimeSeriesData = data[0]?.value !== undefined || data[0]?.time !== undefined
     if (!isTimeSeriesData) return null
 
@@ -415,7 +387,7 @@ function MiniChart({ data, summary, isLight, t }) {
         <div className="space-y-2">
             <div className={`text-xs font-medium mb-2 flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
                 <Icon name="show_chart" size="sm" />
-                {t('chat.trendChart')} ({validData.length} {t('chat.dataPoints')})
+                Trend Chart ({validData.length} data points)
             </div>
 
             {/* Chart with axis labels */}
@@ -436,7 +408,7 @@ function MiniChart({ data, summary, isLight, t }) {
                             return (
                                 <div
                                     key={index}
-                                    className="flex-1 bg-primary-500 rounded-t opacity-70 hover:opacity-100 transition cursor-pointer"
+                                    className="flex-1 bg-purple-500 rounded-t opacity-70 hover:opacity-100 transition cursor-pointer"
                                     style={{ height: `${Math.max(height, 5)}%` }}
                                     title={`${point.value} μg/m³\n${point.time ? new Date(point.time).toLocaleString('th-TH') : ''}`}
                                 />
@@ -482,15 +454,14 @@ function MiniChart({ data, summary, isLight, t }) {
                         }
                         size="sm"
                     />
-                    {t('chat.trend')} {
-                        summary.trend === 'increasing' ? t('chat.increasing') :
-                            summary.trend === 'decreasing' ? t('chat.decreasing') :
-                                summary.trend === 'stable' ? t('chat.stable') :
-                                    t('chat.insufficient')
+                    Trend: {
+                        summary.trend === 'increasing' ? 'Increasing ↑' :
+                            summary.trend === 'decreasing' ? 'Decreasing ↓' :
+                                summary.trend === 'stable' ? 'Stable →' :
+                                    'Insufficient data'
                     }
                 </div>
             )}
         </div>
     )
 }
-

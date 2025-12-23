@@ -1252,3 +1252,65 @@ async def chat_health_check():
     """
     health = await chatbot_service.health_check()
     return health
+
+
+# ============== Claude AI Chat (Performance Comparison) ==============
+
+@app.post("/api/chat/claude/query", response_model=ChatResponse, tags=["AI Chat"])
+async def chat_claude_query(request: ChatQueryRequest):
+    """
+    Process natural language query using **Claude AI (Anthropic API)**.
+    
+    ⚡ **Faster than Ollama** - Cloud-based inference for comparison.
+    
+    **Requires:**
+    - `ANTHROPIC_API_KEY` environment variable
+    - Optional: `CLAUDE_MODEL` (default: claude-3-haiku-20240307)
+    
+    **Available Models:**
+    - `claude-3-haiku-20240307` - Fastest, cheapest (~$0.25/1M tokens)
+    - `claude-3-5-sonnet-20241022` - Balanced speed/quality
+    - `claude-3-opus-20240229` - Highest quality
+    
+    **Same query support as Ollama version:**
+    - Thai/English air quality queries
+    - Station search
+    - Historical data retrieval
+    
+    **Response includes:**
+    - `response_time_ms`: Time taken for LLM inference
+    - `llm_provider`: "claude"
+    """
+    from backend_api.services.ai.claude_chatbot import claude_service
+    
+    try:
+        result = await claude_service.process_query(request.query)
+        return ChatResponse(**result)
+    except Exception as e:
+        import traceback
+        logger.error(f"Claude query error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return ChatResponse(
+            status="error",
+            message="Claude AI service error. Check your ANTHROPIC_API_KEY.",
+            intent=None,
+            data=None,
+            summary=None,
+            output_type=None
+        )
+
+
+@app.get("/api/chat/claude/health", tags=["AI Chat"])
+async def chat_claude_health_check():
+    """
+    Check health of Claude AI chatbot components.
+
+    Returns status of:
+    - Anthropic API connection
+    - Model being used
+    - API orchestrator
+    """
+    from backend_api.services.ai.claude_chatbot import claude_service
+    
+    health = await claude_service.health_check()
+    return health
