@@ -155,9 +155,9 @@ class APIOrchestrator:
         """
         try:
             with get_db_context() as db:
-                # Try exact match on station_id first
+                # Try exact match on station_id first (case-insensitive)
                 station = db.query(Station).filter(
-                    Station.station_id == station_name_or_id
+                    Station.station_id.ilike(station_name_or_id)
                 ).first()
 
                 if station:

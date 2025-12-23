@@ -43,7 +43,7 @@ class OllamaAdapter:
         prompt: str,
         system_prompt: str,
         temperature: float = 0.1,
-        max_tokens: int = 500
+        max_tokens: int = 256  # Reduced for faster responses
     ) -> Optional[str]:
         """
         Generate response from LLM
@@ -61,15 +61,18 @@ class OllamaAdapter:
             # Ollama API endpoint
             url = f"{self.base_url}/api/generate"
 
-            # Build request payload
+            # Build request payload - optimized for speed
             payload = {
                 "model": self.model,
                 "prompt": prompt,
                 "system": system_prompt,
                 "stream": False,
+                "keep_alive": "10m",  # Keep model in memory for faster subsequent requests
                 "options": {
                     "temperature": temperature,
                     "num_predict": max_tokens,
+                    "num_ctx": 2048,  # Smaller context window for speed
+                    "num_thread": 4,  # Use multiple threads
                 }
             }
 

@@ -9,3 +9,6 @@ docker builder prune --filter "until=24h" -f
 
 # Full system cleanup (removes ALL unused data)
 docker system prune -f
+
+# Remove the unused volumes
+docker volume prune -f

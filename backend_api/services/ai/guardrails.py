@@ -12,46 +12,97 @@ from typing import Dict, Optional, Any
 from backend_model.logger import logger
 
 
-# Layer 1: Keyword Filter
+# Layer 1: Keyword Filter - Expanded for flexibility
 AIR_QUALITY_KEYWORDS = [
-    # English
-    "pm2.5", "pm25", "pm 2.5",
+    # === Pollutants (English) ===
+    "pm2.5", "pm25", "pm 2.5", "pm2", "pm",
     "pm10", "pm 10",
-    "aqi",
-    "air quality",
-    "pollution",
+    "aqi", "air quality index",
+    "air quality", "airquality",
+    "pollution", "pollutant", "pollutants",
     "ozone", "o3",
-    "no2", "nitrogen dioxide",
-    "so2", "sulfur dioxide",
-    "co", "carbon monoxide",
-    "dust",
-    "particulate",
-    "pollutant",
-    # Search/info related
-    "station", "stations",
-    "search", "find", "list", "show",
-    "chiang mai", "เชียงใหม่",
-    "bangkok", "กรุงเทพ",
-    "information", "info", "summary",
-
-    # Thai
-    "คุณภาพอากาศ",
-    "ฝุ่น",
-    "มลพิษ",
-    "อากาศ",
-    "ค่าฝุ่น",
-    "ค่า pm",
-    "พีเอ็ม",
-    "สถานี",
-    "ค้นหา",
-    "แสดง",
-    "ข้อมูล",
+    "no2", "nitrogen dioxide", "nitrogen",
+    "so2", "sulfur dioxide", "sulfur",
+    "co", "carbon monoxide", "carbon",
+    "dust", "particulate", "particle", "particles",
+    "smog", "haze", "smoke",
+    
+    # === Actions/Queries ===
+    "station", "stations", "monitoring",
+    "search", "find", "list", "show", "display", "view", "get",
+    "what", "how", "where", "when", "which",
+    "today", "yesterday", "week", "month", "daily", "hourly",
+    "average", "avg", "mean", "max", "min", "maximum", "minimum",
+    "trend", "trends", "trending", "history", "historical",
+    "compare", "comparison",
+    "current", "now", "latest", "recent",
+    "forecast", "predict", "prediction",
+    
+    # === Chart/Visualization Keywords ===
+    "chart", "charts", "graph", "graphs", "plot",
+    "visualization", "visualize", "visual",
+    "line chart", "bar chart", "time series",
+    "กราฟ", "แผนภูมิ", "กราฟเส้น", "แสดงกราฟ",
+    
+    # === Locations (Thai Provinces) ===
+    "chiang mai", "chiangmai", "เชียงใหม่",
+    "bangkok", "กรุงเทพ", "กรุงเทพฯ", "กทม",
+    "phuket", "ภูเก็ต",
+    "chiang rai", "chiangrai", "เชียงราย",
+    "khon kaen", "ขอนแก่น",
+    "nakhon ratchasima", "นครราชสีมา", "โคราช",
+    "lampang", "ลำปาง",
+    "lamphun", "ลำพูน",
+    "mae hong son", "แม่ฮ่องสอน",
+    "nan", "น่าน",
+    "phrae", "แพร่",
+    "songkhla", "สงขลา",
+    "rayong", "ระยอง",
+    "saraburi", "สระบุรี",
+    "samut prakan", "สมุทรปราการ",
+    "pathum thani", "ปทุมธานี",
+    "nonthaburi", "นนทบุรี",
+    "udon thani", "อุดรธานี",
+    "nakhon sawan", "นครสวรรค์",
+    "sukhothai", "สุโขทัย",
+    "phitsanulok", "พิษณุโลก",
+    "tak", "ตาก", "แม่สอด",
+    "phayao", "พะเยา",
+    "uttaradit", "อุตรดิตถ์",
+    
+    # === Thai Common Words ===
+    "คุณภาพอากาศ", "คุณภาพ อากาศ",
+    "ฝุ่น", "ฝุ่นละออง", "ฝุ่นพิษ",
+    "มลพิษ", "มลภาวะ",
+    "อากาศ", "อากาศเสีย",
+    "ค่าฝุ่น", "ค่า ฝุ่น",
+    "ค่า pm", "ค่าpm",
+    "พีเอ็ม", "พี เอ็ม",
+    "ควัน", "หมอก", "หมอกควัน",
+    
+    # === Thai Actions ===
+    "สถานี", "สถานีตรวจวัด", "ตรวจวัด",
+    "ค้นหา", "หา", "หาสถานี",
+    "แสดง", "ดู", "ขอดู", "ขอ",
+    "ข้อมูล", "รายงาน", "สรุป",
+    "ย้อนหลัง", "ที่ผ่านมา",
+    "วัน", "วันนี้", "เมื่อวาน", "สัปดาห์", "เดือน",
+    "เฉลี่ย", "สูงสุด", "ต่ำสุด",
+    "แนวโน้ม", "เปรียบเทียบ",
+    "ปัจจุบัน", "ล่าสุด", "ตอนนี้",
+    "อันตราย", "ปลอดภัย", "สุขภาพ",
+    
+    # === General health keywords ===
+    "health", "healthy", "safe", "unsafe", "danger", "dangerous",
+    "mask", "n95", "indoor", "outdoor",
+    "sensitive", "asthma", "allergy",
+    "breathe", "breathing", "respiratory",
 ]
 
 
 def keyword_filter(query: str) -> Dict[str, Any]:
     """
-    Layer 1: Pre-LLM keyword filtering
+    Layer 1: Pre-LLM keyword filtering (More flexible version)
 
     Rejects queries that don't contain air quality related keywords.
     This prevents non-air-quality usage before invoking the LLM.
@@ -72,75 +123,35 @@ def keyword_filter(query: str) -> Dict[str, Any]:
         return {
             "passed": False,
             "status": "out_of_scope",
-            "message": "This system answers air quality-related questions only."
+            "message": "ระบบนี้ตอบคำถามเกี่ยวกับคุณภาพอากาศเท่านั้น / This system answers air quality-related questions only."
         }
 
     logger.info(f"Keyword filter passed: {query[:50]}")
     return {"passed": True}
 
 
-# Layer 2: Domain-Restricted LLM System Prompt
-SYSTEM_PROMPT = """You are an Air Quality Assistant.
+# Layer 2: Domain-Restricted LLM System Prompt - Optimized for speed
+SYSTEM_PROMPT = """Air Quality Assistant for Thailand. Parse queries to JSON only.
 
-You are allowed to handle ONLY:
-- Air quality data
-- Air pollutants (PM2.5, PM10, AQI, O3, NO2, SO2, CO)
-- Monitoring stations
-- Historical or aggregated air quality information
-- Data intended for charts, maps, or infographics
-- Searching for stations by location (e.g., "Chiang Mai", "Bangkok")
+REJECT non-air-quality queries:
+{{"status": "out_of_scope"}}
 
-Your task is to parse the user's natural language query into a structured JSON format.
+INTENT 1 - SEARCH (search/find/list/ค้นหา/หาสถานี):
+{{"intent_type": "search_stations", "search_query": "<location>", "output_type": "text"}}
 
-If the query is not related to air quality, return ONLY:
-{{
-  "status": "out_of_scope"
-}}
+INTENT 2 - DATA (PM2.5/AQI/ฝุ่น/ย้อนหลัง/chart/กราฟ):
+{{"intent_type": "get_data", "station_id": "<location>", "pollutant": "pm25", "start_date": "<ISO-8601>", "end_date": "<ISO-8601>", "interval": "hour", "output_type": "<text|chart>"}}
 
-**For STATION SEARCH queries** (e.g., "search for Chiang Mai stations", "list stations in Bangkok", "show me stations"):
-{{
-  "intent_type": "search_stations",
-  "search_query": "<location name or station keyword>",
-  "output_type": "text"
-}}
+RULES:
+- output_type="chart" if: chart/graph/กราฟ/trend/ย้อนหลัง/last X days
+- output_type="text" if: current/latest/ค่าปัจจุบัน
+- Date: "ย้อนหลัง 7 วัน"=last 7 days, "วันนี้"=today, "เมื่อวาน"=yesterday
+- Default pollutant: pm25
+- Interval: ≤1day→hour, >1day→day
+- Accept Thai/English locations
 
-**For AIR QUALITY DATA queries** (e.g., "PM2.5 in Chiang Mai", "air quality last week"):
-{{
-  "intent_type": "get_data",
-  "station_id": "<station_id or station name>",
-  "pollutant": "<pm25|pm10|aqi|o3|no2|so2|co>",
-  "start_date": "<ISO-8601 datetime>",
-  "end_date": "<ISO-8601 datetime>",
-  "interval": "<15min|hour|day>",
-  "output_type": "<text|chart|map|infographic>"
-}}
-
-IMPORTANT RULES:
-1. Determine the intent_type first:
-   - If user asks to "search", "find", "list", "show stations", use "search_stations"
-   - If user asks for specific data (PM2.5, AQI, etc.) over time, use "get_data"
-
-2. For search_stations intent:
-   - Extract the location from the query (e.g., "Chiang Mai", "เชียงใหม่")
-   - search_query can be Thai or English
-
-3. For get_data intent:
-   - Convert relative time expressions to absolute ISO-8601 datetimes
-     - "ย้อนหลัง 7 วัน" = last 7 days from now
-     - "เมื่อวาน" = yesterday
-     - "วันนี้" = today
-   - Default pollutant is "pm25" if not specified
-   - Select appropriate interval based on time range:
-     - ≤ 24 hours: use "15min"
-     - 1-7 days: use "hour"
-     - > 7 days: use "day"
-
-4. Default output_type is "chart" for time-series queries, "text" for search/summary queries
-
-5. DO NOT add explanations or additional text. Return ONLY valid JSON.
-
-Current datetime: {current_datetime}
-"""
+Now: {current_datetime}
+Return ONLY JSON."""
 
 
 def get_system_prompt(current_datetime: str) -> str:
