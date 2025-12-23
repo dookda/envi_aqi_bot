@@ -174,6 +174,7 @@ Input (24 hours) → LSTM(64) → Dropout(0.2) → LSTM(32) → Dropout(0.2) →
     version=__version__,
     lifespan=lifespan,
     openapi_tags=tags_metadata,
+    root_path="/ebot",
 )
 
 # CORS middleware
