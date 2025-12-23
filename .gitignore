@@ -210,13 +210,7 @@ __marimo__/
 # Project-specific
 # ===================
 
-# Saved LSTM models
-models/
-*.keras
-*.h5
-*.pkl
-
-# Application logs
+# Application logs (not models - we want to keep pre-trained models)
 logs/
 
 # Data files
@@ -225,3 +219,6 @@ logs/
 
 # Jupyter notebooks
 *.ipynb
+
+# Note: models/ folder is NOT ignored - pre-trained LSTM weights are included
+# for deployment so the server doesn't need to train on first startup
