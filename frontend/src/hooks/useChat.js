@@ -1,5 +1,6 @@
 /**
  * Custom hook for AI Chat functionality
+ * Note: Response text no longer includes emojis - icons are rendered in UI components
  */
 import { useState, useCallback } from 'react'
 
@@ -104,18 +105,18 @@ function getResponseText(result) {
     if (result.status === 'success' && result.summary) {
         const s = result.summary
         let text = `ข้อมูล PM2.5:\n\n`
-        text += `📊 ค่าเฉลี่ย: ${s.mean} μg/m³\n`
-        text += `📈 ค่าสูงสุด: ${s.max} μg/m³\n`
-        text += `📉 ค่าต่ำสุด: ${s.min} μg/m³\n`
-        text += `📍 จุดข้อมูล: ${s.valid_points}/${s.data_points} จุด\n`
+        text += `• ค่าเฉลี่ย: ${s.mean} μg/m³\n`
+        text += `• ค่าสูงสุด: ${s.max} μg/m³\n`
+        text += `• ค่าต่ำสุด: ${s.min} μg/m³\n`
+        text += `• จุดข้อมูล: ${s.valid_points}/${s.data_points} จุด\n`
 
         if (s.aqi_level) {
             const levels = {
-                excellent: '🟢 ดีมาก',
-                good: '🟡 ดี',
-                moderate: '🟠 ปานกลาง',
-                unhealthy_sensitive: '🔴 ไม่ดีต่อกลุ่มเสี่ยง',
-                unhealthy: '🔴 ไม่ดี'
+                excellent: 'ดีมาก',
+                good: 'ดี',
+                moderate: 'ปานกลาง',
+                unhealthy_sensitive: 'ไม่ดีต่อกลุ่มเสี่ยง',
+                unhealthy: 'ไม่ดี'
             }
             text += `\nระดับคุณภาพอากาศ: ${levels[s.aqi_level] || s.aqi_level}`
         }

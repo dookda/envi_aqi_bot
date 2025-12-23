@@ -180,21 +180,25 @@ export default function AQIChart({
                 formatter: params => {
                     if (!params?.length) return ''
                     const date = new Date(params[0].axisValue).toLocaleString()
+                    // Material icon style for tooltip
+                    const iconStyle = `font-family:'Material Symbols Outlined';font-size:14px;vertical-align:middle;margin-right:4px;`
                     let content = `<strong>${date}</strong><br/>`
 
                     params.forEach(param => {
                         if (param.value?.[1] !== null) {
                             if (param.seriesName === 'Anomaly') {
                                 const anomaly = param.data.anomaly
-                                const icon = '⚠️'
-                                content += `${icon} <span style="color:${param.color}">Anomaly (${anomaly.type})</span>: `
+                                content += `<span style="${iconStyle}color:${param.color}">warning</span>`
+                                content += `<span style="color:${param.color}">Anomaly (${anomaly.type})</span>: `
                                 content += `<strong>${param.value[1].toFixed(1)} μg/m³</strong><br/>`
                                 content += `<span style="color:#94a3b8">Severity: ${anomaly.severity}</span><br/>`
                             } else {
                                 const isImputed = param.seriesName.includes('Imputed')
-                                const icon = isImputed ? '🔮' : '📊'
+                                const iconName = isImputed ? 'auto_fix_high' : 'show_chart'
+                                const iconColor = isImputed ? '#f59e0b' : '#3b82f6'
                                 const label = isImputed ? 'LSTM Imputed' : 'Original PM2.5'
-                                content += `${icon} ${label}: <strong>${param.value[1].toFixed(1)} μg/m³</strong><br/>`
+                                content += `<span style="${iconStyle}color:${iconColor}">${iconName}</span>`
+                                content += `${label}: <strong>${param.value[1].toFixed(1)} μg/m³</strong><br/>`
                             }
                         }
                     })

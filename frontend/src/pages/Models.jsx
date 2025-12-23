@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Button, Card, Badge, Spinner } from '../components/atoms'
+import { Button, Card, Badge, Spinner, Icon } from '../components/atoms'
 import { StatCard } from '../components/molecules'
 import { Navbar } from '../components/organisms'
 import { useLanguage, useTheme } from '../contexts'
@@ -86,8 +86,9 @@ export default function Models() {
             >
                 <Link
                     to="/"
-                    className={`transition ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
+                    className={`transition flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
+                    <Icon name="arrow_back" size="sm" />
                     {t('models.backToDashboard')}
                 </Link>
                 <Button
@@ -95,6 +96,7 @@ export default function Models() {
                     loading={trainingStation === 'all'}
                     variant="primary"
                 >
+                    <Icon name="model_training" size="sm" />
                     {t('models.trainAll')}
                 </Button>
             </Navbar>
@@ -106,26 +108,26 @@ export default function Models() {
                         label={t('models.totalStations')}
                         value={summary.total_stations || 0}
                         color="primary"
-                        icon="📍"
+                        iconName="location_on"
                     />
                     <StatCard
                         label={t('models.modelsTrained')}
                         value={summary.models_trained || 0}
                         color="success"
-                        icon="🧠"
+                        iconName="psychology"
                     />
                     <StatCard
                         label={t('models.gapFillReady')}
                         value={summary.gap_fill_ready || 0}
                         color="warning"
-                        icon="✅"
+                        iconName="check_circle"
                     />
                     <StatCard
                         label={t('models.coverage')}
                         value={summary.coverage_percent || 0}
                         unit="%"
                         color={summary.coverage_percent >= 80 ? 'success' : summary.coverage_percent >= 50 ? 'warning' : 'danger'}
-                        icon="📊"
+                        iconName="bar_chart"
                     />
                 </div>
 
@@ -135,20 +137,21 @@ export default function Models() {
                         <span className={isLight ? 'text-gray-600' : 'text-dark-400'}>{t('models.filter')}</span>
                         <div className="flex gap-2">
                             {[
-                                { value: 'all', label: t('models.allStations') },
-                                { value: 'ready', label: t('models.ready') },
-                                { value: 'not-ready', label: t('models.notReady') },
+                                { value: 'all', label: t('models.allStations'), icon: 'list' },
+                                { value: 'ready', label: t('models.ready'), icon: 'check_circle' },
+                                { value: 'not-ready', label: t('models.notReady'), icon: 'pending' },
                             ].map(opt => (
                                 <button
                                     key={opt.value}
                                     onClick={() => setFilter(opt.value)}
-                                    className={`px-4 py-2 rounded-lg transition ${filter === opt.value
+                                    className={`px-4 py-2 rounded-lg transition flex items-center gap-2 ${filter === opt.value
                                         ? 'bg-primary-500 text-white'
                                         : isLight
                                             ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                             : 'bg-dark-700 text-dark-300 hover:bg-dark-600'
                                         }`}
                                 >
+                                    <Icon name={opt.icon} size="sm" />
                                     {opt.label}
                                 </button>
                             ))}
@@ -166,7 +169,8 @@ export default function Models() {
                             {/* Station Header */}
                             <div className="flex items-start justify-between mb-3">
                                 <div>
-                                    <h3 className={`font-semibold ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                    <h3 className={`font-semibold flex items-center gap-1 ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                        <Icon name="location_on" size="sm" color="primary" />
                                         {station.station_id}
                                     </h3>
                                     <p className={`text-sm truncate max-w-[200px] ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
@@ -184,7 +188,10 @@ export default function Models() {
                             {/* Model Status */}
                             <div className="space-y-2 mb-4">
                                 <div className="flex justify-between text-sm">
-                                    <span className={isLight ? 'text-gray-500' : 'text-dark-400'}>{t('models.model')}</span>
+                                    <span className={`flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                        <Icon name="psychology" size="xs" />
+                                        {t('models.model')}
+                                    </span>
                                     <span className={station.model_status.has_model ? 'text-success-400' : isLight ? 'text-gray-400' : 'text-dark-500'}>
                                         {station.model_status.has_model ? t('models.trained') : t('models.notTrained')}
                                     </span>
@@ -195,7 +202,10 @@ export default function Models() {
                                         {/* Accuracy (R²) - Most prominent */}
                                         {station.model_status.training_info.accuracy_percent != null && (
                                             <div className="flex justify-between text-sm mb-2">
-                                                <span className={isLight ? 'text-gray-500' : 'text-dark-400'}>{t('models.accuracy')}</span>
+                                                <span className={`flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                                    <Icon name="speed" size="xs" />
+                                                    {t('models.accuracy')}
+                                                </span>
                                                 <span className={`font-bold ${station.model_status.training_info.accuracy_percent >= 80
                                                     ? 'text-success-400'
                                                     : station.model_status.training_info.accuracy_percent >= 60
@@ -209,26 +219,38 @@ export default function Models() {
                                         {/* Validation R² Raw Value */}
                                         {station.model_status.training_info.val_r2 != null && (
                                             <div className="flex justify-between text-sm">
-                                                <span className={isLight ? 'text-gray-500' : 'text-dark-400'}>{t('models.r2Score')}</span>
+                                                <span className={`flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                                    <Icon name="functions" size="xs" />
+                                                    {t('models.r2Score')}
+                                                </span>
                                                 <span className={isLight ? 'text-gray-800' : 'text-white'}>
                                                     {station.model_status.training_info.val_r2.toFixed(4)}
                                                 </span>
                                             </div>
                                         )}
                                         <div className="flex justify-between text-sm">
-                                            <span className={isLight ? 'text-gray-500' : 'text-dark-400'}>{t('models.rmse')}</span>
+                                            <span className={`flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                                <Icon name="query_stats" size="xs" />
+                                                {t('models.rmse')}
+                                            </span>
                                             <span className="text-primary-400">
                                                 {station.model_status.training_info.val_rmse?.toFixed(4) || '—'}
                                             </span>
                                         </div>
                                         <div className="flex justify-between text-sm">
-                                            <span className={isLight ? 'text-gray-500' : 'text-dark-400'}>{t('models.mae')}</span>
+                                            <span className={`flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                                <Icon name="analytics" size="xs" />
+                                                {t('models.mae')}
+                                            </span>
                                             <span className="text-primary-400">
                                                 {station.model_status.training_info.val_mae?.toFixed(4) || '—'}
                                             </span>
                                         </div>
                                         <div className="flex justify-between text-sm">
-                                            <span className={isLight ? 'text-gray-500' : 'text-dark-400'}>{t('models.trainingSamples')}</span>
+                                            <span className={`flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                                <Icon name="dataset" size="xs" />
+                                                {t('models.trainingSamples')}
+                                            </span>
                                             <span className={isLight ? 'text-gray-800' : 'text-white'}>
                                                 {station.model_status.training_info.training_samples || '—'}
                                             </span>
@@ -241,19 +263,31 @@ export default function Models() {
                             <div className={`border-t pt-3 mb-4 ${isLight ? 'border-gray-200' : 'border-white/10'}`}>
                                 <div className="grid grid-cols-2 gap-2 text-xs">
                                     <div className={`rounded p-2 ${isLight ? 'bg-gray-100' : 'bg-dark-800'}`}>
-                                        <div className={isLight ? 'text-gray-500' : 'text-dark-500'}>{t('models.validData')}</div>
+                                        <div className={`flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-500'}`}>
+                                            <Icon name="check" size="xs" />
+                                            {t('models.validData')}
+                                        </div>
                                         <div className={`font-medium ${isLight ? 'text-gray-800' : 'text-white'}`}>{station.data_status.valid_points}</div>
                                     </div>
                                     <div className={`rounded p-2 ${isLight ? 'bg-gray-100' : 'bg-dark-800'}`}>
-                                        <div className={isLight ? 'text-gray-500' : 'text-dark-500'}>{t('models.imputed')}</div>
+                                        <div className={`flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-500'}`}>
+                                            <Icon name="auto_fix_high" size="xs" />
+                                            {t('models.imputed')}
+                                        </div>
                                         <div className="text-warning-400 font-medium">{station.data_status.imputed_points}</div>
                                     </div>
                                     <div className={`rounded p-2 ${isLight ? 'bg-gray-100' : 'bg-dark-800'}`}>
-                                        <div className={isLight ? 'text-gray-500' : 'text-dark-500'}>{t('models.missing')}</div>
+                                        <div className={`flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-500'}`}>
+                                            <Icon name="cancel" size="xs" />
+                                            {t('models.missing')}
+                                        </div>
                                         <div className="text-danger-400 font-medium">{station.data_status.missing_points}</div>
                                     </div>
                                     <div className={`rounded p-2 ${isLight ? 'bg-gray-100' : 'bg-dark-800'}`}>
-                                        <div className={isLight ? 'text-gray-500' : 'text-dark-500'}>{t('models.total')}</div>
+                                        <div className={`flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-500'}`}>
+                                            <Icon name="database" size="xs" />
+                                            {t('models.total')}
+                                        </div>
                                         <div className={`font-medium ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>{station.data_status.total_points}</div>
                                     </div>
                                 </div>
@@ -268,6 +302,7 @@ export default function Models() {
                                     loading={trainingStation === station.station_id}
                                     className="flex-1"
                                 >
+                                    <Icon name="model_training" size="xs" />
                                     {station.model_status.has_model ? t('models.retrain') : t('models.train')}
                                 </Button>
                                 <Button
@@ -276,6 +311,7 @@ export default function Models() {
                                     onClick={() => navigate(`/?station=${station.station_id}`)}
                                     className="flex-1"
                                 >
+                                    <Icon name="show_chart" size="xs" />
                                     {t('models.viewChart')}
                                 </Button>
                             </div>
@@ -285,6 +321,7 @@ export default function Models() {
 
                 {filteredStations.length === 0 && (
                     <Card className="p-12 text-center">
+                        <Icon name="search_off" size="2xl" color="muted" className="mb-4" />
                         <p className={isLight ? 'text-gray-500' : 'text-dark-400'}>{t('models.noStations')}</p>
                     </Card>
                 )}

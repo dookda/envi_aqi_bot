@@ -326,7 +326,10 @@ export default function StationMap({
                     className="flex flex-col items-center justify-center bg-dark-800 text-dark-300"
                     style={{ height }}
                 >
-                    <span className="text-red-400">⚠️ Map Error</span>
+                    <span className="text-red-400 flex items-center gap-2">
+                        <span className="material-symbols-outlined">error</span>
+                        Map Error
+                    </span>
                     <span className="text-sm mt-2">{mapError}</span>
                 </div>
             </Card>

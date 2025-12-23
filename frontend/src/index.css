@@ -133,6 +133,20 @@ body {
 }
 
 /* ============================================
+   MATERIAL SYMBOLS STYLING
+   ============================================ */
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-size: inherit;
+  line-height: 1;
+  vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ============================================
    UTILITY CLASSES
    ============================================ */
 

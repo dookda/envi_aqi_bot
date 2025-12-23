@@ -6,7 +6,7 @@
  */
 import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Button, Card } from '../components/atoms'
+import { Button, Card, Icon } from '../components/atoms'
 import { Navbar } from '../components/organisms'
 import { useChat } from '../hooks'
 import { useLanguage, useTheme } from '../contexts'
@@ -50,14 +50,16 @@ export default function Chat() {
             >
                 <Link
                     to="/"
-                    className={`transition text-sm ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
+                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
+                    <Icon name="dashboard" size="sm" />
                     {t('chat.dashboard')}
                 </Link>
                 <Link
                     to="/models"
-                    className={`transition text-sm ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
+                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
+                    <Icon name="psychology" size="sm" />
                     {t('chat.models')}
                 </Link>
             </Navbar>
@@ -66,16 +68,27 @@ export default function Chat() {
                 {/* Info Card */}
                 {messages.length === 0 && (
                     <Card className="mb-6 p-6">
-                        <h3 className={`text-lg font-semibold mb-4 ${isLight ? 'text-gray-800' : ''}`}>
+                        <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isLight ? 'text-gray-800' : ''}`}>
+                            <Icon name="help" color="primary" />
                             {t('chat.howToUse')}
                         </h3>
                         <div className={`space-y-3 text-sm mb-6 ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
-                            <p>{t('chat.instruction1')}</p>
-                            <p>{t('chat.instruction2')}</p>
-                            <p>{t('chat.instruction3')}</p>
+                            <p className="flex items-start gap-2">
+                                <Icon name="check_circle" size="sm" color="success" />
+                                {t('chat.instruction1')}
+                            </p>
+                            <p className="flex items-start gap-2">
+                                <Icon name="check_circle" size="sm" color="success" />
+                                {t('chat.instruction2')}
+                            </p>
+                            <p className="flex items-start gap-2">
+                                <Icon name="check_circle" size="sm" color="success" />
+                                {t('chat.instruction3')}
+                            </p>
                         </div>
 
-                        <h4 className={`font-medium mb-3 text-sm ${isLight ? 'text-gray-700' : ''}`}>
+                        <h4 className={`font-medium mb-3 text-sm flex items-center gap-2 ${isLight ? 'text-gray-700' : ''}`}>
+                            <Icon name="lightbulb" size="sm" color="warning" />
                             {t('chat.exampleQueries')}
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -83,11 +96,12 @@ export default function Chat() {
                                 <button
                                     key={index}
                                     onClick={() => setInputText(query)}
-                                    className={`text-left px-3 py-2 rounded-lg text-xs transition border ${isLight
+                                    className={`text-left px-3 py-2 rounded-lg text-xs transition border flex items-center gap-2 ${isLight
                                         ? 'bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200 hover:border-primary-500'
                                         : 'bg-dark-800 hover:bg-dark-700 text-dark-300 border-dark-600 hover:border-primary-500'
                                         }`}
                                 >
+                                    <Icon name="arrow_forward" size="xs" color="primary" />
                                     "{query}"
                                 </button>
                             ))}
@@ -100,7 +114,7 @@ export default function Chat() {
                     {messages.length === 0 ? (
                         <div className={`flex items-center justify-center h-full ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
                             <div className="text-center">
-                                <div className="text-6xl mb-4">💬</div>
+                                <Icon name="chat" size="2xl" className="mb-4" />
                                 <p>{t('chat.startConversation')}</p>
                             </div>
                         </div>
@@ -112,7 +126,7 @@ export default function Chat() {
                             {loading && (
                                 <div className="flex items-start gap-3">
                                     <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center flex-shrink-0">
-                                        🤖
+                                        <Icon name="smart_toy" size="sm" color="white" />
                                     </div>
                                     <div className={`flex-1 rounded-lg p-4 ${isLight ? 'bg-gray-100' : 'bg-dark-800'}`}>
                                         <div className="flex items-center gap-2">
@@ -151,6 +165,7 @@ export default function Chat() {
                             loading={loading}
                             disabled={!inputText.trim() || loading}
                         >
+                            <Icon name="send" size="sm" />
                             {t('chat.send')}
                         </Button>
                         {messages.length > 0 && (
@@ -160,6 +175,7 @@ export default function Chat() {
                                 onClick={clearMessages}
                                 disabled={loading}
                             >
+                                <Icon name="delete" size="sm" />
                                 {t('chat.clear')}
                             </Button>
                         )}
@@ -184,7 +200,7 @@ function ChatMessage({ message, isLight, t }) {
             {/* Avatar */}
             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isUser ? 'bg-success-500' : 'bg-primary-500'
                 }`}>
-                {isUser ? '👤' : '🤖'}
+                <Icon name={isUser ? 'person' : 'smart_toy'} size="sm" color="white" />
             </div>
 
             {/* Message Content */}
@@ -221,7 +237,8 @@ function ChatMessage({ message, isLight, t }) {
                     )}
 
                     {/* Timestamp */}
-                    <p className={`text-xs mt-2 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                    <p className={`text-xs mt-2 flex items-center gap-1 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                        <Icon name="schedule" size="xs" />
                         {new Date(message.timestamp).toLocaleTimeString('th-TH', {
                             hour: '2-digit',
                             minute: '2-digit'
@@ -248,30 +265,47 @@ function StationSearchResults({ stations, isLight, t }) {
         }
     }
 
+    const getAqiIcon = (level) => {
+        switch (level) {
+            case 'excellent':
+            case 'good':
+                return 'sentiment_very_satisfied'
+            case 'moderate':
+                return 'sentiment_neutral'
+            case 'unhealthy_sensitive':
+                return 'sentiment_dissatisfied'
+            case 'unhealthy':
+                return 'sentiment_very_dissatisfied'
+            default:
+                return 'help'
+        }
+    }
+
     const getAqiLabel = (level) => {
         switch (level) {
-            case 'excellent': return '🟢 Excellent'
-            case 'good': return '🟢 Good'
-            case 'moderate': return '🟡 Moderate'
-            case 'unhealthy_sensitive': return '🟠 Unhealthy (Sensitive)'
-            case 'unhealthy': return '🔴 Unhealthy'
-            default: return '⚪ Unknown'
+            case 'excellent': return 'Excellent'
+            case 'good': return 'Good'
+            case 'moderate': return 'Moderate'
+            case 'unhealthy_sensitive': return 'Unhealthy (Sensitive)'
+            case 'unhealthy': return 'Unhealthy'
+            default: return 'Unknown'
         }
     }
 
     const getTrendIcon = (trend) => {
         switch (trend) {
-            case 'increasing': return '📈'
-            case 'decreasing': return '📉'
-            case 'stable': return '➡️'
-            default: return '❓'
+            case 'increasing': return 'trending_up'
+            case 'decreasing': return 'trending_down'
+            case 'stable': return 'trending_flat'
+            default: return 'help'
         }
     }
 
     return (
         <div className="space-y-3">
-            <div className={`text-xs font-medium mb-2 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                🔍 Station Search Results ({stations.length} found)
+            <div className={`text-xs font-medium mb-2 flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                <Icon name="search" size="sm" />
+                Station Search Results ({stations.length} found)
             </div>
 
             <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -285,8 +319,9 @@ function StationSearchResults({ stations, isLight, t }) {
                     >
                         <div className="flex justify-between items-start mb-2">
                             <div>
-                                <div className={`font-medium text-sm ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                                    📍 {station.name_en || station.name_th || station.station_id}
+                                <div className={`font-medium text-sm flex items-center gap-1 ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                    <Icon name="location_on" size="sm" color="primary" />
+                                    {station.name_en || station.name_th || station.station_id}
                                 </div>
                                 {station.name_th && station.name_en && (
                                     <div className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
@@ -294,7 +329,8 @@ function StationSearchResults({ stations, isLight, t }) {
                                     </div>
                                 )}
                             </div>
-                            <span className={`text-xs ${getAqiColor(station.aqi_level)}`}>
+                            <span className={`text-xs flex items-center gap-1 ${getAqiColor(station.aqi_level)}`}>
+                                <Icon name={getAqiIcon(station.aqi_level)} size="sm" />
                                 {getAqiLabel(station.aqi_level)}
                             </span>
                         </div>
@@ -314,15 +350,17 @@ function StationSearchResults({ stations, isLight, t }) {
                                     ? `${station.min_pm25_7d} - ${station.max_pm25_7d}`
                                     : 'N/A'}
                             </div>
-                            <div className={isLight ? 'text-gray-600' : 'text-dark-300'}>
-                                <span className="font-medium">Trend:</span>{' '}
-                                {getTrendIcon(station.trend_7d)} {station.trend_7d || 'N/A'}
+                            <div className={`flex items-center gap-1 ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
+                                <span className="font-medium">Trend:</span>
+                                <Icon name={getTrendIcon(station.trend_7d)} size="sm" />
+                                {station.trend_7d || 'N/A'}
                             </div>
                         </div>
 
                         {station.data_completeness_7d && (
                             <div className="mt-2">
-                                <div className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                <div className={`text-xs flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                    <Icon name="pie_chart" size="xs" />
                                     Data completeness: {station.data_completeness_7d}%
                                 </div>
                                 <div className={`w-full h-1 rounded-full mt-1 ${isLight ? 'bg-gray-200' : 'bg-dark-600'}`}>
@@ -338,7 +376,8 @@ function StationSearchResults({ stations, isLight, t }) {
             </div>
 
             {stations.length > 10 && (
-                <div className={`text-xs text-center ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                <div className={`text-xs text-center flex items-center justify-center gap-1 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                    <Icon name="more_horiz" size="sm" />
                     ... and {stations.length - 10} more stations
                 </div>
             )}
@@ -363,7 +402,8 @@ function MiniChart({ data, summary, isLight, t }) {
 
     return (
         <div className="space-y-3">
-            <div className={`text-xs font-medium mb-2 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+            <div className={`text-xs font-medium mb-2 flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                <Icon name="show_chart" size="sm" />
                 {t('chat.trendChart')} ({validData.length} {t('chat.dataPoints')})
             </div>
 
@@ -384,7 +424,15 @@ function MiniChart({ data, summary, isLight, t }) {
 
             {/* Trend indicator */}
             {summary?.trend && (
-                <div className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                <div className={`text-xs flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                    <Icon
+                        name={
+                            summary.trend === 'increasing' ? 'trending_up' :
+                                summary.trend === 'decreasing' ? 'trending_down' :
+                                    summary.trend === 'stable' ? 'trending_flat' : 'help'
+                        }
+                        size="sm"
+                    />
                     {t('chat.trend')} {
                         summary.trend === 'increasing' ? t('chat.increasing') :
                             summary.trend === 'decreasing' ? t('chat.decreasing') :

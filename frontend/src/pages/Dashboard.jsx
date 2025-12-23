@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Button, Select, Card } from '../components/atoms'
+import { Button, Select, Card, Icon } from '../components/atoms'
 import { StatCard, StationSelector } from '../components/molecules'
 import { AQIChart, StationMap, Navbar } from '../components/organisms'
 import { useStations, useChartData } from '../hooks'
@@ -54,14 +54,16 @@ export default function Dashboard() {
             >
                 <Link
                     to="/chat"
-                    className={`transition text-sm ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
+                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
+                    <Icon name="smart_toy" size="sm" />
                     {t('dashboard.aiChat')}
                 </Link>
                 <Link
                     to="/models"
-                    className={`transition text-sm ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
+                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
+                    <Icon name="psychology" size="sm" />
                     {t('dashboard.modelsStatus')}
                 </Link>
                 <label className={`flex items-center gap-2 text-sm cursor-pointer ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
@@ -97,12 +99,14 @@ export default function Dashboard() {
                             onClick={() => fetchChartData(selectedStation, timePeriod)}
                             loading={chartLoading}
                         >
+                            <Icon name="download" size="sm" />
                             {t('dashboard.loadData')}
                         </Button>
                         <Button
                             variant="secondary"
                             onClick={() => fetchChartData(selectedStation, timePeriod)}
                         >
+                            <Icon name="refresh" size="sm" />
                             {t('dashboard.refresh')}
                         </Button>
                     </div>
@@ -115,32 +119,32 @@ export default function Dashboard() {
                         value={stats.completeness || 0}
                         unit="%"
                         color="success"
-                        icon="📈"
+                        iconName="trending_up"
                     />
                     <StatCard
                         label={t('stats.averagePM25')}
                         value={stats.mean?.toFixed(1) || '-'}
                         unit="μg/m³"
                         color="primary"
-                        icon="🌡️"
+                        iconName="thermostat"
                     />
                     <StatCard
                         label={t('stats.imputedPoints')}
                         value={stats.imputed_points || 0}
                         color="warning"
-                        icon="🔮"
+                        iconName="auto_fix_high"
                     />
                     <StatCard
                         label={t('stats.missingPoints')}
                         value={stats.missing_points || 0}
                         color="danger"
-                        icon="❌"
+                        iconName="cancel"
                     />
                     <StatCard
                         label={t('stats.anomalies')}
                         value={stats.anomaly_count || 0}
                         color={stats.anomaly_count > 0 ? 'danger' : 'default'}
-                        icon="⚠️"
+                        iconName="warning"
                     />
                 </div>
 
@@ -162,19 +166,19 @@ export default function Dashboard() {
                         </h3>
                         <div className={`space-y-3 text-sm ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
                             <p className="flex items-start gap-2">
-                                <span className="text-primary-400">📊</span>
+                                <Icon name="show_chart" color="primary" size="sm" />
                                 <span><strong className={isLight ? 'text-gray-800' : 'text-white'}>{t('info.blueLine')}</strong> {t('info.blueLineDesc')}</span>
                             </p>
                             <p className="flex items-start gap-2">
-                                <span className="text-warning-400">🔮</span>
+                                <Icon name="auto_fix_high" color="warning" size="sm" />
                                 <span><strong className={isLight ? 'text-gray-800' : 'text-white'}>{t('info.orangeLine')}</strong> {t('info.orangeLineDesc')}</span>
                             </p>
                             <p className="flex items-start gap-2">
-                                <span className="text-danger-400">⚠️</span>
+                                <Icon name="warning" color="danger" size="sm" />
                                 <span><strong className={isLight ? 'text-gray-800' : 'text-white'}>{t('info.triangleMarkers')}</strong> {t('info.triangleMarkersDesc')}</span>
                             </p>
                             <p className="flex items-start gap-2">
-                                <span className="text-danger-300">🔴</span>
+                                <Icon name="circle" color="danger" size="sm" filled />
                                 <span><strong className={isLight ? 'text-gray-800' : 'text-white'}>{t('info.redAreas')}</strong> {t('info.redAreasDesc')}</span>
                             </p>
                         </div>
