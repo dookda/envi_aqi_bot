@@ -9,7 +9,7 @@ function App() {
   return (
     <LanguageProvider>
       <ThemeProvider>
-        <Router basename="/ebot">
+        <Router>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/models" element={<Models />} />
