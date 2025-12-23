@@ -3,7 +3,7 @@
  * Main dashboard with map and chart
  */
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Button, Select, Card, Icon } from '../components/atoms'
 import { StatCard, StationSelector } from '../components/molecules'
 import { AQIChart, StationMap, Navbar } from '../components/organisms'
@@ -15,6 +15,7 @@ export default function Dashboard() {
     const { data: chartData, loading: chartLoading, fetchChartData } = useChartData()
     const { t } = useLanguage()
     const { isLight } = useTheme()
+    const [searchParams] = useSearchParams()
 
     const [selectedStation, setSelectedStation] = useState('')
     const [timePeriod, setTimePeriod] = useState(7)
@@ -36,12 +37,17 @@ export default function Dashboard() {
         }
     }, [selectedStation, timePeriod, fetchChartData])
 
-    // Auto-select first station
+    // Auto-select station from URL parameter or first station
     useEffect(() => {
         if (stations.length > 0 && !selectedStation) {
-            setSelectedStation(stations[0].station_id)
+            const stationFromUrl = searchParams.get('station')
+            if (stationFromUrl && stations.find(s => s.station_id === stationFromUrl)) {
+                setSelectedStation(stationFromUrl)
+            } else {
+                setSelectedStation(stations[0].station_id)
+            }
         }
-    }, [stations, selectedStation])
+    }, [stations, selectedStation, searchParams])
 
     const stats = chartData?.statistics || {}
 

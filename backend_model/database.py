@@ -21,7 +21,7 @@ engine = create_engine(
     max_overflow=settings.database_max_overflow,
     pool_pre_ping=True,  # Enable connection health checks
     pool_recycle=3600,  # Recycle connections after 1 hour
-    echo=settings.debug,
+    echo=False,  # Disable SQL query logging (too verbose)
     connect_args={
         "connect_timeout": 10,  # 10 second connection timeout
         "options": "-c statement_timeout=30000",  # 30 second query timeout

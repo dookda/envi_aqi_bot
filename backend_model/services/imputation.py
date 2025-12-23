@@ -320,6 +320,10 @@ class ImputationService:
                             results.append(result)
                         else:
                             failed += 1
+                            if result:
+                                logger.debug(f"Failed to impute {station_id} at {current}: {result.get('error', 'insufficient context')}")
+                            else:
+                                logger.debug(f"Failed to impute {station_id} at {current}: insufficient context")
                     current += timedelta(hours=1)
             
             db.commit()

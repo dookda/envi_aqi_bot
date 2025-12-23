@@ -1,0 +1,11 @@
+# Clean dangling images
+docker image prune -f
+
+# Clean all unused images (be careful!)
+docker image prune -a -f
+
+# Clean build cache older than 24 hours
+docker builder prune --filter "until=24h" -f
+
+# Full system cleanup (removes ALL unused data)
+docker system prune -f

@@ -7,17 +7,20 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Button, Card, Badge, Spinner, Icon } from '../components/atoms'
 import { StatCard } from '../components/molecules'
 import { Navbar } from '../components/organisms'
-import { useLanguage, useTheme } from '../contexts'
+import { useLanguage, useTheme, useToast } from '../contexts'
 import api from '../services/api'
 
 export default function Models() {
     const [data, setData] = useState(null)
     const [loading, setLoading] = useState(true)
     const [trainingStation, setTrainingStation] = useState(null)
+    const [imputingStation, setImputingStation] = useState(null)
+    const [filledStations, setFilledStations] = useState(new Set())
     const [filter, setFilter] = useState('all') // all, ready, not-ready
 
     const { t } = useLanguage()
     const { isLight } = useTheme()
+    const { toast } = useToast()
     const navigate = useNavigate()
 
     const fetchModelsStatus = async () => {
@@ -39,12 +42,51 @@ export default function Models() {
     const handleTrainModel = async (stationId) => {
         try {
             setTrainingStation(stationId)
-            await api.post('/model/train', { station_id: stationId })
-            // Refetch after a delay
-            setTimeout(fetchModelsStatus, 3000)
+
+            // Start training
+            await api.post('/model/train', {
+                station_id: stationId,
+                force_retrain: true  // Force retrain even if model exists
+            })
+
+            // Poll for completion (check every 2 seconds, max 10 minutes)
+            let attempts = 0
+            const maxAttempts = 300 // 10 minutes
+
+            const pollStatus = async () => {
+                if (attempts >= maxAttempts) {
+                    setTrainingStation(null)
+                    toast.warning('Training is taking longer than expected. Please check the model status page.')
+                    return
+                }
+
+                attempts++
+
+                // Check if training is complete by fetching updated status
+                try {
+                    const result = await api.get('/models/status?limit=200')
+                    const station = result.stations?.find(s => s.station_id === stationId)
+
+                    // If we have updated training info, training is complete
+                    if (station && station.model_status.training_info) {
+                        setData(result)
+                        setTrainingStation(null)
+                        return
+                    }
+                } catch (error) {
+                    console.error('Error polling status:', error)
+                }
+
+                // Continue polling
+                setTimeout(pollStatus, 2000)
+            }
+
+            // Start polling after 5 seconds (give training time to start)
+            setTimeout(pollStatus, 5000)
+
         } catch (err) {
             console.error('Failed to trigger training:', err)
-        } finally {
+            toast.error(`Training failed: ${err.message}`)
             setTrainingStation(null)
         }
     }
@@ -53,11 +95,39 @@ export default function Models() {
         try {
             setTrainingStation('all')
             await api.post('/model/train-all')
-            alert('Training started for all stations. This may take several minutes.')
+            toast.info('Training started for all stations. This may take several minutes.')
         } catch (err) {
             console.error('Failed to trigger training:', err)
+            toast.error('Failed to start batch training')
         } finally {
             setTrainingStation(null)
+        }
+    }
+
+    const handleFillGaps = async (stationId) => {
+        try {
+            setImputingStation(stationId)
+            const result = await api.post('/impute', { station_id: stationId })
+            // Mark station as filled (changes button color)
+            setFilledStations(prev => new Set([...prev, stationId]))
+
+            // Show success toast with details
+            const imputed = result?.imputed_count || 0
+            const skipped = result?.skipped_count || 0
+            const failed = result?.failed_count || 0
+
+            if (imputed > 0) {
+                toast.success(`${stationId}: ${imputed} gap${imputed > 1 ? 's' : ''} filled successfully${skipped > 0 ? `, ${skipped} skipped` : ''}`)
+            } else if (result?.reason === 'no_missing_values') {
+                toast.info(`${stationId}: No missing values to fill`)
+            } else {
+                toast.warning(`${stationId}: No gaps could be filled${failed > 0 ? ` (${failed} failed)` : ''}`)
+            }
+        } catch (err) {
+            console.error('Failed to fill gaps:', err)
+            toast.error(`Failed to fill gaps for ${stationId}`)
+        } finally {
+            setImputingStation(null)
         }
     }
 
@@ -300,6 +370,7 @@ export default function Models() {
                                     variant="secondary"
                                     onClick={() => handleTrainModel(station.station_id)}
                                     loading={trainingStation === station.station_id}
+                                    disabled={trainingStation === station.station_id}
                                     className="flex-1"
                                 >
                                     <Icon name="model_training" size="xs" />
@@ -314,6 +385,30 @@ export default function Models() {
                                     <Icon name="show_chart" size="xs" />
                                     {t('models.viewChart')}
                                 </Button>
+                                {/* Fill Gaps button - always shown when model is ready for gap filling */}
+                                {station.gap_fill_ready && (
+                                    <Button
+                                        size="sm"
+                                        variant={
+                                            station.data_status.missing_points === 0
+                                                ? "success"
+                                                : filledStations.has(station.station_id)
+                                                    ? "primary"
+                                                    : "secondary"
+                                        }
+                                        onClick={() => handleFillGaps(station.station_id)}
+                                        loading={imputingStation === station.station_id}
+                                        disabled={imputingStation === station.station_id || station.data_status.missing_points === 0}
+                                        className="flex-1"
+                                    >
+                                        <Icon name="auto_fix_high" size="xs" />
+                                        {station.data_status.missing_points === 0
+                                            ? 'Complete'
+                                            : filledStations.has(station.station_id)
+                                                ? 'Filled'
+                                                : 'Fill Gaps'}
+                                    </Button>
+                                )}
                             </div>
                         </Card>
                     ))}

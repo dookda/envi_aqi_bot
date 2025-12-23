@@ -134,7 +134,7 @@ class Settings(BaseSettings):
     ingest_cron_minute: str = "5"
     
     # Imputation Configuration
-    max_gap_hours: int = 24  # Maximum gap to impute
+    max_gap_hours: int = 168  # Maximum gap to impute (1 week)
     min_context_hours: int = 24  # Minimum historical context required
 
     # AI Chatbot Configuration (Local LLM)

@@ -3,19 +3,21 @@
  */
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Dashboard, Models, Chat } from './pages'
-import { LanguageProvider, ThemeProvider } from './contexts'
+import { LanguageProvider, ThemeProvider, ToastProvider } from './contexts'
 
 function App() {
   return (
     <LanguageProvider>
       <ThemeProvider>
-        <Router basename="/ebot">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/models" element={<Models />} />
-            <Route path="/chat" element={<Chat />} />
-          </Routes>
-        </Router>
+        <ToastProvider>
+          <Router basename="/ebot">
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/models" element={<Models />} />
+              <Route path="/chat" element={<Chat />} />
+            </Routes>
+          </Router>
+        </ToastProvider>
       </ThemeProvider>
     </LanguageProvider>
   )
