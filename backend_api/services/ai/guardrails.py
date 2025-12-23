@@ -130,28 +130,36 @@ def keyword_filter(query: str) -> Dict[str, Any]:
     return {"passed": True}
 
 
-# Layer 2: Domain-Restricted LLM System Prompt - Optimized for speed
-SYSTEM_PROMPT = """Air Quality Assistant for Thailand. Parse queries to JSON only.
+# Layer 2: Domain-Restricted LLM System Prompt
+SYSTEM_PROMPT = """You are an Air Quality Assistant for Thailand. Parse user queries to JSON.
 
-REJECT non-air-quality queries:
+**IMPORTANT: Determine intent_type FIRST:**
+
+1. **search_stations** - User wants to FIND/LIST stations:
+   - Keywords: "ค้นหา", "หา", "แสดงสถานี", "สถานีใน", "search", "find", "list stations", "where"
+   - Example: "ค้นหาสถานีเชียงใหม่" → search for Chiang Mai stations
+   
+   Return:
+   {{"intent_type": "search_stations", "search_query": "<location>", "output_type": "text"}}
+
+2. **get_data** - User wants AIR QUALITY DATA over time:
+   - Keywords: "PM2.5", "ค่าฝุ่น", "ย้อนหลัง", "วันนี้", "last week", "chart", "กราฟ"
+   - Example: "PM2.5 เชียงใหม่ ย้อนหลัง 7 วัน" → get PM2.5 data
+   
+   Return:
+   {{"intent_type": "get_data", "station_id": "<location>", "pollutant": "pm25", "start_date": "<ISO-8601>", "end_date": "<ISO-8601>", "interval": "hour", "output_type": "chart"}}
+
+**If NOT air quality related:**
 {{"status": "out_of_scope"}}
 
-INTENT 1 - SEARCH (search/find/list/ค้นหา/หาสถานี):
-{{"intent_type": "search_stations", "search_query": "<location>", "output_type": "text"}}
+**RULES:**
+- "ค้นหาสถานี" = search_stations (NOT get_data)
+- "หาสถานี" = search_stations
+- output_type="chart" if user wants: chart/graph/กราฟ/trend/ย้อนหลัง
+- Date examples: "ย้อนหลัง 7 วัน"=7 days ago to now, "วันนี้"=today
 
-INTENT 2 - DATA (PM2.5/AQI/ฝุ่น/ย้อนหลัง/chart/กราฟ):
-{{"intent_type": "get_data", "station_id": "<location>", "pollutant": "pm25", "start_date": "<ISO-8601>", "end_date": "<ISO-8601>", "interval": "hour", "output_type": "<text|chart>"}}
-
-RULES:
-- output_type="chart" if: chart/graph/กราฟ/trend/ย้อนหลัง/last X days
-- output_type="text" if: current/latest/ค่าปัจจุบัน
-- Date: "ย้อนหลัง 7 วัน"=last 7 days, "วันนี้"=today, "เมื่อวาน"=yesterday
-- Default pollutant: pm25
-- Interval: ≤1day→hour, >1day→day
-- Accept Thai/English locations
-
-Now: {current_datetime}
-Return ONLY JSON."""
+Current time: {current_datetime}
+Return ONLY valid JSON, no explanations."""
 
 
 def get_system_prompt(current_datetime: str) -> str:
@@ -395,36 +403,52 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
         start_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         logger.info(f"Defaulting start_date to today: {start_date.isoformat()}")
     else:
-        # Try to parse the datetime string
-        try:
-            start_date = date_parser.parse(start_date)
-            if start_date.tzinfo is None:
-                start_date = start_date.replace(tzinfo=timezone.utc)
-        except (ValueError, TypeError) as e:
-            logger.error(f"Invalid start_date: {start_date}, error: {e}")
-            return {
-                "valid": False,
-                "status": "invalid_request",
-                "message": "Invalid datetime format. Expected ISO-8601."
-            }
+        # Handle natural language dates that LLM might return
+        start_date_lower = str(start_date).lower().strip()
+        now = datetime.now(timezone.utc)
+        
+        if start_date_lower in ["today", "วันนี้"]:
+            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif start_date_lower in ["yesterday", "เมื่อวาน"]:
+            start_date = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        elif "7 days" in start_date_lower or "7 วัน" in start_date_lower or "week" in start_date_lower:
+            start_date = now - timedelta(days=7)
+        elif "30 days" in start_date_lower or "month" in start_date_lower or "เดือน" in start_date_lower:
+            start_date = now - timedelta(days=30)
+        elif "3 days" in start_date_lower or "3 วัน" in start_date_lower:
+            start_date = now - timedelta(days=3)
+        else:
+            # Try to parse the datetime string
+            try:
+                start_date = date_parser.parse(start_date)
+                if start_date.tzinfo is None:
+                    start_date = start_date.replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Could not parse start_date '{start_date}', defaulting to today: {e}")
+                start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # If end_date is None/null/empty, default to start_date (same day query)
+    # If end_date is None/null/empty, default to now
     if not end_date or end_date == "None" or (isinstance(end_date, str) and not end_date.strip()):
-        end_date = start_date
-        logger.info(f"Defaulting end_date to start_date: {end_date.isoformat()}")
+        end_date = datetime.now(timezone.utc)
+        logger.info(f"Defaulting end_date to now: {end_date.isoformat()}")
     else:
-        # Try to parse the datetime string
-        try:
-            end_date = date_parser.parse(end_date)
-            if end_date.tzinfo is None:
-                end_date = end_date.replace(tzinfo=timezone.utc)
-        except (ValueError, TypeError) as e:
-            logger.error(f"Invalid end_date: {end_date}, error: {e}")
-            return {
-                "valid": False,
-                "status": "invalid_request",
-                "message": "Invalid datetime format. Expected ISO-8601."
-            }
+        # Handle natural language dates that LLM might return
+        end_date_lower = str(end_date).lower().strip()
+        now = datetime.now(timezone.utc)
+        
+        if end_date_lower in ["now", "today", "วันนี้", "ตอนนี้"]:
+            end_date = now
+        elif end_date_lower in ["yesterday", "เมื่อวาน"]:
+            end_date = (now - timedelta(days=1)).replace(hour=23, minute=59, second=59)
+        else:
+            # Try to parse the datetime string
+            try:
+                end_date = date_parser.parse(end_date)
+                if end_date.tzinfo is None:
+                    end_date = end_date.replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Could not parse end_date '{end_date}', defaulting to now: {e}")
+                end_date = now
 
     # Update intent with normalized ISO-8601 format
     intent["start_date"] = start_date.isoformat()
