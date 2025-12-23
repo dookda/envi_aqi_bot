@@ -20,7 +20,12 @@ engine = create_engine(
     pool_size=settings.database_pool_size,
     max_overflow=settings.database_max_overflow,
     pool_pre_ping=True,  # Enable connection health checks
+    pool_recycle=3600,  # Recycle connections after 1 hour
     echo=settings.debug,
+    connect_args={
+        "connect_timeout": 10,  # 10 second connection timeout
+        "options": "-c statement_timeout=30000",  # 30 second query timeout
+    },
 )
 
 # Create session factory
@@ -74,3 +79,24 @@ def check_database_connection() -> bool:
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
         return False
+
+
+def get_pool_status() -> dict:
+    """
+    Get connection pool status for monitoring
+
+    Returns:
+        Dictionary with pool statistics
+    """
+    try:
+        pool = engine.pool
+        return {
+            "pool_size": pool.size(),
+            "checked_out": pool.checkedout(),
+            "overflow": pool.overflow(),
+            "available": pool.size() - pool.checkedout(),
+            "total_capacity": pool.size() + settings.database_max_overflow,
+        }
+    except Exception as e:
+        logger.error(f"Failed to get pool status: {e}")
+        return {}

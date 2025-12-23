@@ -85,7 +85,7 @@ export default function Models() {
                 subtitle={t('models.subtitle')}
             >
                 <Link
-                    to="/"
+                    to="/ebot/"
                     className={`transition ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
                     {t('models.backToDashboard')}

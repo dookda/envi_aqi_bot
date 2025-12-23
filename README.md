@@ -57,9 +57,26 @@ This project implements the specification defined in `lstm_spec.md`:
    docker-compose up -d
    ```
 
-3. **Access the API**:
-   - API: http://localhost:8000
-   - Docs: http://localhost:8000/docs
+3. **Automatic Initialization** (First Startup):
+   The system will automatically:
+   - **Ollama LLM**: Download qwen2.5:1.5b model (5-10 minutes)
+   - **Data**: Download 30-day historical data from Air4Thai
+   - **Models**: Train LSTM models for all stations (10-30 minutes)
+   - **Scheduler**: Start hourly data collection
+
+   Monitor progress:
+   ```bash
+   # Watch scheduler initialization
+   docker logs -f aqi_scheduler
+
+   # Watch Ollama model download
+   docker logs -f aqi_ollama
+   ```
+
+4. **Access the Application**:
+   - Frontend: http://localhost:5800/ebot/
+   - API: http://localhost:5800/ebot/api/
+   - API Docs: http://localhost:5800/ebot/docs
 
 ### Local Development
 
@@ -201,6 +218,56 @@ Configure schedule in `.env`:
 ```
 INGEST_CRON_HOUR=*
 INGEST_CRON_MINUTE=5
+```
+
+## 💾 Data Persistence
+
+### Persistent Volumes
+
+Your data is **automatically persisted** using Docker volumes:
+
+```yaml
+volumes:
+  timescale_data:  # PostgreSQL database data
+  ollama_data:     # Ollama LLM models
+```
+
+**What persists:**
+- ✅ All AQI measurements and station data
+- ✅ Trained LSTM models (in `/app/models`)
+- ✅ Ollama LLM models (no re-download)
+- ✅ Application logs (in `/app/logs`)
+
+**Data survives:**
+- ✅ `docker-compose restart`
+- ✅ `docker-compose down` + `docker-compose up`
+- ✅ Container crashes and restarts
+- ❌ `docker-compose down -v` (WARNING: Deletes all volumes!)
+
+### Backup & Restore
+
+**Backup Database:**
+```bash
+# Create backup
+docker exec aqi_timescaledb pg_dump -U aqi_user aqi_db > backup_$(date +%Y%m%d).sql
+
+# Backup volume directly
+docker run --rm -v envi_aqi_bot_timescale_data:/data -v $(pwd):/backup alpine tar czf /backup/timescaledb_backup_$(date +%Y%m%d).tar.gz -C /data .
+```
+
+**Restore Database:**
+```bash
+# From SQL dump
+cat backup_20231223.sql | docker exec -i aqi_timescaledb psql -U aqi_user aqi_db
+
+# From volume backup
+docker run --rm -v envi_aqi_bot_timescale_data:/data -v $(pwd):/backup alpine tar xzf /backup/timescaledb_backup_20231223.tar.gz -C /data
+```
+
+**View Volume Location:**
+```bash
+docker volume inspect envi_aqi_bot_timescale_data
+# Shows: /var/lib/docker/volumes/envi_aqi_bot_timescale_data/_data
 ```
 
 ## 📝 Logging & Auditability

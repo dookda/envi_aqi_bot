@@ -9,8 +9,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aqi_password}
       POSTGRES_DB: ${POSTGRES_DB:-aqi_db}
     # Port not exposed externally - only accessible via internal Docker network
-    # ports:
-    #   - "5432:5432"
+    ports:
+      - "5433:5432"
     volumes:
       - timescale_data:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d
@@ -45,6 +45,12 @@ services:
       - ./backend_api:/app/backend_api
       - ./models:/app/models
       - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - aqi_network
     # Scale API for higher load
@@ -53,6 +59,10 @@ services:
       resources:
         limits:
           memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
 
   # Frontend served by Nginx (scalable, cacheable)
   frontend:
@@ -64,7 +74,14 @@ services:
     ports:
       - "5800:80"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80/ebot/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - aqi_network
     # Scale frontend independently
@@ -72,6 +89,10 @@ services:
       resources:
         limits:
           memory: 128M
+          cpus: '0.5'
+        reservations:
+          memory: 32M
+          cpus: '0.1'
 
   # Scheduler service for automated data ingestion and imputation
   scheduler:
@@ -92,27 +113,54 @@ services:
       - ./backend_api:/app/backend_api
       - ./models:/app/models
       - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'backend_api.scheduler' || exit 1"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
     networks:
       - aqi_network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
 
   # Ollama - Local LLM inference server for AI chatbot
   ollama:
     image: ollama/ollama:latest
     container_name: aqi_ollama
     restart: unless-stopped
+    environment:
+      - OLLAMA_MODEL=qwen2.5:1.5b
     # Port not exposed externally - only accessible via internal Docker network
     # ports:
     #   - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+      - ./ollama-entrypoint.sh:/usr/local/bin/ollama-entrypoint.sh:ro
+    entrypoint: ["/bin/bash", "/usr/local/bin/ollama-entrypoint.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
     networks:
       - aqi_network
     deploy:
       resources:
         limits:
           memory: 4G
-    # Pull model on startup
-    # Run: docker exec -it aqi_ollama ollama pull qwen2.5:7b
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    # Model is now auto-downloaded on first startup via entrypoint script
 
 volumes:
   timescale_data:

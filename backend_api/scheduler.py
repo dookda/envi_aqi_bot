@@ -4,6 +4,8 @@ Scheduler Service Entry Point
 This is the main entry point for the production scheduler service.
 It uses the comprehensive scheduler from backend_api.services.scheduler
 which includes:
+- Auto-initialization: Downloads 30-day historical data on first startup
+- Auto-training: Trains all LSTM models automatically on first startup
 - Hourly data ingestion (XX:05)
 - Gap imputation every 6 hours (00:30, 06:30, 12:30, 18:30)
 - Daily quality checks (02:00)
@@ -11,6 +13,7 @@ which includes:
 - Daily station metadata sync (01:00)
 """
 
+import sys
 import asyncio
 from backend_model.logger import logger
 from backend_model.database import check_database_connection
@@ -22,18 +25,21 @@ async def main():
     logger.info("Starting AQI Production Scheduler Service")
     logger.info("=" * 60)
 
-    # Wait for database to be ready
+    # Wait for database to be ready with exponential backoff
     logger.info("Waiting for database connection...")
     max_retries = 30
     for i in range(max_retries):
         if check_database_connection():
             logger.info("Database connection established")
             break
-        logger.warning(f"Database not ready, retrying... ({i+1}/{max_retries})")
-        await asyncio.sleep(2)
+        # Exponential backoff: 2, 4, 8, 16, 32, 32, 32... seconds (max 32s)
+        wait_time = min(2 ** i, 32)
+        logger.warning(f"Database not ready, retrying in {wait_time}s... ({i+1}/{max_retries})")
+        await asyncio.sleep(wait_time)
     else:
-        logger.error("Database connection failed after maximum retries")
-        return
+        logger.critical("Database connection failed after maximum retries. Exiting.")
+        logger.critical("Docker will restart this service automatically.")
+        sys.exit(1)  # Exit with error code to trigger Docker restart
 
     # Check if initial data load is needed
     from backend_model.database import get_db_context
@@ -81,6 +87,64 @@ async def main():
         logger.info("Initial ingestion completed")
     except Exception as e:
         logger.error(f"Initial ingestion failed: {e}")
+
+    # Check if LSTM models need to be trained on first startup
+    logger.info("Checking if LSTM models need initial training...")
+    try:
+        from backend_model.services.lstm_model import lstm_model_service
+        from backend_model.models import Station
+
+        with get_db_context() as db:
+            stations = db.query(Station).all()
+            total_stations = len(stations)
+
+            if total_stations > 0:
+                # Check how many models already exist
+                existing_models = sum(1 for s in stations if lstm_model_service.model_exists(s.station_id))
+
+                if existing_models == 0:
+                    logger.info(f"No LSTM models found. Training models for {total_stations} stations...")
+                    logger.info("This may take 10-30 minutes depending on data size.")
+
+                    trained_count = 0
+                    failed_count = 0
+
+                    for i, station in enumerate(stations, 1):
+                        try:
+                            logger.info(f"Training model {i}/{total_stations}: {station.station_id} ({station.name_en})")
+                            result = lstm_model_service.train_model(
+                                station_id=station.station_id,
+                                force_retrain=False
+                            )
+
+                            if result and result.get("status") == "completed":
+                                trained_count += 1
+                                accuracy = result.get("accuracy_percent", 0)
+                                logger.info(f"  ✓ Model trained: {accuracy}% accuracy (R²)")
+                            else:
+                                failed_count += 1
+                                reason = result.get("reason", "unknown") if result else "no result"
+                                logger.warning(f"  ✗ Training skipped/failed: {reason}")
+
+                        except Exception as e:
+                            failed_count += 1
+                            logger.error(f"  ✗ Training failed for {station.station_id}: {e}")
+
+                    logger.info("=" * 60)
+                    logger.info(f"Initial model training completed:")
+                    logger.info(f"  - Trained: {trained_count}/{total_stations}")
+                    logger.info(f"  - Failed/Skipped: {failed_count}/{total_stations}")
+                    logger.info("=" * 60)
+
+                elif existing_models < total_stations:
+                    logger.info(f"Found {existing_models}/{total_stations} models. Missing models will be trained weekly.")
+                else:
+                    logger.info(f"All {total_stations} LSTM models already exist. Skipping initial training.")
+            else:
+                logger.warning("No stations found. Skipping model training.")
+
+    except Exception as e:
+        logger.error(f"Initial model training check failed: {e}")
 
     # Keep the service running
     try:

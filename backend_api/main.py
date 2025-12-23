@@ -47,22 +47,33 @@ from backend_api.services.ai.chatbot import chatbot_service
 async def lifespan(app: FastAPI):
     """Application lifespan management"""
     logger.info(f"Starting AQI Pipeline API v{__version__}")
-    
+
     # Check database connection
     if not check_database_connection():
         logger.error("Database connection failed on startup")
-    
+
     # Start scheduler for automated data collection
     try:
         scheduler_service.start()
         logger.info("Scheduler started for automated hourly data collection")
     except Exception as e:
         logger.error(f"Failed to start scheduler: {e}")
-    
+
     yield
-    
-    # Stop scheduler gracefully
-    scheduler_service.stop()
+
+    # Cleanup resources on shutdown
+    try:
+        # Stop scheduler gracefully
+        scheduler_service.stop()
+        logger.info("Scheduler stopped")
+
+        # Close HTTP client connections
+        from backend_api.services.ai.llm_adapter import get_ollama_adapter
+        await get_ollama_adapter().close()
+        logger.info("HTTP client connections closed")
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
+
     logger.info("Shutting down AQI Pipeline API")
 
 

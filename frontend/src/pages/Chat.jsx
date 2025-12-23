@@ -49,13 +49,13 @@ export default function Chat() {
                 subtitle={t('chat.subtitle')}
             >
                 <Link
-                    to="/"
+                    to="/ebot/"
                     className={`transition text-sm ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
                     {t('chat.dashboard')}
                 </Link>
                 <Link
-                    to="/models"
+                    to="/ebot/models"
                     className={`transition text-sm ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
                     {t('chat.models')}
