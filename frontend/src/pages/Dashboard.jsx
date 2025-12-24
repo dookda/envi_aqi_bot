@@ -72,15 +72,6 @@ export default function Dashboard() {
                     <Icon name="psychology" size="sm" />
                     {t('dashboard.modelsStatus')}
                 </Link>
-                <label className={`flex items-center gap-2 text-sm cursor-pointer ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
-                    <input
-                        type="checkbox"
-                        checked={showAnomalies}
-                        onChange={(e) => setShowAnomalies(e.target.checked)}
-                        className="w-4 h-4 rounded border-dark-600"
-                    />
-                    {t('dashboard.showAnomalies')}
-                </label>
             </Navbar>
 
             <main className="max-w-7xl mx-auto px-4 py-6">
@@ -163,6 +154,8 @@ export default function Dashboard() {
                         onStationSelect={setSelectedStation}
                         loading={stationsLoading}
                         height={400}
+                        showAnomalies={showAnomalies}
+                        onShowAnomaliesChange={setShowAnomalies}
                     />
 
                     {/* Info Panel */}

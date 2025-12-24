@@ -12,7 +12,8 @@ from datetime import datetime
 from backend_model.logger import logger
 from backend_model.database import get_db_context
 from backend_model.models import Station
-from sqlalchemy import text
+from sqlalchemy import text, or_
+from .place_matcher import get_place_matcher, match_place_name
 
 
 class APIOrchestrator:
@@ -145,15 +146,26 @@ class APIOrchestrator:
 
     def resolve_station_id(self, station_name_or_id: str) -> Optional[str]:
         """
-        Resolve station name (Thai/English) to station_id
+        Resolve station name (Thai/English) to station_id with phonetic matching
+        
+        Supports:
+        - Exact station_id match
+        - Thai name matching (เชียงใหม่)
+        - English name matching (Chiang Mai)
+        - Phonetic variations (chiangmai, changmai, etc.)
+        - Common misspellings
 
         Args:
-            station_name_or_id: Station name or ID
+            station_name_or_id: Station name or ID in Thai or English
 
         Returns:
             Resolved station_id or None if not found
         """
         try:
+            # Get all possible search terms using phonetic matcher
+            canonical, search_terms = match_place_name(station_name_or_id)
+            logger.info(f"Resolving station: '{station_name_or_id}' -> canonical: {canonical}, search terms: {search_terms[:5]}...")
+            
             with get_db_context() as db:
                 # Try exact match on station_id first (case-insensitive)
                 station = db.query(Station).filter(
@@ -161,41 +173,39 @@ class APIOrchestrator:
                 ).first()
 
                 if station:
+                    logger.info(f"Resolved by exact station_id: {station.station_id}")
                     return station.station_id
 
-                # Try fuzzy match on Thai/English names
-                station = db.query(Station).filter(
-                    (Station.name_th.ilike(f"%{station_name_or_id}%")) |
-                    (Station.name_en.ilike(f"%{station_name_or_id}%"))
-                ).first()
+                # Try all search terms from phonetic matcher
+                for term in search_terms:
+                    if not term or len(term) < 2:
+                        continue
+                    
+                    # Search in both Thai and English names
+                    station = db.query(Station).filter(
+                        or_(
+                            Station.name_th.ilike(f"%{term}%"),
+                            Station.name_en.ilike(f"%{term}%"),
+                            Station.station_id.ilike(f"%{term}%")
+                        )
+                    ).first()
+                    
+                    if station:
+                        logger.info(f"Resolved '{station_name_or_id}' via term '{term}' to: {station.station_id}")
+                        return station.station_id
 
-                if station:
-                    logger.info(f"Resolved '{station_name_or_id}' to station_id: {station.station_id}")
-                    return station.station_id
-
-                # Try without spaces (e.g., "Chiang Mai" -> "Chiangmai")
-                normalized = station_name_or_id.replace(" ", "")
-                station = db.query(Station).filter(
-                    (Station.name_th.ilike(f"%{normalized}%")) |
-                    (Station.name_en.ilike(f"%{normalized}%"))
-                ).first()
-
-                if station:
-                    logger.info(f"Resolved '{station_name_or_id}' (normalized) to station_id: {station.station_id}")
-                    return station.station_id
-
-                # Try individual words for multi-word names
-                words = station_name_or_id.split()
-                if len(words) > 1:
-                    for word in words:
-                        if len(word) >= 3:  # Only search for words with 3+ chars
-                            station = db.query(Station).filter(
-                                (Station.name_th.ilike(f"%{word}%")) |
-                                (Station.name_en.ilike(f"%{word}%"))
-                            ).first()
-                            if station:
-                                logger.info(f"Resolved '{station_name_or_id}' (word '{word}') to station_id: {station.station_id}")
-                                return station.station_id
+                # If we have a canonical name, try searching with that
+                if canonical:
+                    station = db.query(Station).filter(
+                        or_(
+                            Station.name_th.ilike(f"%{canonical}%"),
+                            Station.name_en.ilike(f"%{canonical}%")
+                        )
+                    ).first()
+                    
+                    if station:
+                        logger.info(f"Resolved '{station_name_or_id}' via canonical '{canonical}' to: {station.station_id}")
+                        return station.station_id
 
                 logger.warning(f"Could not resolve station: {station_name_or_id}")
                 return None
@@ -230,36 +240,77 @@ class APIOrchestrator:
 
     def search_stations(self, query: str) -> List[Dict[str, Any]]:
         """
-        Search for stations matching a query string (supports Thai/English)
+        Search for stations matching a query string with phonetic matching
+        
+        Supports:
+        - Thai names (เชียงใหม่)
+        - English names (Chiang Mai)
+        - Phonetic variations (chiangmai, changmai)
+        - Common misspellings
         
         Args:
-            query: Search query (e.g., 'Chiang Mai', 'เชียงใหม่')
+            query: Search query (e.g., 'Chiang Mai', 'เชียงใหม่', 'chiangmai')
             
         Returns:
             List of matching stations with basic info
         """
         try:
+            # Get all possible search terms using phonetic matcher
+            canonical, search_terms = match_place_name(query)
+            logger.info(f"Searching stations for: '{query}' -> canonical: {canonical}, terms: {search_terms[:5]}...")
+            
             with get_db_context() as db:
-                # Fuzzy search on Thai and English names
-                stations = db.query(Station).filter(
-                    (Station.name_th.ilike(f"%{query}%")) |
-                    (Station.name_en.ilike(f"%{query}%")) |
-                    (Station.station_id.ilike(f"%{query}%"))
-                ).all()
+                found_stations = {}  # Use dict to deduplicate by station_id
                 
-                logger.info(f"Found {len(stations)} stations matching '{query}'")
+                # Try each search term
+                for term in search_terms:
+                    if not term or len(term) < 2:
+                        continue
+                    
+                    # Search in Thai names, English names, and station_id
+                    stations = db.query(Station).filter(
+                        or_(
+                            Station.name_th.ilike(f"%{term}%"),
+                            Station.name_en.ilike(f"%{term}%"),
+                            Station.station_id.ilike(f"%{term}%")
+                        )
+                    ).all()
+                    
+                    for s in stations:
+                        if s.station_id not in found_stations:
+                            found_stations[s.station_id] = {
+                                "station_id": s.station_id,
+                                "name_th": s.name_th,
+                                "name_en": s.name_en,
+                                "lat": s.lat,
+                                "lon": s.lon,
+                                "station_type": s.station_type
+                            }
                 
-                return [
-                    {
-                        "station_id": s.station_id,
-                        "name_th": s.name_th,
-                        "name_en": s.name_en,
-                        "lat": s.lat,
-                        "lon": s.lon,
-                        "station_type": s.station_type
-                    }
-                    for s in stations
-                ]
+                # Also try canonical name if available
+                if canonical and canonical not in search_terms:
+                    stations = db.query(Station).filter(
+                        or_(
+                            Station.name_th.ilike(f"%{canonical}%"),
+                            Station.name_en.ilike(f"%{canonical}%")
+                        )
+                    ).all()
+                    
+                    for s in stations:
+                        if s.station_id not in found_stations:
+                            found_stations[s.station_id] = {
+                                "station_id": s.station_id,
+                                "name_th": s.name_th,
+                                "name_en": s.name_en,
+                                "lat": s.lat,
+                                "lon": s.lon,
+                                "station_type": s.station_type
+                            }
+                
+                result = list(found_stations.values())
+                logger.info(f"Found {len(result)} stations matching '{query}'")
+                return result
+                
         except Exception as e:
             logger.error(f"Error searching stations: {e}")
             return []

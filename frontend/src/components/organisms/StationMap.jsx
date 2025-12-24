@@ -7,6 +7,7 @@ import PropTypes from 'prop-types'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Card, Spinner } from '../atoms'
+import { useLanguage, useTheme } from '../../contexts'
 
 // Thailand center coordinates
 const THAILAND_CENTER = [100.5018, 13.7563]
@@ -54,7 +55,11 @@ export default function StationMap({
     loading = false,
     height = 500,
     className = '',
+    showAnomalies = true,
+    onShowAnomaliesChange,
 }) {
+    const { t } = useLanguage()
+    const { isLight } = useTheme()
     const mapContainer = useRef(null)
     const map = useRef(null)
     const [mapLoaded, setMapLoaded] = useState(false)
@@ -344,6 +349,30 @@ export default function StationMap({
                 style={{ width: '100%', height, opacity: mapLoaded ? 1 : 0, transition: 'opacity 0.5s' }}
             />
 
+            {/* Show Anomalies Checkbox - Top Left */}
+            {mapLoaded && onShowAnomaliesChange && (
+                <div
+                    className={`absolute top-3 left-3 z-10 px-3 py-2 rounded-lg shadow-lg backdrop-blur-sm ${isLight
+                            ? 'bg-white/90 border border-gray-200'
+                            : 'bg-dark-800/90 border border-white/10'
+                        }`}
+                >
+                    <label className={`flex items-center gap-2 text-sm cursor-pointer select-none ${isLight ? 'text-gray-700' : 'text-dark-200'
+                        }`}>
+                        <input
+                            type="checkbox"
+                            checked={showAnomalies}
+                            onChange={(e) => onShowAnomaliesChange(e.target.checked)}
+                            className={`w-4 h-4 rounded cursor-pointer ${isLight
+                                    ? 'accent-primary-500'
+                                    : 'accent-primary-400 border-dark-500'
+                                }`}
+                        />
+                        <span className="font-medium">{t('dashboard.showAnomalies')}</span>
+                    </label>
+                </div>
+            )}
+
             {/* Loading Overlay */}
             {!mapLoaded && (
                 <div
@@ -365,4 +394,6 @@ StationMap.propTypes = {
     loading: PropTypes.bool,
     height: PropTypes.number,
     className: PropTypes.string,
+    showAnomalies: PropTypes.bool,
+    onShowAnomaliesChange: PropTypes.func,
 }
