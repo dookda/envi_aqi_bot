@@ -102,7 +102,9 @@ class ClaudeChatbotService:
         # === ROUTE BASED ON INTENT TYPE ===
         intent_type = intent.get("intent_type", "get_data")
         
-        if intent_type == "search_stations":
+        if intent_type == "needs_clarification":
+            result = await self._handle_needs_clarification(intent)
+        elif intent_type == "search_stations":
             result = await self._handle_search_stations(intent)
         else:
             result = await self._handle_get_data(intent)
@@ -112,6 +114,50 @@ class ClaudeChatbotService:
         result["response_time_ms"] = int((time.time() - start_time) * 1000)
         
         return result
+
+    def _detect_language(self, text: str) -> str:
+        """Detect if text is primarily Thai or English"""
+        thai_chars = sum(1 for c in text if '\u0e00' <= c <= '\u0e7f')
+        return "th" if thai_chars > len(text) * 0.2 else "en"
+
+    async def _handle_needs_clarification(self, intent: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle unclear queries by asking for clarification"""
+        clarification_question = intent.get("clarification_question", "")
+        missing_info = intent.get("missing_info", "")
+        
+        logger.info(f"[Claude] Asking for clarification: {missing_info}")
+        
+        # Detect language from the clarification question
+        language = self._detect_language(clarification_question)
+        
+        # Build friendly message
+        if language == "th":
+            message = (
+                f"🤔 **ขอข้อมูลเพิ่มเติม**\n\n"
+                f"{clarification_question}\n\n"
+                f"📝 **ตัวอย่างคำถาม:**\n"
+                f"• 'ค่า PM2.5 เชียงใหม่ วันนี้'\n"
+                f"• 'ค้นหาสถานีใน กรุงเทพ'\n"
+                f"• 'PM2.5 ย้อนหลัง 7 วัน ที่ลำปาง'"
+            )
+        else:
+            message = (
+                f"🤔 **Need More Information**\n\n"
+                f"{clarification_question}\n\n"
+                f"📝 **Example queries:**\n"
+                f"• 'PM2.5 in Chiang Mai today'\n"
+                f"• 'Search stations in Bangkok'\n"
+                f"• 'Air quality in Phuket last 7 days'"
+            )
+        
+        return {
+            "status": "needs_clarification",
+            "message": message,
+            "intent": intent,
+            "data": None,
+            "summary": {"missing_info": missing_info},
+            "output_type": "text"
+        }
 
     async def _handle_search_stations(self, intent: Dict[str, Any]) -> Dict[str, Any]:
         """Handle station search intent"""

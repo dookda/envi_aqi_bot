@@ -1,11 +1,12 @@
 """
-Air Quality Chatbot Service
+Air Quality Chatbot Service (v2.0)
 
-Main service that orchestrates:
+Enhanced chatbot with:
 1. Guardrail filtering (3 layers)
 2. LLM intent parsing
 3. API data retrieval
-4. Response composition
+4. Rich response composition with health recommendations
+5. Bilingual support (Thai/English)
 """
 
 from typing import Dict, Any, Optional, List
@@ -18,19 +19,31 @@ from .guardrails import (
 )
 from .llm_adapter import get_ollama_adapter
 from .orchestrator import get_api_orchestrator
+from .response_composer import (
+    compose_search_response,
+    compose_data_response,
+    compose_error_response,
+    compose_clarification_response
+)
 
 
 class AirQualityChatbotService:
     """
-    Air Quality Chatbot Service with Local LLM
+    Air Quality Chatbot Service with Local LLM (v2.0)
 
     Provides natural language querying for air quality data
-    with strict guardrails and API-mediated data access.
+    with strict guardrails, API-mediated data access, and
+    rich bilingual responses with health recommendations.
     """
 
     def __init__(self):
         self.llm_adapter = get_ollama_adapter()
         self.orchestrator = get_api_orchestrator()
+
+    def _detect_language(self, text: str) -> str:
+        """Detect if text is primarily Thai or English"""
+        thai_chars = sum(1 for c in text if '\u0e00' <= c <= '\u0e7f')
+        return "th" if thai_chars > len(text) * 0.2 else "en"
 
     async def process_query(self, user_query: str) -> Dict[str, Any]:
         """
@@ -41,7 +54,7 @@ class AirQualityChatbotService:
         2. Layer 2: LLM intent parsing with domain-restricted prompt
         3. Layer 3: Intent validation (post-LLM)
         4. Route to appropriate handler (search or data retrieval)
-        5. Response composition
+        5. Rich response composition with health advice
 
         Supports two intent types:
         - search_stations: Search for stations by location/name
@@ -51,16 +64,21 @@ class AirQualityChatbotService:
             user_query: Natural language query (Thai or English)
 
         Returns:
-            Response dictionary with status, message, data, etc.
+            Response dictionary with status, message, data, summary
         """
         logger.info(f"Processing query: {user_query[:100]}")
+        
+        # Detect user language for response
+        language = self._detect_language(user_query)
+        logger.info(f"Detected language: {language}")
 
         # === LAYER 1: KEYWORD FILTER (PRE-LLM) ===
         keyword_result = keyword_filter(user_query)
         if not keyword_result["passed"]:
+            error_response = compose_error_response("out_of_scope", language=language)
             return {
                 "status": keyword_result["status"],
-                "message": keyword_result["message"],
+                "message": error_response["message"],
                 "intent": None,
                 "data": None,
                 "summary": None,
@@ -79,9 +97,10 @@ class AirQualityChatbotService:
 
         if llm_output is None:
             logger.error("LLM failed to generate output")
+            error_response = compose_error_response("service_error", language=language)
             return {
                 "status": "error",
-                "message": "AI service temporarily unavailable. Please try again.",
+                "message": error_response["message"],
                 "intent": None,
                 "data": None,
                 "summary": None,
@@ -91,9 +110,14 @@ class AirQualityChatbotService:
         # === LAYER 3: INTENT VALIDATION (POST-LLM) ===
         validation_result = validate_intent(llm_output)
         if not validation_result["valid"]:
+            error_response = compose_error_response(
+                validation_result["status"],
+                details=validation_result.get("message", ""),
+                language=language
+            )
             return {
                 "status": validation_result["status"],
-                "message": validation_result["message"],
+                "message": error_response["message"],
                 "intent": None,
                 "data": None,
                 "summary": None,
@@ -106,97 +130,108 @@ class AirQualityChatbotService:
         # === ROUTE BASED ON INTENT TYPE ===
         intent_type = intent.get("intent_type", "get_data")
         
-        if intent_type == "search_stations":
-            return await self._handle_search_stations(intent)
+        if intent_type == "needs_clarification":
+            return await self._handle_needs_clarification(intent, language)
+        elif intent_type == "search_stations":
+            return await self._handle_search_stations(intent, language)
         else:
-            return await self._handle_get_data(intent)
+            return await self._handle_get_data(intent, language)
 
-    async def _handle_search_stations(self, intent: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_needs_clarification(
+        self,
+        intent: Dict[str, Any],
+        language: str = "en"
+    ) -> Dict[str, Any]:
         """
-        Handle station search intent
+        Handle unclear queries by asking for clarification
+        
+        Args:
+            intent: Intent with clarification question
+            language: Response language (th/en)
+            
+        Returns:
+            Response asking user for more information
+        """
+        clarification_question = intent.get("clarification_question", "")
+        missing_info = intent.get("missing_info", "")
+        
+        logger.info(f"Asking for clarification: {missing_info}")
+        
+        # Compose friendly clarification response
+        response = compose_clarification_response(
+            clarification_question=clarification_question,
+            missing_info=missing_info,
+            language=language
+        )
+        
+        return {
+            "status": "needs_clarification",
+            "message": response["message"],
+            "intent": intent,
+            "data": None,
+            "summary": {"missing_info": missing_info},
+            "output_type": "text"
+        }
+
+    async def _handle_search_stations(
+        self, 
+        intent: Dict[str, Any],
+        language: str = "en"
+    ) -> Dict[str, Any]:
+        """
+        Handle station search intent with rich response
         
         Args:
             intent: Validated search intent with search_query
+            language: Response language (th/en)
             
         Returns:
-            Response with search results and summary
+            Response with search results, summary, and health advice
         """
         search_query = intent.get("search_query", "")
-        logger.info(f"Handling search_stations for: {search_query}")
+        logger.info(f"Handling search_stations for: {search_query} (language: {language})")
         
         # Search for stations using orchestrator
         search_result = await self.orchestrator.search_stations_with_summary(search_query)
         
-        if search_result["total_found"] == 0:
-            return {
-                "status": "success",
-                "message": f"No stations found matching '{search_query}'. Please try a different location name.",
-                "intent": intent,
-                "data": None,
-                "summary": {
-                    "query": search_query,
-                    "total_found": 0,
-                    "stations": []
-                },
-                "output_type": "text"
-            }
-        
-        # Format station data for response
-        stations_data = search_result["stations"]
-        
-        # Create a comprehensive summary
-        summary = {
-            "query": search_query,
-            "total_found": search_result["total_found"],
-            "search_summary": search_result["search_summary"],
-            "stations": stations_data
-        }
-        
-        # Generate human-readable message
-        station_names = [
-            s.get("name_en") or s.get("name_th") or s.get("station_id") 
-            for s in stations_data[:5]  # Show first 5
-        ]
-        station_list = ", ".join(station_names)
-        
-        avg_values = [s.get("avg_pm25_7d") for s in stations_data if s.get("avg_pm25_7d")]
-        overall_avg = round(sum(avg_values) / len(avg_values), 1) if avg_values else None
-        
-        message = (
-            f"🔍 **Found {search_result['total_found']} station(s) in {search_query}:**\n\n"
-            f"📍 Stations: {station_list}\n"
-        )
-        
-        if overall_avg:
-            message += f"📊 7-day Average PM2.5: {overall_avg} μg/m³\n"
-            message += f"💨 {search_result['search_summary']}"
+        # Compose rich response
+        response = compose_search_response(search_query, search_result, language)
         
         return {
-            "status": "success",
-            "message": message,
+            "status": "success" if search_result["total_found"] > 0 else "no_results",
+            "message": response["message"],
             "intent": intent,
-            "data": stations_data,
-            "summary": summary,
+            "data": search_result.get("stations", []),
+            "summary": response["summary"],
             "output_type": intent.get("output_type", "text")
         }
 
-    async def _handle_get_data(self, intent: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_get_data(
+        self,
+        intent: Dict[str, Any],
+        language: str = "en"
+    ) -> Dict[str, Any]:
         """
-        Handle air quality data retrieval intent
+        Handle air quality data retrieval intent with rich response
         
         Args:
             intent: Validated data intent with station_id, pollutant, dates
+            language: Response language (th/en)
             
         Returns:
-            Response with AQI data and summary
+            Response with AQI data, summary, health advice, and visualization data
         """
         # === RESOLVE STATION ID ===
-        # Station name might be in Thai, need to resolve to station_id
         resolved_station_id = self.orchestrator.resolve_station_id(intent["station_id"])
         if not resolved_station_id:
+            error_response = compose_error_response(
+                "invalid_station", 
+                details=intent["station_id"],
+                language=language
+            )
             return {
                 "status": "invalid_request",
-                "message": f"Station '{intent['station_id']}' not found. Please check the station name.",
+                "message": error_response["message"],
                 "intent": intent,
                 "data": None,
                 "summary": None,
@@ -205,6 +240,7 @@ class AirQualityChatbotService:
 
         # Update intent with resolved station_id
         intent["station_id"] = resolved_station_id
+        logger.info(f"Handling get_data for: {resolved_station_id} (language: {language})")
 
         # === API DATA RETRIEVAL ===
         data = await self.orchestrator.get_aqi_history(
@@ -216,25 +252,35 @@ class AirQualityChatbotService:
         )
 
         if data is None:
+            error_response = compose_error_response("no_data", language=language)
             return {
                 "status": "error",
-                "message": "Failed to retrieve air quality data. Please try again.",
+                "message": error_response["message"],
                 "intent": intent,
                 "data": None,
                 "summary": None,
                 "output_type": intent.get("output_type")
             }
 
-        # === RESPONSE COMPOSITION ===
+        # === COMPOSE SUMMARY ===
         summary = self._compose_summary(data, intent)
+
+        # === COMPOSE RICH RESPONSE ===
+        response = compose_data_response(
+            station_id=resolved_station_id,
+            data=data,
+            intent=intent,
+            summary=summary,
+            language=language
+        )
 
         return {
             "status": "success",
-            "message": None,
+            "message": response["message"],
             "intent": intent,
             "data": data,
-            "summary": summary,
-            "output_type": intent.get("output_type")
+            "summary": response["summary"],
+            "output_type": intent.get("output_type", "chart")
         }
 
     def _compose_summary(
@@ -341,7 +387,8 @@ class AirQualityChatbotService:
         return {
             "llm_service": "healthy" if llm_healthy else "unavailable",
             "orchestrator": "healthy",
-            "guardrails": "active"
+            "guardrails": "active",
+            "response_composer": "active"
         }
 
 

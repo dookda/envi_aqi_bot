@@ -1,28 +1,117 @@
 /**
- * Chat Page - AI-powered Air Quality Chatbot
+ * Chat Page - AI-powered Air Quality Chatbot (v2.0)
  *
- * Natural language interface for querying air quality data
- * Supports Thai and English queries
+ * Modern, premium chat interface with:
+ * - Split-panel layout
+ * - Rich message rendering with markdown
+ * - Interactive charts
+ * - Health recommendations
+ * - Quick action buttons
  */
 import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Button, Card, Icon } from '../components/atoms'
+import { Button, Card, Icon, Badge } from '../components/atoms'
 import { Navbar } from '../components/organisms'
 import { useChat } from '../hooks'
 import { useLanguage, useTheme } from '../contexts'
 
+// AQI Level configurations
+const AQI_LEVELS = {
+    excellent: {
+        color: 'text-green-500',
+        bgColor: 'bg-green-500',
+        bgLight: 'bg-green-100',
+        borderColor: 'border-green-500',
+        label: { en: 'Excellent', th: 'ดีมาก' },
+        icon: 'sentiment_very_satisfied',
+        advice: {
+            en: 'Air quality is ideal. Perfect for outdoor activities!',
+            th: 'คุณภาพอากาศดีเยี่ยม เหมาะสำหรับกิจกรรมกลางแจ้ง!'
+        }
+    },
+    good: {
+        color: 'text-emerald-500',
+        bgColor: 'bg-emerald-500',
+        bgLight: 'bg-emerald-100',
+        borderColor: 'border-emerald-500',
+        label: { en: 'Good', th: 'ดี' },
+        icon: 'sentiment_satisfied',
+        advice: {
+            en: 'Air quality is satisfactory. Enjoy outdoor activities.',
+            th: 'คุณภาพอากาศดี สามารถทำกิจกรรมกลางแจ้งได้'
+        }
+    },
+    moderate: {
+        color: 'text-yellow-500',
+        bgColor: 'bg-yellow-500',
+        bgLight: 'bg-yellow-100',
+        borderColor: 'border-yellow-500',
+        label: { en: 'Moderate', th: 'ปานกลาง' },
+        icon: 'sentiment_neutral',
+        advice: {
+            en: 'Sensitive individuals should limit prolonged outdoor exertion.',
+            th: 'ผู้ที่มีความไวต่อมลพิษควรจำกัดกิจกรรมกลางแจ้ง'
+        }
+    },
+    unhealthy_sensitive: {
+        color: 'text-orange-500',
+        bgColor: 'bg-orange-500',
+        bgLight: 'bg-orange-100',
+        borderColor: 'border-orange-500',
+        label: { en: 'Unhealthy (Sensitive)', th: 'มีผลต่อสุขภาพ (กลุ่มเสี่ยง)' },
+        icon: 'sentiment_dissatisfied',
+        advice: {
+            en: 'Sensitive groups should avoid outdoor activities. Others should limit prolonged exertion.',
+            th: 'กลุ่มเสี่ยงควรหลีกเลี่ยงกิจกรรมกลางแจ้ง คนทั่วไปควรจำกัดการออกกำลังกาย'
+        }
+    },
+    unhealthy: {
+        color: 'text-red-500',
+        bgColor: 'bg-red-500',
+        bgLight: 'bg-red-100',
+        borderColor: 'border-red-500',
+        label: { en: 'Unhealthy', th: 'มีผลต่อสุขภาพ' },
+        icon: 'sentiment_very_dissatisfied',
+        advice: {
+            en: 'Everyone should limit outdoor activities. Wear N95 masks if going outside.',
+            th: 'ทุกคนควรจำกัดกิจกรรมกลางแจ้ง สวมหน้ากาก N95 หากต้องออกนอกบ้าน'
+        }
+    },
+    hazardous: {
+        color: 'text-purple-500',
+        bgColor: 'bg-purple-500',
+        bgLight: 'bg-purple-100',
+        borderColor: 'border-purple-500',
+        label: { en: 'Hazardous', th: 'อันตราย' },
+        icon: 'warning',
+        advice: {
+            en: 'Health emergency! Stay indoors with air purifier. Avoid all outdoor activities.',
+            th: 'ฉุกเฉินด้านสุขภาพ! อยู่ในอาคารพร้อมเครื่องฟอกอากาศ หลีกเลี่ยงกิจกรรมกลางแจ้งทั้งหมด'
+        }
+    }
+}
+
+const getAqiLevel = (level) => AQI_LEVELS[level] || AQI_LEVELS.moderate
+
 export default function Chat() {
     const { messages, loading, sendMessage, clearMessages } = useChat()
     const [inputText, setInputText] = useState('')
+    const [showSidebar, setShowSidebar] = useState(true)
     const messagesEndRef = useRef(null)
+    const inputRef = useRef(null)
 
-    const { t } = useLanguage()
+    const { t, language } = useLanguage()
     const { isLight } = useTheme()
 
     // Auto-scroll to bottom when new messages arrive
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
+
+    // Focus input on load
+    useEffect(() => {
+        inputRef.current?.focus()
+    }, [])
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -32,18 +121,48 @@ export default function Chat() {
         setInputText('')
     }
 
-    const exampleQueries = [
+    const handleQuickAction = (query) => {
+        setInputText(query)
+        inputRef.current?.focus()
+    }
+
+    const quickActions = [
+        {
+            icon: 'search',
+            label: language === 'th' ? 'ค้นหาสถานี' : 'Search Stations',
+            query: language === 'th' ? 'ค้นหาสถานีเชียงใหม่' : 'Search stations in Chiang Mai'
+        },
+        {
+            icon: 'show_chart',
+            label: language === 'th' ? 'ดูกราฟ PM2.5' : 'PM2.5 Chart',
+            query: language === 'th' ? 'ขอดูค่า PM2.5 ย้อนหลัง 7 วันของเชียงใหม่' : 'Show PM2.5 chart for Bangkok last week'
+        },
+        {
+            icon: 'air',
+            label: language === 'th' ? 'คุณภาพอากาศวันนี้' : 'Today\'s Air Quality',
+            query: language === 'th' ? 'คุณภาพอากาศวันนี้ที่กรุงเทพ' : 'Air quality today in Bangkok'
+        },
+        {
+            icon: 'compare_arrows',
+            label: language === 'th' ? 'เปรียบเทียบสถานี' : 'Compare Stations',
+            query: language === 'th' ? 'ค้นหาสถานีในภาคเหนือ' : 'Find stations in Northern Thailand'
+        }
+    ]
+
+    const exampleQueries = language === 'th' ? [
         'ขอดูค่า PM2.5 ย้อนหลัง 7 วันของสถานีเชียงใหม่',
-        'Show me PM2.5 for the last week in Bangkok',
-        'Search for Chiang Mai stations',
-        'ค้นหาสถานีเชียงใหม่',
-        'Air quality trends last month in Chiang Mai',
-        'List stations in Bangkok'
+        'ค้นหาสถานีใน กทม',
+        'แสดงกราฟฝุ่น PM2.5 ที่ลำปาง',
+        'สถานีตรวจวัดในภูเก็ต'
+    ] : [
+        'Show PM2.5 for last 7 days in Chiang Mai',
+        'Search stations in Bangkok',
+        'Air quality trends in Lampang',
+        'List monitoring stations in Phuket'
     ]
 
     return (
         <div className="min-h-screen gradient-dark">
-            {/* Header with Language/Theme toggles */}
             <Navbar
                 title={t('chat.title')}
                 subtitle={t('chat.subtitle')}
@@ -62,194 +181,351 @@ export default function Chat() {
                     <Icon name="dashboard" size="sm" />
                     {t('chat.dashboard')}
                 </Link>
-                <Link
-                    to="/models"
-                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
-                >
-                    <Icon name="psychology" size="sm" />
-                    {t('chat.models')}
-                </Link>
             </Navbar>
 
-            <main className="max-w-5xl mx-auto px-4 py-6">
-                {/* Info Card */}
-                {messages.length === 0 && (
-                    <Card className="mb-6 p-6">
-                        <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isLight ? 'text-gray-800' : ''}`}>
-                            <Icon name="help" color="primary" />
-                            {t('chat.howToUse')}
-                        </h3>
-                        <div className={`space-y-3 text-sm mb-6 ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
-                            <p className="flex items-start gap-2">
-                                <Icon name="check_circle" size="sm" color="success" />
-                                {t('chat.instruction1')}
-                            </p>
-                            <p className="flex items-start gap-2">
-                                <Icon name="check_circle" size="sm" color="success" />
-                                {t('chat.instruction2')}
-                            </p>
-                            <p className="flex items-start gap-2">
-                                <Icon name="check_circle" size="sm" color="success" />
-                                {t('chat.instruction3')}
-                            </p>
-                        </div>
-
-                        <h4 className={`font-medium mb-3 text-sm flex items-center gap-2 ${isLight ? 'text-gray-700' : ''}`}>
-                            <Icon name="lightbulb" size="sm" color="warning" />
-                            {t('chat.exampleQueries')}
-                        </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {exampleQueries.map((query, index) => (
-                                <button
-                                    key={index}
-                                    onClick={() => setInputText(query)}
-                                    className={`text-left px-3 py-2 rounded-lg text-xs transition border flex items-center gap-2 ${isLight
-                                        ? 'bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200 hover:border-primary-500'
-                                        : 'bg-dark-800 hover:bg-dark-700 text-dark-300 border-dark-600 hover:border-primary-500'
-                                        }`}
-                                >
-                                    <Icon name="arrow_forward" size="xs" color="primary" />
-                                    "{query}"
-                                </button>
-                            ))}
-                        </div>
-                    </Card>
-                )}
-
-                {/* Messages Container */}
-                <Card className="mb-4 p-4 min-h-[500px] max-h-[600px] overflow-y-auto">
-                    {messages.length === 0 ? (
-                        <div className={`flex items-center justify-center h-full ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
-                            <div className="text-center">
-                                <Icon name="chat" size="2xl" className="mb-4" />
-                                <p>{t('chat.startConversation')}</p>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {messages.map((message) => (
-                                <ChatMessage key={message.id} message={message} isLight={isLight} t={t} />
-                            ))}
-                            {loading && (
-                                <div className="flex items-start gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center flex-shrink-0">
-                                        <Icon name="smart_toy" size="sm" color="white" />
+            <main className="max-w-7xl mx-auto px-4 py-6">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    {/* Sidebar - Info Panel */}
+                    <div className={`lg:col-span-1 space-y-4 ${showSidebar ? '' : 'hidden lg:block'}`}>
+                        {/* AI Assistant Card */}
+                        <Card className="p-4 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary-500/20 to-transparent rounded-bl-full" />
+                            <div className="relative z-10">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isLight ? 'bg-primary-100' : 'bg-primary-900/50'}`}>
+                                        <Icon name="smart_toy" size="lg" color="primary" />
                                     </div>
-                                    <div className={`flex-1 rounded-lg p-4 ${isLight ? 'bg-gray-100' : 'bg-dark-800'}`}>
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 bg-primary-400 rounded-full animate-pulse"></div>
-                                            <div className="w-2 h-2 bg-primary-400 rounded-full animate-pulse delay-75"></div>
-                                            <div className="w-2 h-2 bg-primary-400 rounded-full animate-pulse delay-150"></div>
-                                            <span className={`text-sm ml-2 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                                {t('chat.processing')}
-                                            </span>
-                                        </div>
+                                    <div>
+                                        <h3 className={`font-semibold ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                            {language === 'th' ? 'ผู้ช่วย AI' : 'AI Assistant'}
+                                        </h3>
+                                        <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                            {language === 'th' ? 'พร้อมช่วยเหลือคุณ' : 'Ready to help you'}
+                                        </p>
                                     </div>
                                 </div>
-                            )}
-                            <div ref={messagesEndRef} />
-                        </div>
-                    )}
-                </Card>
+                                <div className="flex gap-2">
+                                    <Badge variant="success" size="sm">
+                                        <Icon name="check_circle" size="xs" /> Online
+                                    </Badge>
+                                    <Badge variant="primary" size="sm">
+                                        🇹🇭 TH/EN
+                                    </Badge>
+                                </div>
+                            </div>
+                        </Card>
 
-                {/* Input Form */}
-                <Card className="p-4">
-                    <form onSubmit={handleSubmit} className="flex gap-3">
-                        <input
-                            type="text"
-                            value={inputText}
-                            onChange={(e) => setInputText(e.target.value)}
-                            placeholder={t('chat.placeholder')}
-                            className={`flex-1 px-4 py-3 border rounded-lg transition focus:outline-none focus:border-primary-500 ${isLight
-                                ? 'bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400'
-                                : 'bg-dark-800 border-dark-600 text-white placeholder-dark-500'
-                                }`}
-                            maxLength={300}
-                            disabled={loading}
-                        />
-                        <Button
-                            type="submit"
-                            loading={loading}
-                            disabled={!inputText.trim() || loading}
-                        >
-                            <Icon name="send" size="sm" />
-                            {t('chat.send')}
-                        </Button>
-                        {messages.length > 0 && (
-                            <Button
-                                type="button"
-                                variant="secondary"
-                                onClick={clearMessages}
-                                disabled={loading}
-                            >
-                                <Icon name="delete" size="sm" />
-                                {t('chat.clear')}
-                            </Button>
-                        )}
-                    </form>
-                    <p className={`text-xs mt-2 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
-                        {t('chat.maxLength')} {inputText.length}/300 {t('chat.characters')}
-                    </p>
-                </Card>
+                        {/* Quick Actions */}
+                        <Card className="p-4">
+                            <h4 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isLight ? 'text-gray-700' : 'text-dark-200'}`}>
+                                <Icon name="bolt" size="sm" color="warning" />
+                                {language === 'th' ? 'การดำเนินการด่วน' : 'Quick Actions'}
+                            </h4>
+                            <div className="space-y-2">
+                                {quickActions.map((action, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => handleQuickAction(action.query)}
+                                        className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition flex items-center gap-2 group ${isLight
+                                                ? 'bg-gray-50 hover:bg-primary-50 text-gray-700 hover:text-primary-700'
+                                                : 'bg-dark-800 hover:bg-dark-700 text-dark-300 hover:text-white'
+                                            }`}
+                                    >
+                                        <Icon name={action.icon} size="sm" className="group-hover:scale-110 transition-transform" />
+                                        {action.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </Card>
+
+                        {/* Tips Card */}
+                        <Card className={`p-4 ${isLight ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200' : 'bg-gradient-to-br from-blue-900/20 to-indigo-900/20 border-blue-800/30'}`}>
+                            <h4 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isLight ? 'text-blue-800' : 'text-blue-300'}`}>
+                                <Icon name="lightbulb" size="sm" />
+                                {language === 'th' ? 'เคล็ดลับ' : 'Tips'}
+                            </h4>
+                            <ul className={`text-xs space-y-2 ${isLight ? 'text-blue-700' : 'text-blue-300/80'}`}>
+                                <li className="flex items-start gap-2">
+                                    <Icon name="check" size="xs" />
+                                    {language === 'th' ? 'ใช้ภาษาไทยหรืออังกฤษได้' : 'Ask in Thai or English'}
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <Icon name="check" size="xs" />
+                                    {language === 'th' ? 'ระบุชื่อจังหวัดหรือสถานี' : 'Mention province or station name'}
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <Icon name="check" size="xs" />
+                                    {language === 'th' ? 'ขอดูกราฟย้อนหลังได้' : 'Request historical charts'}
+                                </li>
+                            </ul>
+                        </Card>
+                    </div>
+
+                    {/* Main Chat Area */}
+                    <div className="lg:col-span-3 flex flex-col">
+                        {/* Messages Container */}
+                        <Card className={`flex-1 flex flex-col overflow-hidden ${isLight ? 'bg-white' : 'bg-dark-900/50'}`}>
+                            {/* Chat Header */}
+                            <div className={`px-4 py-3 border-b flex items-center justify-between ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-dark-800/50 border-dark-700'}`}>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        className="lg:hidden"
+                                        onClick={() => setShowSidebar(!showSidebar)}
+                                    >
+                                        <Icon name="menu" size="sm" />
+                                    </button>
+                                    <Icon name="chat" color="primary" />
+                                    <span className={`font-medium ${isLight ? 'text-gray-700' : 'text-white'}`}>
+                                        {language === 'th' ? 'สนทนา' : 'Conversation'}
+                                    </span>
+                                    {messages.length > 0 && (
+                                        <Badge variant="default" size="sm">
+                                            {messages.length} {language === 'th' ? 'ข้อความ' : 'messages'}
+                                        </Badge>
+                                    )}
+                                </div>
+                                {messages.length > 0 && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={clearMessages}
+                                        disabled={loading}
+                                    >
+                                        <Icon name="delete_sweep" size="sm" />
+                                        {language === 'th' ? 'ล้าง' : 'Clear'}
+                                    </Button>
+                                )}
+                            </div>
+
+                            {/* Messages Area */}
+                            <div className="flex-1 overflow-y-auto p-4 min-h-[400px] max-h-[500px]">
+                                {messages.length === 0 ? (
+                                    <div className="h-full flex flex-col items-center justify-center">
+                                        <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mb-4 ${isLight ? 'bg-primary-100' : 'bg-primary-900/30'}`}>
+                                            <Icon name="forum" size="2xl" color="primary" />
+                                        </div>
+                                        <h3 className={`text-lg font-semibold mb-2 ${isLight ? 'text-gray-700' : 'text-white'}`}>
+                                            {language === 'th' ? 'เริ่มต้นการสนทนา' : 'Start a Conversation'}
+                                        </h3>
+                                        <p className={`text-sm text-center mb-6 max-w-md ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                            {language === 'th'
+                                                ? 'ถามเกี่ยวกับคุณภาพอากาศ, ค่า PM2.5, หรือค้นหาสถานีตรวจวัด'
+                                                : 'Ask about air quality, PM2.5 levels, or search for monitoring stations'}
+                                        </p>
+
+                                        {/* Example Queries */}
+                                        <div className="w-full max-w-lg grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            {exampleQueries.map((query, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    onClick={() => handleQuickAction(query)}
+                                                    className={`text-left px-3 py-2 rounded-lg text-xs transition flex items-start gap-2 ${isLight
+                                                            ? 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                                                            : 'bg-dark-800 hover:bg-dark-700 text-dark-300'
+                                                        }`}
+                                                >
+                                                    <Icon name="arrow_forward" size="xs" color="primary" className="mt-0.5 flex-shrink-0" />
+                                                    <span className="line-clamp-2">{query}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {messages.map((message) => (
+                                            <ChatMessage
+                                                key={message.id}
+                                                message={message}
+                                                isLight={isLight}
+                                                language={language}
+                                            />
+                                        ))}
+                                        {loading && <TypingIndicator isLight={isLight} language={language} />}
+                                        <div ref={messagesEndRef} />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Input Area */}
+                            <div className={`p-4 border-t ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-dark-800/50 border-dark-700'}`}>
+                                <form onSubmit={handleSubmit} className="flex gap-3">
+                                    <div className="flex-1 relative">
+                                        <input
+                                            ref={inputRef}
+                                            type="text"
+                                            value={inputText}
+                                            onChange={(e) => setInputText(e.target.value)}
+                                            placeholder={language === 'th' ? 'พิมพ์คำถามของคุณ...' : 'Type your question...'}
+                                            className={`w-full px-4 py-3 pr-12 border rounded-xl transition focus:outline-none focus:ring-2 focus:ring-primary-500/50 ${isLight
+                                                    ? 'bg-white border-gray-200 text-gray-800 placeholder-gray-400'
+                                                    : 'bg-dark-800 border-dark-600 text-white placeholder-dark-500'
+                                                }`}
+                                            maxLength={500}
+                                            disabled={loading}
+                                        />
+                                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                                            {inputText.length}/500
+                                        </span>
+                                    </div>
+                                    <Button
+                                        type="submit"
+                                        loading={loading}
+                                        disabled={!inputText.trim() || loading}
+                                        className="px-6"
+                                    >
+                                        <Icon name="send" size="sm" />
+                                    </Button>
+                                </form>
+                            </div>
+                        </Card>
+                    </div>
+                </div>
             </main>
         </div>
     )
 }
 
-function ChatMessage({ message, isLight, t }) {
-    const isUser = message.type === 'user'
+function TypingIndicator({ isLight, language }) {
+    return (
+        <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center flex-shrink-0 shadow-lg">
+                <Icon name="smart_toy" size="sm" color="white" />
+            </div>
+            <div className={`rounded-2xl rounded-tl-md px-4 py-3 ${isLight ? 'bg-gray-100' : 'bg-dark-800'}`}>
+                <div className="flex items-center gap-2">
+                    <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-primary-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="w-2 h-2 bg-primary-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <div className="w-2 h-2 bg-primary-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                    <span className={`text-sm ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                        {language === 'th' ? 'กำลังคิด...' : 'Thinking...'}
+                    </span>
+                </div>
+            </div>
+        </div>
+    )
+}
 
-    // Determine if this is a station search result
+function ChatMessage({ message, isLight, language }) {
+    const isUser = message.type === 'user'
+    const isError = message.status === 'error' || message.status === 'out_of_scope'
     const isStationSearch = message.summary?.stations && message.summary?.search_summary
+    const hasData = message.data && message.data.length > 0
 
     return (
         <div className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
             {/* Avatar */}
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isUser ? 'bg-success-500' : 'bg-primary-500'
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg ${isUser
+                    ? 'bg-gradient-to-br from-emerald-500 to-emerald-600'
+                    : 'bg-gradient-to-br from-primary-500 to-primary-600'
                 }`}>
                 <Icon name={isUser ? 'person' : 'smart_toy'} size="sm" color="white" />
             </div>
 
             {/* Message Content */}
-            <div className={`flex-1 max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
-                <div className={`rounded-lg p-4 ${isUser
-                    ? 'bg-success-900/30 border border-success-700/50'
-                    : message.status === 'error' || message.status === 'out_of_scope'
-                        ? 'bg-danger-900/30 border border-danger-700/50'
-                        : isLight
-                            ? 'bg-gray-100 border border-gray-200'
-                            : 'bg-dark-800 border border-dark-600'
+            <div className={`flex-1 max-w-[85%] ${isUser ? 'flex flex-col items-end' : ''}`}>
+                <div className={`rounded-2xl px-4 py-3 ${isUser
+                        ? 'rounded-tr-md bg-gradient-to-br from-emerald-500/90 to-emerald-600/90 text-white'
+                        : isError
+                            ? isLight
+                                ? 'rounded-tl-md bg-red-50 border border-red-200'
+                                : 'rounded-tl-md bg-red-900/20 border border-red-700/30'
+                            : isLight
+                                ? 'rounded-tl-md bg-gray-100'
+                                : 'rounded-tl-md bg-dark-800'
                     }`}>
-                    {/* Text */}
-                    <p className={`whitespace-pre-wrap text-sm leading-relaxed ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                        {message.text}
-                    </p>
+                    {/* Message Text */}
+                    <div className={`text-sm leading-relaxed whitespace-pre-wrap ${isUser
+                            ? 'text-white'
+                            : isError
+                                ? isLight ? 'text-red-700' : 'text-red-300'
+                                : isLight ? 'text-gray-800' : 'text-white'
+                        }`}>
+                        <FormattedText text={message.text} />
+                    </div>
 
-                    {/* Station search results */}
+                    {/* Health Recommendation Card */}
+                    {message.summary?.aqi_level && !isStationSearch && (
+                        <HealthAdviceCard
+                            aqiLevel={message.summary.aqi_level}
+                            isLight={isLight}
+                            language={language}
+                        />
+                    )}
+
+                    {/* Station Search Results */}
                     {message.status === 'success' && isStationSearch && (
                         <div className={`mt-4 pt-4 border-t ${isLight ? 'border-gray-200' : 'border-dark-700'}`}>
                             <StationSearchResults
                                 stations={message.summary.stations}
                                 isLight={isLight}
-                                t={t}
+                                language={language}
                             />
                         </div>
                     )}
 
-                    {/* Data visualization for non-search queries */}
-                    {message.status === 'success' && message.data && !isStationSearch && (
+                    {/* Chart Visualization */}
+                    {message.status === 'success' && hasData && !isStationSearch && (
                         <div className={`mt-4 pt-4 border-t ${isLight ? 'border-gray-200' : 'border-dark-700'}`}>
-                            <MiniChart data={message.data} summary={message.summary} isLight={isLight} t={t} />
+                            <EnhancedChart
+                                data={message.data}
+                                summary={message.summary}
+                                isLight={isLight}
+                                language={language}
+                            />
                         </div>
                     )}
+                </div>
 
-                    {/* Timestamp */}
-                    <p className={`text-xs mt-2 flex items-center gap-1 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
-                        <Icon name="schedule" size="xs" />
-                        {new Date(message.timestamp).toLocaleTimeString('th-TH', {
+                {/* Timestamp */}
+                <div className={`flex items-center gap-2 mt-1 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>
+                    <span className={`text-xs ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                        {new Date(message.timestamp).toLocaleTimeString(language === 'th' ? 'th-TH' : 'en-US', {
                             hour: '2-digit',
                             minute: '2-digit'
                         })}
+                    </span>
+                    {isUser && (
+                        <Icon name="done_all" size="xs" className={isLight ? 'text-gray-400' : 'text-dark-500'} />
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function FormattedText({ text }) {
+    if (!text) return null
+
+    // Simple markdown-like formatting
+    const lines = text.split('\n')
+
+    return lines.map((line, idx) => {
+        // Bold text: **text**
+        let formattedLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        // Emoji headers
+        formattedLine = formattedLine.replace(/^(🔍|📍|📊|💨|⚠️|✅|❌|💡|🏥|😷)/, '<span class="text-lg mr-1">$1</span>')
+
+        return (
+            <span key={idx} className="block" dangerouslySetInnerHTML={{ __html: formattedLine || '&nbsp;' }} />
+        )
+    })
+}
+
+function HealthAdviceCard({ aqiLevel, isLight, language }) {
+    const level = getAqiLevel(aqiLevel)
+
+    return (
+        <div className={`mt-3 p-3 rounded-lg border ${isLight ? level.bgLight : 'bg-opacity-10'} ${level.borderColor}/30`}>
+            <div className="flex items-start gap-2">
+                <Icon name={level.icon} className={level.color} />
+                <div className="flex-1">
+                    <div className={`text-sm font-medium ${level.color}`}>
+                        {language === 'th' ? 'คำแนะนำสุขภาพ' : 'Health Advice'}
+                    </div>
+                    <p className={`text-xs mt-1 ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
+                        {level.advice[language] || level.advice.en}
                     </p>
                 </div>
             </div>
@@ -257,145 +533,89 @@ function ChatMessage({ message, isLight, t }) {
     )
 }
 
-function StationSearchResults({ stations, isLight, t }) {
+function StationSearchResults({ stations, isLight, language }) {
     if (!stations || stations.length === 0) return null
-
-    // AQI level colors
-    const getAqiColor = (level) => {
-        switch (level) {
-            case 'excellent': return 'text-green-500'
-            case 'good': return 'text-emerald-500'
-            case 'moderate': return 'text-yellow-500'
-            case 'unhealthy_sensitive': return 'text-orange-500'
-            case 'unhealthy': return 'text-red-500'
-            default: return isLight ? 'text-gray-500' : 'text-dark-400'
-        }
-    }
-
-    const getAqiIcon = (level) => {
-        switch (level) {
-            case 'excellent':
-            case 'good':
-                return 'sentiment_very_satisfied'
-            case 'moderate':
-                return 'sentiment_neutral'
-            case 'unhealthy_sensitive':
-                return 'sentiment_dissatisfied'
-            case 'unhealthy':
-                return 'sentiment_very_dissatisfied'
-            default:
-                return 'help'
-        }
-    }
-
-    const getAqiLabel = (level) => {
-        switch (level) {
-            case 'excellent': return 'Excellent'
-            case 'good': return 'Good'
-            case 'moderate': return 'Moderate'
-            case 'unhealthy_sensitive': return 'Unhealthy (Sensitive)'
-            case 'unhealthy': return 'Unhealthy'
-            default: return 'Unknown'
-        }
-    }
-
-    const getTrendIcon = (trend) => {
-        switch (trend) {
-            case 'increasing': return 'trending_up'
-            case 'decreasing': return 'trending_down'
-            case 'stable': return 'trending_flat'
-            default: return 'help'
-        }
-    }
 
     return (
         <div className="space-y-3">
-            <div className={`text-xs font-medium mb-2 flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                <Icon name="search" size="sm" />
-                Station Search Results ({stations.length} found)
+            <div className={`text-xs font-medium flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                <Icon name="location_on" size="sm" color="primary" />
+                {language === 'th' ? `พบ ${stations.length} สถานี` : `Found ${stations.length} station(s)`}
             </div>
 
             <div className="space-y-2 max-h-64 overflow-y-auto">
-                {stations.slice(0, 10).map((station, index) => (
-                    <div
-                        key={station.station_id || index}
-                        className={`p-3 rounded-lg border ${isLight
-                            ? 'bg-gray-50 border-gray-200'
-                            : 'bg-dark-700 border-dark-600'
-                            }`}
-                    >
-                        <div className="flex justify-between items-start mb-2">
-                            <div>
-                                <div className={`font-medium text-sm flex items-center gap-1 ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                                    <Icon name="location_on" size="sm" color="primary" />
-                                    {station.name_en || station.name_th || station.station_id}
-                                </div>
-                                {station.name_th && station.name_en && (
-                                    <div className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                        {station.name_th}
+                {stations.slice(0, 5).map((station, index) => {
+                    const level = getAqiLevel(station.aqi_level)
+
+                    return (
+                        <div
+                            key={station.station_id || index}
+                            className={`p-3 rounded-xl border transition hover:scale-[1.02] ${isLight
+                                    ? 'bg-white border-gray-200 hover:border-primary-300 hover:shadow-md'
+                                    : 'bg-dark-700/50 border-dark-600 hover:border-primary-500/50'
+                                }`}
+                        >
+                            <div className="flex justify-between items-start mb-2">
+                                <div className="flex-1">
+                                    <div className={`font-medium text-sm flex items-center gap-1 ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                        <Icon name="location_on" size="sm" color="primary" />
+                                        {station.name_en || station.name_th || station.station_id}
                                     </div>
-                                )}
-                            </div>
-                            <span className={`text-xs flex items-center gap-1 ${getAqiColor(station.aqi_level)}`}>
-                                <Icon name={getAqiIcon(station.aqi_level)} size="sm" />
-                                {getAqiLabel(station.aqi_level)}
-                            </span>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div className={isLight ? 'text-gray-600' : 'text-dark-300'}>
-                                <span className="font-medium">Latest PM2.5:</span>{' '}
-                                {station.latest_pm25 ? `${station.latest_pm25} μg/m³` : 'N/A'}
-                            </div>
-                            <div className={isLight ? 'text-gray-600' : 'text-dark-300'}>
-                                <span className="font-medium">7-day Avg:</span>{' '}
-                                {station.avg_pm25_7d ? `${station.avg_pm25_7d} μg/m³` : 'N/A'}
-                            </div>
-                            <div className={isLight ? 'text-gray-600' : 'text-dark-300'}>
-                                <span className="font-medium">Range (7d):</span>{' '}
-                                {station.min_pm25_7d && station.max_pm25_7d
-                                    ? `${station.min_pm25_7d} - ${station.max_pm25_7d}`
-                                    : 'N/A'}
-                            </div>
-                            <div className={`flex items-center gap-1 ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
-                                <span className="font-medium">Trend:</span>
-                                <Icon name={getTrendIcon(station.trend_7d)} size="sm" />
-                                {station.trend_7d || 'N/A'}
-                            </div>
-                        </div>
-
-                        {station.data_completeness_7d && (
-                            <div className="mt-2">
-                                <div className={`text-xs flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                    <Icon name="pie_chart" size="xs" />
-                                    Data completeness: {station.data_completeness_7d}%
+                                    {station.name_th && station.name_en && (
+                                        <div className={`text-xs ml-5 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                            {station.name_th}
+                                        </div>
+                                    )}
                                 </div>
-                                <div className={`w-full h-1 rounded-full mt-1 ${isLight ? 'bg-gray-200' : 'bg-dark-600'}`}>
-                                    <div
-                                        className="h-1 rounded-full bg-primary-500"
-                                        style={{ width: `${Math.min(station.data_completeness_7d, 100)}%` }}
-                                    />
+                                <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 ${level.bgLight} ${level.color}`}>
+                                    <Icon name={level.icon} size="xs" />
+                                    {level.label[language] || level.label.en}
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div className={`flex items-center gap-1 ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
+                                    <Icon name="air" size="xs" />
+                                    <span className="font-medium">PM2.5:</span>
+                                    {station.latest_pm25 ? `${station.latest_pm25} μg/m³` : 'N/A'}
+                                </div>
+                                <div className={`flex items-center gap-1 ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
+                                    <Icon name="calendar_today" size="xs" />
+                                    <span className="font-medium">7d Avg:</span>
+                                    {station.avg_pm25_7d ? `${station.avg_pm25_7d}` : 'N/A'}
                                 </div>
                             </div>
-                        )}
-                    </div>
-                ))}
+
+                            {station.data_completeness_7d && (
+                                <div className="mt-2">
+                                    <div className={`w-full h-1.5 rounded-full ${isLight ? 'bg-gray-200' : 'bg-dark-600'}`}>
+                                        <div
+                                            className="h-1.5 rounded-full bg-gradient-to-r from-primary-400 to-primary-600"
+                                            style={{ width: `${Math.min(station.data_completeness_7d, 100)}%` }}
+                                        />
+                                    </div>
+                                    <div className={`text-[10px] mt-1 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                                        {language === 'th' ? 'ข้อมูลครบถ้วน' : 'Data completeness'}: {station.data_completeness_7d}%
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )
+                })}
             </div>
 
-            {stations.length > 10 && (
-                <div className={`text-xs text-center flex items-center justify-center gap-1 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
-                    <Icon name="more_horiz" size="sm" />
-                    ... and {stations.length - 10} more stations
+            {stations.length > 5 && (
+                <div className={`text-xs text-center py-2 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                    {language === 'th' ? `และอีก ${stations.length - 5} สถานี...` : `... and ${stations.length - 5} more`}
                 </div>
             )}
         </div>
     )
 }
 
-function MiniChart({ data, summary, isLight, t }) {
+function EnhancedChart({ data, summary, isLight, language }) {
     if (!data || data.length === 0) return null
 
-    // Check if data is station data (has station_id) vs time series (has value)
     const isTimeSeriesData = data[0]?.value !== undefined || data[0]?.time !== undefined
     if (!isTimeSeriesData) return null
 
@@ -405,75 +625,91 @@ function MiniChart({ data, summary, isLight, t }) {
     const values = validData.map(d => d.value)
     const max = Math.max(...values)
     const min = Math.min(...values)
+    const avg = values.reduce((a, b) => a + b, 0) / values.length
     const range = max - min || 1
 
-    // Get time range for X-axis
     const firstTime = validData[0]?.time ? new Date(validData[0].time) : null
     const lastTime = validData[validData.length - 1]?.time ? new Date(validData[validData.length - 1].time) : null
 
+    // Determine bar color based on average
+    const getBarColor = (value) => {
+        if (value <= 25) return 'from-green-400 to-green-500'
+        if (value <= 50) return 'from-emerald-400 to-emerald-500'
+        if (value <= 100) return 'from-yellow-400 to-yellow-500'
+        if (value <= 200) return 'from-orange-400 to-orange-500'
+        return 'from-red-400 to-red-500'
+    }
+
     return (
-        <div className="space-y-2">
-            <div className={`text-xs font-medium mb-2 flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                <Icon name="show_chart" size="sm" />
-                {t('chat.trendChart')} ({validData.length} {t('chat.dataPoints')})
+        <div className="space-y-3">
+            {/* Chart Header */}
+            <div className="flex items-center justify-between">
+                <div className={`text-xs font-medium flex items-center gap-1 ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
+                    <Icon name="show_chart" size="sm" color="primary" />
+                    {language === 'th' ? 'กราฟแนวโน้ม' : 'Trend Chart'}
+                    <Badge variant="default" size="sm">{validData.length} pts</Badge>
+                </div>
             </div>
 
-            {/* Chart with axis labels */}
+            {/* Stats Cards */}
+            <div className="grid grid-cols-3 gap-2">
+                <div className={`p-2 rounded-lg text-center ${isLight ? 'bg-gray-100' : 'bg-dark-700/50'}`}>
+                    <div className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                        {language === 'th' ? 'ต่ำสุด' : 'Min'}
+                    </div>
+                    <div className={`text-sm font-bold text-green-500`}>{min.toFixed(1)}</div>
+                </div>
+                <div className={`p-2 rounded-lg text-center ${isLight ? 'bg-primary-50' : 'bg-primary-900/20'}`}>
+                    <div className={`text-xs ${isLight ? 'text-primary-600' : 'text-primary-400'}`}>
+                        {language === 'th' ? 'เฉลี่ย' : 'Average'}
+                    </div>
+                    <div className={`text-sm font-bold ${isLight ? 'text-primary-700' : 'text-primary-300'}`}>{avg.toFixed(1)}</div>
+                </div>
+                <div className={`p-2 rounded-lg text-center ${isLight ? 'bg-gray-100' : 'bg-dark-700/50'}`}>
+                    <div className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                        {language === 'th' ? 'สูงสุด' : 'Max'}
+                    </div>
+                    <div className={`text-sm font-bold text-red-500`}>{max.toFixed(1)}</div>
+                </div>
+            </div>
+
+            {/* Chart */}
             <div className="flex">
-                {/* Y-axis labels */}
-                <div className={`flex flex-col justify-between text-xs pr-2 ${isLight ? 'text-gray-400' : 'text-dark-500'}`} style={{ minWidth: '45px' }}>
+                {/* Y-axis */}
+                <div className={`flex flex-col justify-between text-[10px] pr-2 ${isLight ? 'text-gray-400' : 'text-dark-500'}`} style={{ minWidth: '35px' }}>
                     <span className="text-right">{max.toFixed(0)}</span>
-                    <span className="text-right text-[10px]">μg/m³</span>
+                    <span className="text-right">{((max + min) / 2).toFixed(0)}</span>
                     <span className="text-right">{min.toFixed(0)}</span>
                 </div>
 
-                {/* Chart area */}
+                {/* Chart Area */}
                 <div className="flex-1">
-                    {/* Bars */}
-                    <div className="flex items-end gap-0.5 h-20 border-l border-b" style={{ borderColor: isLight ? '#d1d5db' : '#4b5563' }}>
-                        {validData.slice(0, 50).map((point, index) => {
+                    <div className={`flex items-end gap-0.5 h-24 border-l border-b rounded-bl-lg ${isLight ? 'border-gray-300' : 'border-dark-600'}`}>
+                        {validData.slice(-60).map((point, index) => {
                             const height = ((point.value - min) / range) * 100
                             return (
                                 <div
                                     key={index}
-                                    className="flex-1 bg-primary-500 rounded-t opacity-70 hover:opacity-100 transition cursor-pointer"
-                                    style={{ height: `${Math.max(height, 5)}%` }}
-                                    title={`${point.value} μg/m³\n${point.time ? new Date(point.time).toLocaleString('th-TH') : ''}`}
+                                    className={`flex-1 bg-gradient-to-t ${getBarColor(point.value)} rounded-t opacity-80 hover:opacity-100 transition cursor-pointer`}
+                                    style={{ height: `${Math.max(height, 3)}%`, minWidth: '2px' }}
+                                    title={`${point.value?.toFixed(1)} μg/m³\n${point.time ? new Date(point.time).toLocaleString() : ''}`}
                                 />
                             )
                         })}
                     </div>
 
-                    {/* X-axis labels */}
+                    {/* X-axis */}
                     <div className={`flex justify-between text-[10px] mt-1 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
-                        {firstTime && <span>{firstTime.toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}</span>}
-                        <span className="text-center flex-1">Time →</span>
-                        {lastTime && <span>{lastTime.toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}</span>}
+                        {firstTime && <span>{firstTime.toLocaleDateString(language === 'th' ? 'th-TH' : 'en-US', { day: '2-digit', month: 'short' })}</span>}
+                        <span className="flex-1 text-center">→</span>
+                        {lastTime && <span>{lastTime.toLocaleDateString(language === 'th' ? 'th-TH' : 'en-US', { day: '2-digit', month: 'short' })}</span>}
                     </div>
                 </div>
             </div>
 
-            {/* Summary stats */}
-            {summary && (
-                <div className={`text-xs grid grid-cols-3 gap-2 mt-2 pt-2 border-t ${isLight ? 'text-gray-500 border-gray-200' : 'text-dark-400 border-dark-700'}`}>
-                    <div className="flex items-center gap-1">
-                        <Icon name="functions" size="xs" />
-                        Avg: <span className="font-medium">{summary.mean}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <Icon name="arrow_downward" size="xs" />
-                        Min: <span className="font-medium">{summary.min}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <Icon name="arrow_upward" size="xs" />
-                        Max: <span className="font-medium">{summary.max}</span>
-                    </div>
-                </div>
-            )}
-
-            {/* Trend indicator */}
+            {/* Trend */}
             {summary?.trend && (
-                <div className={`text-xs flex items-center gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                <div className={`flex items-center gap-2 text-xs ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
                     <Icon
                         name={
                             summary.trend === 'increasing' ? 'trending_up' :
@@ -481,16 +717,25 @@ function MiniChart({ data, summary, isLight, t }) {
                                     summary.trend === 'stable' ? 'trending_flat' : 'help'
                         }
                         size="sm"
+                        className={
+                            summary.trend === 'increasing' ? 'text-red-500' :
+                                summary.trend === 'decreasing' ? 'text-green-500' :
+                                    'text-gray-500'
+                        }
                     />
-                    {t('chat.trend')} {
-                        summary.trend === 'increasing' ? t('chat.increasing') :
-                            summary.trend === 'decreasing' ? t('chat.decreasing') :
-                                summary.trend === 'stable' ? t('chat.stable') :
-                                    t('chat.insufficient')
-                    }
+                    <span>
+                        {language === 'th' ? 'แนวโน้ม: ' : 'Trend: '}
+                        {summary.trend === 'increasing'
+                            ? (language === 'th' ? 'เพิ่มขึ้น ↑' : 'Increasing ↑')
+                            : summary.trend === 'decreasing'
+                                ? (language === 'th' ? 'ลดลง ↓' : 'Decreasing ↓')
+                                : summary.trend === 'stable'
+                                    ? (language === 'th' ? 'คงที่ →' : 'Stable →')
+                                    : (language === 'th' ? 'ข้อมูลไม่เพียงพอ' : 'Insufficient data')
+                        }
+                    </span>
                 </div>
             )}
         </div>
     )
 }
-

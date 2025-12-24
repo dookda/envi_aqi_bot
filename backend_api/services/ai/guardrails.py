@@ -149,6 +149,21 @@ SYSTEM_PROMPT = """You are an Air Quality Assistant for Thailand. Parse user que
    Return:
    {{"intent_type": "get_data", "station_id": "<location>", "pollutant": "pm25", "start_date": "<ISO-8601>", "end_date": "<ISO-8601>", "interval": "hour", "output_type": "chart"}}
 
+3. **needs_clarification** - Query is UNCLEAR or AMBIGUOUS:
+   - Missing location/station name
+   - Missing time period (for data queries)
+   - Vague questions like "how is the air?" without location
+   - Incomplete requests
+   
+   Return:
+   {{"intent_type": "needs_clarification", "missing_info": "<what's missing>", "clarification_question": "<question to ask user>"}}
+   
+   Examples of unclear queries:
+   - "PM2.5 ย้อนหลัง" → missing location → Ask: "กรุณาระบุจังหวัดหรือสถานีที่ต้องการดูข้อมูล"
+   - "Air quality" → missing location → Ask: "Which location would you like to check?"
+   - "ค่าฝุ่น" → missing location and time → Ask: "กรุณาระบุจังหวัดและช่วงเวลาที่ต้องการดูข้อมูล เช่น 'ค่าฝุ่น เชียงใหม่ วันนี้'"
+   - "เชียงใหม่" → just location, unclear intent → Ask: "ต้องการค้นหาสถานี หรือดูข้อมูลคุณภาพอากาศที่เชียงใหม่?"
+
 **If NOT air quality related:**
 {{"status": "out_of_scope"}}
 
@@ -157,6 +172,8 @@ SYSTEM_PROMPT = """You are an Air Quality Assistant for Thailand. Parse user que
 - "หาสถานี" = search_stations
 - output_type="chart" if user wants: chart/graph/กราฟ/trend/ย้อนหลัง
 - Date examples: "ย้อนหลัง 7 วัน"=7 days ago to now, "วันนี้"=today
+- If query is about air quality BUT missing key info → use needs_clarification
+- ALWAYS prefer asking for clarification over making wrong assumptions
 
 Current time: {current_datetime}
 Return ONLY valid JSON, no explanations."""
@@ -171,7 +188,7 @@ def get_system_prompt(current_datetime: str) -> str:
 VALID_POLLUTANTS = ["pm25", "pm10", "aqi", "o3", "no2", "so2", "co"]
 VALID_INTERVALS = ["15min", "hour", "day"]
 VALID_OUTPUT_TYPES = ["text", "chart", "map", "infographic"]
-VALID_INTENT_TYPES = ["search_stations", "get_data"]
+VALID_INTENT_TYPES = ["search_stations", "get_data", "needs_clarification"]
 
 REQUIRED_DATA_FIELDS = [
     "station_id",
@@ -285,10 +302,32 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
     # Determine intent type (default to get_data for backward compatibility)
     intent_type = intent.get("intent_type", "get_data")
     
+    # ============ HANDLE NEEDS_CLARIFICATION INTENT ============
+    if intent_type == "needs_clarification":
+        clarification_question = intent.get("clarification_question", "")
+        missing_info = intent.get("missing_info", "")
+        
+        if not clarification_question:
+            # Generate default clarification question
+            clarification_question = "Could you please provide more details? For example, specify a location or time period."
+        
+        logger.info(f"Intent needs clarification: {missing_info}")
+        return {
+            "valid": True,
+            "intent": {
+                "intent_type": "needs_clarification",
+                "clarification_question": clarification_question,
+                "missing_info": missing_info
+            }
+        }
+    
     # Validate intent_type
     if intent_type not in VALID_INTENT_TYPES:
         # Try to infer intent type from fields
-        if "search_query" in intent:
+        if "clarification_question" in intent:
+            intent_type = "needs_clarification"
+            intent["intent_type"] = intent_type
+        elif "search_query" in intent:
             intent_type = "search_stations"
             intent["intent_type"] = intent_type
         else:
