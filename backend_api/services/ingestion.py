@@ -5,11 +5,17 @@ Handles:
 - Station metadata retrieval and storage
 - Historical PM2.5 data ingestion (30-day rolling window)
 - Missing data detection and logging
+
+Performance Optimizations:
+- HTTP connection pooling
+- Parallel station processing with semaphore
+- Batch database operations
 """
 
 import asyncio
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any, Tuple
+from dataclasses import dataclass
 
 import httpx
 import pandas as pd
@@ -23,8 +29,39 @@ from backend_model.models import Station, AQIHourly, IngestionLog
 from backend_model.database import get_db_context
 
 
+@dataclass
+class CircuitBreaker:
+    """Circuit breaker to prevent overwhelming the API during failures"""
+    failure_threshold: int = 5
+    reset_timeout: int = 60  # seconds
+    failures: int = 0
+    last_failure: Optional[datetime] = None
+    is_open: bool = False
+    
+    def record_failure(self):
+        self.failures += 1
+        self.last_failure = datetime.now()
+        if self.failures >= self.failure_threshold:
+            self.is_open = True
+            logger.warning("Circuit breaker OPEN - pausing API calls")
+    
+    def record_success(self):
+        self.failures = 0
+        self.is_open = False
+    
+    def can_proceed(self) -> bool:
+        if not self.is_open:
+            return True
+        if self.last_failure and (datetime.now() - self.last_failure).seconds > self.reset_timeout:
+            self.is_open = False
+            self.failures = 0
+            logger.info("Circuit breaker CLOSED - resuming API calls")
+            return True
+        return False
+
+
 class IngestionService:
-    """Service for ingesting data from Air4Thai APIs"""
+    """Service for ingesting data from Air4Thai APIs with performance optimizations"""
     
     def __init__(self):
         self.station_api = settings.air4thai_station_api
@@ -32,24 +69,72 @@ class IngestionService:
         self.timeout = settings.api_request_timeout
         self.retry_attempts = settings.api_retry_attempts
         self.retry_delay = settings.api_retry_delay
+        
+        # HTTP client with connection pooling (lazy initialized)
+        self._client: Optional[httpx.AsyncClient] = None
+        self._client_lock = asyncio.Lock()
+        
+        # Circuit breaker for API calls
+        self.circuit_breaker = CircuitBreaker()
+        
+        # Concurrency control
+        self.max_concurrent_requests = 10
+    
+    async def get_client(self) -> httpx.AsyncClient:
+        """Get or create HTTP client with connection pooling"""
+        async with self._client_lock:
+            if self._client is None or self._client.is_closed:
+                self._client = httpx.AsyncClient(
+                    timeout=httpx.Timeout(self.timeout, connect=10.0),
+                    limits=httpx.Limits(
+                        max_connections=20,
+                        max_keepalive_connections=10,
+                        keepalive_expiry=30.0
+                    ),
+                    http2=False  # Use HTTP/1.1 for compatibility
+                )
+            return self._client
+    
+    async def close_client(self):
+        """Close the HTTP client (call on shutdown)"""
+        async with self._client_lock:
+            if self._client and not self._client.is_closed:
+                await self._client.aclose()
+                self._client = None
     
     async def fetch_with_retry(self, url: str, params: Optional[Dict] = None) -> Optional[Dict]:
-        """Fetch URL with retry logic"""
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            for attempt in range(self.retry_attempts):
-                try:
-                    response = await client.get(url, params=params)
-                    response.raise_for_status()
-                    return response.json()
-                except httpx.HTTPError as e:
+        """Fetch URL with retry logic and circuit breaker"""
+        if not self.circuit_breaker.can_proceed():
+            logger.warning("Circuit breaker open, skipping request")
+            return None
+        
+        client = await self.get_client()
+        
+        for attempt in range(self.retry_attempts):
+            try:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                self.circuit_breaker.record_success()
+                return response.json()
+            except httpx.TimeoutException as e:
+                logger.warning(f"Timeout on attempt {attempt + 1}: {e}")
+                if attempt < self.retry_attempts - 1:
+                    await asyncio.sleep(self.retry_delay * (attempt + 1))
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429:  # Rate limited
+                    logger.warning("Rate limited by API, waiting 30s")
+                    await asyncio.sleep(30)
+                else:
                     logger.warning(f"HTTP error on attempt {attempt + 1}: {e}")
                     if attempt < self.retry_attempts - 1:
                         await asyncio.sleep(self.retry_delay * (attempt + 1))
-                except Exception as e:
-                    logger.error(f"Unexpected error fetching {url}: {e}")
-                    if attempt < self.retry_attempts - 1:
-                        await asyncio.sleep(self.retry_delay * (attempt + 1))
-            return None
+            except Exception as e:
+                logger.error(f"Unexpected error fetching {url}: {e}")
+                if attempt < self.retry_attempts - 1:
+                    await asyncio.sleep(self.retry_delay * (attempt + 1))
+        
+        self.circuit_breaker.record_failure()
+        return None
     
     async def fetch_stations(self) -> List[Dict]:
         """
@@ -527,11 +612,17 @@ class IngestionService:
     
     async def ingest_hourly_update(self) -> Dict[str, Any]:
         """
-        Perform hourly update for all stations (latest data only)
+        Perform hourly update for all stations with PARALLEL processing
+        
+        Performance: Uses asyncio.Semaphore to limit concurrent API calls
+        while processing multiple stations simultaneously for 5-10x faster ingestion.
         
         Returns:
             Summary of hourly update results
         """
+        import time
+        start_time = time.time()
+        
         # Fetch last 24 hours of data
         end_date = datetime.now()
         start_date = end_date - timedelta(hours=24)
@@ -543,40 +634,167 @@ class IngestionService:
             # No stations yet, do a full initial load
             return await self.ingest_all_stations(days=30)
         
-        logger.bind(context="ingestion").info(f"Hourly update for {len(station_ids)} stations")
+        logger.bind(context="ingestion").info(
+            f"Starting PARALLEL hourly update for {len(station_ids)} stations "
+            f"(max {self.max_concurrent_requests} concurrent)"
+        )
         
-        results = []
-        for station_id in station_ids:
-            try:
-                measurements = await self.fetch_historical_data(station_id, start_date, end_date)
-                records = self.parse_measurements(station_id, measurements)
-                
-                with get_db_context() as db:
-                    inserted, _ = self.save_measurements(db, records)
-                    self.ensure_complete_hourly_index(db, station_id, start_date, end_date)
-                
-                results.append({
-                    "station_id": station_id,
-                    "records": inserted,
-                    "status": "completed"
-                })
-            except Exception as e:
-                logger.error(f"Hourly update failed for {station_id}: {e}")
-                results.append({
-                    "station_id": station_id,
+        # Semaphore to limit concurrent requests
+        semaphore = asyncio.Semaphore(self.max_concurrent_requests)
+        
+        async def fetch_and_save_station(station_id: str) -> Dict[str, Any]:
+            """Fetch and save data for a single station (with semaphore)"""
+            async with semaphore:
+                try:
+                    # Check circuit breaker
+                    if not self.circuit_breaker.can_proceed():
+                        return {
+                            "station_id": station_id,
+                            "status": "skipped",
+                            "reason": "circuit_breaker_open"
+                        }
+                    
+                    # Fetch data
+                    measurements = await self.fetch_historical_data(
+                        station_id, start_date, end_date
+                    )
+                    records = self.parse_measurements(station_id, measurements)
+                    
+                    # Save to database
+                    with get_db_context() as db:
+                        inserted, _ = self.save_measurements(db, records)
+                        self.ensure_complete_hourly_index(
+                            db, station_id, start_date, end_date
+                        )
+                    
+                    return {
+                        "station_id": station_id,
+                        "records": inserted,
+                        "status": "completed"
+                    }
+                    
+                except Exception as e:
+                    logger.error(f"Hourly update failed for {station_id}: {e}")
+                    return {
+                        "station_id": station_id,
+                        "status": "failed",
+                        "error": str(e)
+                    }
+        
+        # Run all stations in parallel (limited by semaphore)
+        tasks = [fetch_and_save_station(sid) for sid in station_ids]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Handle any exceptions that weren't caught
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                processed_results.append({
+                    "station_id": station_ids[i],
                     "status": "failed",
-                    "error": str(e)
+                    "error": str(result)
                 })
-            
-            await asyncio.sleep(0.2)
+            else:
+                processed_results.append(result)
+        
+        # Calculate statistics
+        completed = sum(1 for r in processed_results if r.get("status") == "completed")
+        failed = sum(1 for r in processed_results if r.get("status") == "failed")
+        skipped = sum(1 for r in processed_results if r.get("status") == "skipped")
+        total_records = sum(r.get("records", 0) for r in processed_results)
+        
+        elapsed_time = time.time() - start_time
+        
+        logger.bind(context="ingestion").info(
+            f"PARALLEL hourly update completed: {completed}/{len(station_ids)} stations "
+            f"({total_records} records) in {elapsed_time:.1f}s"
+        )
         
         return {
             "type": "hourly",
             "stations": len(station_ids),
-            "completed": sum(1 for r in results if r.get("status") == "completed"),
-            "results": results,
+            "completed": completed,
+            "failed": failed,
+            "skipped": skipped,
+            "total_records": total_records,
+            "elapsed_seconds": round(elapsed_time, 2),
+            "results": processed_results,
+        }
+    
+    async def ingest_all_stations_parallel(self, days: int = 30) -> Dict[str, Any]:
+        """
+        Ingest data for all stations with PARALLEL processing
+        
+        This is a faster version of ingest_all_stations using concurrent requests.
+        
+        Args:
+            days: Number of days to ingest
+            
+        Returns:
+            Summary of all ingestion results
+        """
+        import time
+        start_time = time.time()
+        
+        # First, fetch and save station metadata
+        stations = await self.fetch_stations()
+        
+        with get_db_context() as db:
+            self.save_stations(db, stations)
+        
+        # Get station IDs
+        with get_db_context() as db:
+            station_ids = [s.station_id for s in db.query(Station).all()]
+        
+        logger.bind(context="ingestion").info(
+            f"Starting PARALLEL batch ingestion for {len(station_ids)} stations"
+        )
+        
+        semaphore = asyncio.Semaphore(self.max_concurrent_requests)
+        
+        async def ingest_station(station_id: str) -> Dict[str, Any]:
+            async with semaphore:
+                return await self.ingest_station_data(station_id, days)
+        
+        tasks = [ingest_station(sid) for sid in station_ids]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Process results
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                processed_results.append({
+                    "station_id": station_ids[i],
+                    "status": "failed",
+                    "error": str(result)
+                })
+            else:
+                processed_results.append(result)
+        
+        # Summary
+        completed = sum(1 for r in processed_results if r.get("status") == "completed")
+        failed = sum(1 for r in processed_results if r.get("status") == "failed")
+        total_records = sum(r.get("records_inserted", 0) for r in processed_results)
+        total_missing = sum(r.get("missing_hours", 0) for r in processed_results)
+        
+        elapsed_time = time.time() - start_time
+        
+        logger.bind(context="ingestion").info(
+            f"PARALLEL batch ingestion completed: {completed}/{len(station_ids)} stations "
+            f"in {elapsed_time:.1f}s"
+        )
+        
+        return {
+            "total_stations": len(station_ids),
+            "completed": completed,
+            "failed": failed,
+            "total_records": total_records,
+            "total_missing_hours": total_missing,
+            "elapsed_seconds": round(elapsed_time, 2),
+            "results": processed_results,
         }
 
 
 # Singleton instance
 ingestion_service = IngestionService()
+

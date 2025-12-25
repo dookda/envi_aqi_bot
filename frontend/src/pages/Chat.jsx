@@ -227,8 +227,8 @@ export default function Chat() {
                                         key={idx}
                                         onClick={() => handleQuickAction(action.query)}
                                         className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition flex items-center gap-2 group ${isLight
-                                                ? 'bg-gray-50 hover:bg-primary-50 text-gray-700 hover:text-primary-700'
-                                                : 'bg-dark-800 hover:bg-dark-700 text-dark-300 hover:text-white'
+                                            ? 'bg-gray-50 hover:bg-primary-50 text-gray-700 hover:text-primary-700'
+                                            : 'bg-dark-800 hover:bg-dark-700 text-dark-300 hover:text-white'
                                             }`}
                                     >
                                         <Icon name={action.icon} size="sm" className="group-hover:scale-110 transition-transform" />
@@ -320,8 +320,8 @@ export default function Chat() {
                                                     key={idx}
                                                     onClick={() => handleQuickAction(query)}
                                                     className={`text-left px-3 py-2 rounded-lg text-xs transition flex items-start gap-2 ${isLight
-                                                            ? 'bg-gray-100 hover:bg-gray-200 text-gray-600'
-                                                            : 'bg-dark-800 hover:bg-dark-700 text-dark-300'
+                                                        ? 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                                                        : 'bg-dark-800 hover:bg-dark-700 text-dark-300'
                                                         }`}
                                                 >
                                                     <Icon name="arrow_forward" size="xs" color="primary" className="mt-0.5 flex-shrink-0" />
@@ -357,8 +357,8 @@ export default function Chat() {
                                             onChange={(e) => setInputText(e.target.value)}
                                             placeholder={language === 'th' ? 'พิมพ์คำถามของคุณ...' : 'Type your question...'}
                                             className={`w-full px-4 py-3 pr-12 border rounded-xl transition focus:outline-none focus:ring-2 focus:ring-primary-500/50 ${isLight
-                                                    ? 'bg-white border-gray-200 text-gray-800 placeholder-gray-400'
-                                                    : 'bg-dark-800 border-dark-600 text-white placeholder-dark-500'
+                                                ? 'bg-white border-gray-200 text-gray-800 placeholder-gray-400'
+                                                : 'bg-dark-800 border-dark-600 text-white placeholder-dark-500'
                                                 }`}
                                             maxLength={500}
                                             disabled={loading}
@@ -417,8 +417,8 @@ function ChatMessage({ message, isLight, language }) {
         <div className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
             {/* Avatar */}
             <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg ${isUser
-                    ? 'bg-gradient-to-br from-emerald-500 to-emerald-600'
-                    : 'bg-gradient-to-br from-primary-500 to-primary-600'
+                ? 'bg-gradient-to-br from-emerald-500 to-emerald-600'
+                : 'bg-gradient-to-br from-primary-500 to-primary-600'
                 }`}>
                 <Icon name={isUser ? 'person' : 'smart_toy'} size="sm" color="white" />
             </div>
@@ -426,21 +426,21 @@ function ChatMessage({ message, isLight, language }) {
             {/* Message Content */}
             <div className={`flex-1 max-w-[85%] ${isUser ? 'flex flex-col items-end' : ''}`}>
                 <div className={`rounded-2xl px-4 py-3 ${isUser
-                        ? 'rounded-tr-md bg-gradient-to-br from-emerald-500/90 to-emerald-600/90 text-white'
-                        : isError
-                            ? isLight
-                                ? 'rounded-tl-md bg-red-50 border border-red-200'
-                                : 'rounded-tl-md bg-red-900/20 border border-red-700/30'
-                            : isLight
-                                ? 'rounded-tl-md bg-gray-100'
-                                : 'rounded-tl-md bg-dark-800'
+                    ? 'rounded-tr-md bg-gradient-to-br from-emerald-500/90 to-emerald-600/90 text-white'
+                    : isError
+                        ? isLight
+                            ? 'rounded-tl-md bg-red-50 border border-red-200'
+                            : 'rounded-tl-md bg-red-900/20 border border-red-700/30'
+                        : isLight
+                            ? 'rounded-tl-md bg-gray-100'
+                            : 'rounded-tl-md bg-dark-800'
                     }`}>
                     {/* Message Text */}
                     <div className={`text-sm leading-relaxed whitespace-pre-wrap ${isUser
-                            ? 'text-white'
-                            : isError
-                                ? isLight ? 'text-red-700' : 'text-red-300'
-                                : isLight ? 'text-gray-800' : 'text-white'
+                        ? 'text-white'
+                        : isError
+                            ? isLight ? 'text-red-700' : 'text-red-300'
+                            : isLight ? 'text-gray-800' : 'text-white'
                         }`}>
                         <FormattedText text={message.text} />
                     </div>
@@ -534,7 +534,13 @@ function HealthAdviceCard({ aqiLevel, isLight, language }) {
 }
 
 function StationSearchResults({ stations, isLight, language }) {
+    const [showAll, setShowAll] = useState(false)
+
     if (!stations || stations.length === 0) return null
+
+    const INITIAL_DISPLAY = 5
+    const displayedStations = showAll ? stations : stations.slice(0, INITIAL_DISPLAY)
+    const remainingCount = stations.length - INITIAL_DISPLAY
 
     return (
         <div className="space-y-3">
@@ -543,16 +549,16 @@ function StationSearchResults({ stations, isLight, language }) {
                 {language === 'th' ? `พบ ${stations.length} สถานี` : `Found ${stations.length} station(s)`}
             </div>
 
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-                {stations.slice(0, 5).map((station, index) => {
+            <div className={`space-y-2 ${showAll ? 'max-h-96' : 'max-h-64'} overflow-y-auto transition-all duration-300`}>
+                {displayedStations.map((station, index) => {
                     const level = getAqiLevel(station.aqi_level)
 
                     return (
                         <div
                             key={station.station_id || index}
                             className={`p-3 rounded-xl border transition hover:scale-[1.02] ${isLight
-                                    ? 'bg-white border-gray-200 hover:border-primary-300 hover:shadow-md'
-                                    : 'bg-dark-700/50 border-dark-600 hover:border-primary-500/50'
+                                ? 'bg-white border-gray-200 hover:border-primary-300 hover:shadow-md'
+                                : 'bg-dark-700/50 border-dark-600 hover:border-primary-500/50'
                                 }`}
                         >
                             <div className="flex justify-between items-start mb-2">
@@ -604,10 +610,26 @@ function StationSearchResults({ stations, isLight, language }) {
                 })}
             </div>
 
-            {stations.length > 5 && (
-                <div className={`text-xs text-center py-2 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
-                    {language === 'th' ? `และอีก ${stations.length - 5} สถานี...` : `... and ${stations.length - 5} more`}
-                </div>
+            {/* Show More / Show Less Button */}
+            {stations.length > INITIAL_DISPLAY && (
+                <button
+                    onClick={() => setShowAll(!showAll)}
+                    className={`w-full py-2 px-4 rounded-lg text-xs font-medium transition flex items-center justify-center gap-2 ${isLight
+                        ? 'bg-primary-50 hover:bg-primary-100 text-primary-700 border border-primary-200'
+                        : 'bg-primary-900/30 hover:bg-primary-900/50 text-primary-300 border border-primary-700/30'
+                        }`}
+                >
+                    <Icon
+                        name={showAll ? 'expand_less' : 'expand_more'}
+                        size="sm"
+                    />
+                    {showAll
+                        ? (language === 'th' ? 'แสดงน้อยลง' : 'Show Less')
+                        : (language === 'th'
+                            ? `แสดงอีก ${remainingCount} สถานี`
+                            : `Show ${remainingCount} More Stations`)
+                    }
+                </button>
             )}
         </div>
     )

@@ -6,13 +6,19 @@ Handles:
 - Training with contiguous sequences
 - Model persistence (save/load)
 - Prediction for imputation
+
+Performance Optimizations:
+- Model caching with TTL to avoid repeated disk I/O
+- Thread-safe cache access
 """
 
 import os
 import time
-from datetime import datetime
+import threading
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Tuple, List, Dict, Any
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -37,8 +43,17 @@ from backend_model.models import ModelTrainingLog
 from backend_model.database import get_db_context
 
 
+@dataclass
+class CachedModel:
+    """Container for cached model and metadata"""
+    model: Sequential
+    scaler: MinMaxScaler
+    loaded_at: datetime
+    model_mtime: float  # File modification time for cache invalidation
+
+
 class LSTMModelService:
-    """Service for LSTM model training and prediction"""
+    """Service for LSTM model training and prediction with caching"""
     
     def __init__(self):
         self.sequence_length = settings.sequence_length
@@ -50,6 +65,11 @@ class LSTMModelService:
         self.validation_split = settings.validation_split
         self.models_dir = Path(settings.models_dir)
         self.models_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Model caching
+        self._model_cache: Dict[str, CachedModel] = {}
+        self._cache_lock = threading.Lock()
+        self._cache_ttl_seconds = 3600  # 1 hour cache TTL
         
         # Configure GPU memory growth if available
         self._configure_gpu()
@@ -360,7 +380,10 @@ class LSTMModelService:
     
     def load_model(self, station_id: str) -> Tuple[Optional[Sequential], Optional[MinMaxScaler]]:
         """
-        Load trained model and scaler for a station
+        Load trained model and scaler for a station WITH CACHING
+        
+        Performance: Caches models in memory for self._cache_ttl_seconds to avoid
+        repeated disk I/O. Cache is invalidated when model file is modified.
         
         Args:
             station_id: Station identifier
@@ -375,13 +398,80 @@ class LSTMModelService:
             logger.warning(f"Model or scaler not found for {station_id}")
             return None, None
         
+        # Get current model modification time
+        current_mtime = model_path.stat().st_mtime
+        
+        # Check cache
+        with self._cache_lock:
+            if station_id in self._model_cache:
+                cached = self._model_cache[station_id]
+                
+                # Check if cache is still valid (not expired and file not modified)
+                age = (datetime.now() - cached.loaded_at).total_seconds()
+                if age < self._cache_ttl_seconds and cached.model_mtime == current_mtime:
+                    logger.debug(f"Using cached model for {station_id} (age: {age:.0f}s)")
+                    return cached.model, cached.scaler
+                else:
+                    # Cache invalid - remove it
+                    del self._model_cache[station_id]
+                    logger.debug(f"Cache invalidated for {station_id} (age: {age:.0f}s, mtime changed: {cached.model_mtime != current_mtime})")
+        
+        # Load from disk
         try:
+            logger.debug(f"Loading model from disk for {station_id}")
             model = load_model(str(model_path))
             scaler = joblib.load(scaler_path)
+            
+            # Cache the loaded model
+            with self._cache_lock:
+                self._model_cache[station_id] = CachedModel(
+                    model=model,
+                    scaler=scaler,
+                    loaded_at=datetime.now(),
+                    model_mtime=current_mtime
+                )
+            
             return model, scaler
+            
         except Exception as e:
             logger.error(f"Failed to load model for {station_id}: {e}")
             return None, None
+    
+    def clear_model_cache(self, station_id: Optional[str] = None):
+        """
+        Clear model cache
+        
+        Args:
+            station_id: If provided, only clear cache for this station. 
+                       If None, clear entire cache.
+        """
+        with self._cache_lock:
+            if station_id:
+                if station_id in self._model_cache:
+                    del self._model_cache[station_id]
+                    logger.info(f"Cleared cache for station {station_id}")
+            else:
+                count = len(self._model_cache)
+                self._model_cache.clear()
+                logger.info(f"Cleared entire model cache ({count} models)")
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get cache statistics"""
+        with self._cache_lock:
+            cache_entries = []
+            for station_id, cached in self._model_cache.items():
+                age = (datetime.now() - cached.loaded_at).total_seconds()
+                cache_entries.append({
+                    "station_id": station_id,
+                    "age_seconds": round(age, 1),
+                    "loaded_at": cached.loaded_at.isoformat()
+                })
+            
+            return {
+                "cached_models": len(self._model_cache),
+                "cache_ttl_seconds": self._cache_ttl_seconds,
+                "entries": cache_entries
+            }
     
     def predict(
         self,

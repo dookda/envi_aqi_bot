@@ -279,7 +279,13 @@ function ChatMessage({ message, isLight, t }) {
 }
 
 function StationSearchResults({ stations, isLight, t }) {
+    const [showAll, setShowAll] = useState(false)
+
     if (!stations || stations.length === 0) return null
+
+    const INITIAL_DISPLAY = 5
+    const displayedStations = showAll ? stations : stations.slice(0, INITIAL_DISPLAY)
+    const remainingCount = stations.length - INITIAL_DISPLAY
 
     const getAqiColor = (level) => {
         switch (level) {
@@ -326,8 +332,8 @@ function StationSearchResults({ stations, isLight, t }) {
                 Station Search Results ({stations.length} found)
             </div>
 
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-                {stations.slice(0, 5).map((station, index) => (
+            <div className={`space-y-2 ${showAll ? 'max-h-96' : 'max-h-64'} overflow-y-auto transition-all duration-300`}>
+                {displayedStations.map((station, index) => (
                     <div
                         key={station.station_id || index}
                         className={`p-3 rounded-lg border ${isLight
@@ -361,6 +367,26 @@ function StationSearchResults({ stations, isLight, t }) {
                     </div>
                 ))}
             </div>
+
+            {/* Show More / Show Less Button */}
+            {stations.length > INITIAL_DISPLAY && (
+                <button
+                    onClick={() => setShowAll(!showAll)}
+                    className={`w-full py-2 px-4 rounded-lg text-xs font-medium transition flex items-center justify-center gap-2 ${isLight
+                        ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200'
+                        : 'bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-700/30'
+                        }`}
+                >
+                    <Icon
+                        name={showAll ? 'expand_less' : 'expand_more'}
+                        size="sm"
+                    />
+                    {showAll
+                        ? 'Show Less'
+                        : `Show ${remainingCount} More Stations`
+                    }
+                </button>
+            )}
         </div>
     )
 }
