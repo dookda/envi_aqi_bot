@@ -14,6 +14,7 @@ from backend_model.database import get_db_context
 from backend_model.models import Station
 from sqlalchemy import text, or_
 from .place_matcher import get_place_matcher, match_place_name
+from .region_matcher import get_region_matcher, match_region, is_region_query
 
 
 class APIOrchestrator:
@@ -240,28 +241,92 @@ class APIOrchestrator:
 
     def search_stations(self, query: str) -> List[Dict[str, Any]]:
         """
-        Search for stations matching a query string with phonetic matching
+        Search for stations matching a query string with phonetic and region matching
         
         Supports:
         - Thai names (เชียงใหม่)
         - English names (Chiang Mai)
         - Phonetic variations (chiangmai, changmai)
         - Common misspellings
+        - **Region-based search (Northern Thailand, ภาคเหนือ, etc.) - LBS**
+        - **Geographic bounding box search**
         
         Args:
-            query: Search query (e.g., 'Chiang Mai', 'เชียงใหม่', 'chiangmai')
+            query: Search query (e.g., 'Chiang Mai', 'เชียงใหม่', 'Northern Thailand')
             
         Returns:
             List of matching stations with basic info
         """
         try:
-            # Get all possible search terms using phonetic matcher
+            found_stations = {}  # Use dict to deduplicate by station_id
+            
+            # ============================================
+            # STEP 1: Check if this is a REGION query (LBS)
+            # ============================================
+            region_matcher = get_region_matcher()
+            region_key, province_terms = match_region(query)
+            
+            if region_key:
+                region = region_matcher.get_region(region_key)
+                logger.info(f"[LBS] Region query detected: '{query}' -> {region.name_en if region else region_key}")
+                
+                with get_db_context() as db:
+                    # Search by province names in the region
+                    for province in province_terms:
+                        if not province or len(province) < 2:
+                            continue
+                        
+                        stations = db.query(Station).filter(
+                            or_(
+                                Station.name_th.ilike(f"%{province}%"),
+                                Station.name_en.ilike(f"%{province}%")
+                            )
+                        ).all()
+                        
+                        for s in stations:
+                            if s.station_id not in found_stations:
+                                found_stations[s.station_id] = {
+                                    "station_id": s.station_id,
+                                    "name_th": s.name_th,
+                                    "name_en": s.name_en,
+                                    "lat": s.lat,
+                                    "lon": s.lon,
+                                    "station_type": s.station_type
+                                }
+                    
+                    # Also try geographic bounding box search (if available)
+                    bbox = region_matcher.get_bounding_box(region_key)
+                    if bbox and len(found_stations) < 50:  # Only if we haven't found too many
+                        min_lat, min_lon, max_lat, max_lon = bbox
+                        geo_stations = db.query(Station).filter(
+                            Station.lat >= min_lat,
+                            Station.lat <= max_lat,
+                            Station.lon >= min_lon,
+                            Station.lon <= max_lon
+                        ).all()
+                        
+                        for s in geo_stations:
+                            if s.station_id not in found_stations:
+                                found_stations[s.station_id] = {
+                                    "station_id": s.station_id,
+                                    "name_th": s.name_th,
+                                    "name_en": s.name_en,
+                                    "lat": s.lat,
+                                    "lon": s.lon,
+                                    "station_type": s.station_type
+                                }
+                
+                result = list(found_stations.values())
+                logger.info(f"[LBS] Found {len(result)} stations in region '{region_key}'")
+                return result
+            
+            # ============================================
+            # STEP 2: Regular place name / station search
+            # ============================================
             canonical, search_terms = match_place_name(query)
             logger.info(f"Searching stations for: '{query}' -> canonical: {canonical}, terms: {search_terms[:5]}...")
             
             with get_db_context() as db:
-                found_stations = {}  # Use dict to deduplicate by station_id
-                
                 # Try each search term
                 for term in search_terms:
                     if not term or len(term) < 2:
@@ -466,20 +531,33 @@ class APIOrchestrator:
         """
         Search for stations and include AQI summary for each
         
+        Supports region-based queries (LBS) with proper messaging.
+        
         Args:
             query: Search query string
             
         Returns:
             Search results with station summaries
         """
+        # Check if this is a region query for better messaging
+        region_matcher = get_region_matcher()
+        region_key, _ = match_region(query)
+        region_info = region_matcher.get_region(region_key) if region_key else None
+        
         stations = self.search_stations(query)
         
         if not stations:
+            if region_info:
+                no_result_msg = f"No stations found in {region_info.name_en} ({region_info.name_th})"
+            else:
+                no_result_msg = f"No stations found matching '{query}'"
+            
             return {
                 "query": query,
                 "total_found": 0,
                 "stations": [],
-                "search_summary": f"No stations found matching '{query}'"
+                "search_summary": no_result_msg,
+                "region": region_info.name_en if region_info else None
             }
         
         # Get summary for each station
@@ -511,19 +589,31 @@ class APIOrchestrator:
                 else:
                     overall_aqi = "unhealthy"
             
-            search_summary = (
-                f"Found {len(summaries)} station(s) matching '{query}'. "
-                f"7-day average PM2.5: {overall_avg or 'N/A'} μg/m³ (AQI Level: {overall_aqi}). "
-                f"Range: {min_pm25 if min_pm25 != 999 else 'N/A'} - {max_pm25 or 'N/A'} μg/m³."
-            )
+            # Generate appropriate summary based on query type
+            if region_info:
+                search_summary = (
+                    f"Found {len(summaries)} station(s) in {region_info.name_en} ({region_info.name_th}). "
+                    f"7-day average PM2.5: {overall_avg or 'N/A'} μg/m³ (AQI Level: {overall_aqi}). "
+                    f"Range: {min_pm25 if min_pm25 != 999 else 'N/A'} - {max_pm25 or 'N/A'} μg/m³."
+                )
+            else:
+                search_summary = (
+                    f"Found {len(summaries)} station(s) matching '{query}'. "
+                    f"7-day average PM2.5: {overall_avg or 'N/A'} μg/m³ (AQI Level: {overall_aqi}). "
+                    f"Range: {min_pm25 if min_pm25 != 999 else 'N/A'} - {max_pm25 or 'N/A'} μg/m³."
+                )
         else:
-            search_summary = f"Found {len(stations)} station(s) matching '{query}', but no recent data available."
+            if region_info:
+                search_summary = f"Found {len(stations)} station(s) in {region_info.name_en}, but no recent data available."
+            else:
+                search_summary = f"Found {len(stations)} station(s) matching '{query}', but no recent data available."
         
         return {
             "query": query,
             "total_found": len(summaries),
             "stations": summaries,
-            "search_summary": search_summary
+            "search_summary": search_summary,
+            "region": region_info.name_en if region_info else None
         }
 
     async def close(self):
