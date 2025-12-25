@@ -74,29 +74,22 @@ class SchedulerService:
         
         self.scheduler = AsyncIOScheduler(timezone="Asia/Bangkok")
         
-        # === HOURLY DATA COLLECTION ===
+        # === HOURLY DATA COLLECTION + GAP FILLING ===
         # Run at minute 5 of every hour (gives Air4Thai time to update)
+        # Gap filling happens IMMEDIATELY after download (no separate job needed)
         self.scheduler.add_job(
             self._hourly_ingest_job,
             CronTrigger(minute=5),  # XX:05 every hour
             id="hourly_ingest",
-            name="Hourly Data Ingestion",
+            name="Hourly Data Ingestion + Gap Filling",
             replace_existing=True,
             max_instances=1,
             coalesce=True,
         )
         
-        # === GAP DETECTION & IMPUTATION ===
-        # Run every 6 hours at minute 30 (after hourly data is collected)
-        self.scheduler.add_job(
-            self._gap_imputation_job,
-            CronTrigger(hour="0,6,12,18", minute=30),  # 00:30, 06:30, 12:30, 18:30
-            id="gap_imputation",
-            name="Gap Detection & LSTM Imputation",
-            replace_existing=True,
-            max_instances=1,
-            coalesce=True,
-        )
+        # NOTE: Removed 6-hour gap imputation job
+        # Gap filling now happens immediately after each hourly download
+        # This is more efficient and fills gaps faster
         
         # === DAILY DATA QUALITY CHECK ===
         # Run at 2 AM daily

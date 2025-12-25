@@ -4,13 +4,20 @@ Scheduler Service Entry Point
 This is the main entry point for the production scheduler service.
 It uses the comprehensive scheduler from backend_api.services.scheduler
 which includes:
-- Auto-initialization: Downloads 30-day historical data on first startup
-- Auto-training: Trains all LSTM models automatically on first startup
-- Hourly data ingestion (XX:05)
-- Gap imputation every 6 hours (00:30, 06:30, 12:30, 18:30)
+
+FIRST STARTUP ONLY:
+- Downloads 30-day historical data if no stations exist
+- Trains all LSTM models automatically if models are missing
+- Runs initial gap filling to fill any NULLs in historical data
+
+REGULAR SCHEDULE:
+- Hourly data ingestion (XX:05) + IMMEDIATE gap filling after download
 - Daily quality checks (02:00)
 - Weekly model retraining (Sunday 03:00)
 - Daily station metadata sync (01:00)
+
+NOTE: Gap filling happens IMMEDIATELY after each hourly download.
+No separate gap imputation job is needed - this is more efficient!
 """
 
 import sys
