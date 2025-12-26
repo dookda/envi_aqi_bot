@@ -72,6 +72,13 @@ export default function Dashboard() {
                     <Icon name="psychology" size="sm" />
                     {t('dashboard.modelsStatus')}
                 </Link>
+                <Link
+                    to="/admin"
+                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
+                >
+                    <Icon name="admin_panel_settings" size="sm" />
+                    Admin
+                </Link>
             </Navbar>
 
             <main className="max-w-7xl mx-auto px-4 py-6">

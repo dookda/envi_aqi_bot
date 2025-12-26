@@ -2,7 +2,7 @@
  * Main App Component with Routing
  */
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import { Dashboard, Models, Chat, Claude } from './pages'
+import { Dashboard, Models, Chat, Claude, Admin } from './pages'
 import { LanguageProvider, ThemeProvider, ToastProvider } from './contexts'
 
 function App() {
@@ -16,6 +16,7 @@ function App() {
               <Route path="/models" element={<Models />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/chat/claude" element={<Claude />} />
+              <Route path="/admin" element={<Admin />} />
             </Routes>
           </Router>
         </ToastProvider>

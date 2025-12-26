@@ -1,8 +1,8 @@
 services:
-  # PostgreSQL with TimescaleDB and PostGIS for time-series and spatial data storage
-  timescaledb:
-    image: timescale/timescaledb-ha:pg15-latest
-    container_name: aqi_timescaledb
+  # PostgreSQL with PostGIS for spatial and time-series data storage
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: aqi_postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-aqi_user}
@@ -12,7 +12,7 @@ services:
     # ports:
     #   - "5433:5432"
     volumes:
-      - timescale_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aqi_user} -d ${POSTGRES_DB:-aqi_db}" ]
@@ -30,7 +30,7 @@ services:
     container_name: aqi_api
     restart: unless-stopped
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-aqi_user}:${POSTGRES_PASSWORD:-aqi_password}@timescaledb:5432/${POSTGRES_DB:-aqi_db}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-aqi_user}:${POSTGRES_PASSWORD:-aqi_password}@postgres:5432/${POSTGRES_DB:-aqi_db}
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - OLLAMA_MODEL=qwen2.5:1.5b
       - OLLAMA_TIMEOUT=60.0
@@ -42,7 +42,7 @@ services:
     # ports:
     #   - "8000:8000"
     depends_on:
-      timescaledb:
+      postgres:
         condition: service_healthy
     volumes:
       - ./backend_model:/app/backend_model
@@ -107,10 +107,10 @@ services:
     restart: unless-stopped
     command: python -m backend_api.scheduler
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-aqi_user}:${POSTGRES_PASSWORD:-aqi_password}@timescaledb:5432/${POSTGRES_DB:-aqi_db}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-aqi_user}:${POSTGRES_PASSWORD:-aqi_password}@postgres:5432/${POSTGRES_DB:-aqi_db}
       - ENVIRONMENT=production
     depends_on:
-      timescaledb:
+      postgres:
         condition: service_healthy
     volumes:
       - ./backend_model:/app/backend_model
@@ -167,7 +167,7 @@ services:
     # Model is now auto-downloaded on first startup via entrypoint script
 
 volumes:
-  timescale_data:
+  postgres_data:
   ollama_data:
 
 

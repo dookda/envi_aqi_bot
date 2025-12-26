@@ -1,6 +1,3 @@
--- Enable TimescaleDB extension
-CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
-
 -- Enable PostGIS extension for spatial data
 CREATE EXTENSION IF NOT EXISTS postgis CASCADE;
 
@@ -17,22 +14,42 @@ CREATE TABLE IF NOT EXISTS stations (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- AQI hourly measurements table
+-- AQI hourly measurements table with native PostgreSQL partitioning
 CREATE TABLE IF NOT EXISTS aqi_hourly (
-    station_id TEXT REFERENCES stations(station_id) ON DELETE CASCADE,
+    station_id TEXT NOT NULL,
     datetime TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     pm25 DOUBLE PRECISION,
     is_imputed BOOLEAN DEFAULT FALSE,
     model_version TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
-    PRIMARY KEY (station_id, datetime)
-);
+    PRIMARY KEY (station_id, datetime),
+    FOREIGN KEY (station_id) REFERENCES stations(station_id) ON DELETE CASCADE
+) PARTITION BY RANGE (datetime);
 
--- Convert aqi_hourly to TimescaleDB hypertable
-SELECT create_hypertable('aqi_hourly', 'datetime', 
-    chunk_time_interval => INTERVAL '7 days',
-    if_not_exists => TRUE
-);
+-- Create partitions for time-series data (monthly partitions for better performance)
+-- Auto-create partitions for 2024-2026 (adjust as needed)
+DO $$
+DECLARE
+    start_date DATE;
+    end_date DATE;
+    partition_name TEXT;
+BEGIN
+    -- Create partitions for each month from 2024 to 2026
+    FOR year IN 2024..2026 LOOP
+        FOR month IN 1..12 LOOP
+            start_date := make_date(year, month, 1);
+            end_date := start_date + INTERVAL '1 month';
+            partition_name := 'aqi_hourly_' || to_char(start_date, 'YYYY_MM');
+
+            -- Create partition if it doesn't exist
+            EXECUTE format(
+                'CREATE TABLE IF NOT EXISTS %I PARTITION OF aqi_hourly
+                FOR VALUES FROM (%L) TO (%L)',
+                partition_name, start_date, end_date
+            );
+        END LOOP;
+    END LOOP;
+END $$;
 
 -- Imputation log table for auditability
 CREATE TABLE IF NOT EXISTS imputation_log (

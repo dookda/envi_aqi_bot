@@ -777,14 +777,143 @@ async def get_ingestion_logs(
 ):
     """Get ingestion run history logs with status (running, completed, failed)"""
     query = db.query(IngestionLog)
-    
+
     if station_id:
         query = query.filter(IngestionLog.station_id == station_id)
     if status:
         query = query.filter(IngestionLog.status == status)
-    
+
     logs = query.order_by(IngestionLog.started_at.desc()).limit(limit).all()
     return logs
+
+
+@app.get("/api/admin/data-status", tags=["Admin"])
+async def get_data_status(
+    db: Session = Depends(get_db),
+    sample_size: int = Query(default=5, ge=1, le=20, description="Number of stations to test")
+):
+    """
+    Test data freshness by comparing Air4Thai live data with database
+
+    Returns:
+    - Last ingestion time
+    - Database vs Air4Thai comparison for sample stations
+    - Data freshness indicators
+    - Overall system health
+    """
+    from datetime import datetime, timedelta
+
+    # Get sample stations
+    stations = db.query(Station).limit(sample_size).all()
+
+    if not stations:
+        raise HTTPException(status_code=404, detail="No stations found in database")
+
+    # Get latest ingestion log
+    latest_ingestion = db.query(IngestionLog).order_by(
+        IngestionLog.started_at.desc()
+    ).first()
+
+    # Fetch fresh data from Air4Thai for comparison
+    comparisons = []
+    now = datetime.now()
+    end_date = now
+    start_date = now - timedelta(hours=2)  # Check last 2 hours
+
+    for station in stations:
+        try:
+            # Fetch from Air4Thai
+            air4thai_data = await ingestion_service.fetch_historical_data(
+                station.station_id,
+                start_date,
+                end_date
+            )
+
+            # Get from database
+            db_data = db.query(AQIHourly).filter(
+                AQIHourly.station_id == station.station_id,
+                AQIHourly.datetime >= start_date,
+                AQIHourly.datetime <= end_date
+            ).order_by(AQIHourly.datetime.desc()).all()
+
+            # Parse Air4Thai measurements
+            air4thai_parsed = ingestion_service.parse_measurements(
+                station.station_id,
+                air4thai_data
+            )
+
+            # Find latest values
+            air4thai_latest = None
+            air4thai_latest_time = None
+            if air4thai_parsed:
+                # Get the most recent non-null value
+                for record in sorted(air4thai_parsed, key=lambda x: x['datetime'], reverse=True):
+                    if record['pm25'] is not None:
+                        air4thai_latest = record['pm25']
+                        air4thai_latest_time = record['datetime']
+                        break
+
+            db_latest = None
+            db_latest_time = None
+            if db_data:
+                for record in db_data:
+                    if record.pm25 is not None and not record.is_imputed:
+                        db_latest = record.pm25
+                        db_latest_time = record.datetime
+                        break
+
+            # Calculate freshness
+            if air4thai_latest_time and db_latest_time:
+                time_diff = abs((air4thai_latest_time - db_latest_time).total_seconds() / 60)  # in minutes
+                is_synced = time_diff <= 60  # Within 1 hour
+            else:
+                time_diff = None
+                is_synced = False
+
+            comparisons.append({
+                "station_id": station.station_id,
+                "station_name_en": station.name_en,
+                "station_name_th": station.name_th,
+                "air4thai_value": air4thai_latest,
+                "air4thai_time": air4thai_latest_time.isoformat() if air4thai_latest_time else None,
+                "db_value": db_latest,
+                "db_time": db_latest_time.isoformat() if db_latest_time else None,
+                "is_synced": is_synced,
+                "time_diff_minutes": round(time_diff, 1) if time_diff else None,
+                "air4thai_records_found": len(air4thai_data),
+                "db_records_found": len(db_data)
+            })
+
+        except Exception as e:
+            logger.error(f"Error comparing data for station {station.station_id}: {e}")
+            comparisons.append({
+                "station_id": station.station_id,
+                "station_name_en": station.name_en,
+                "station_name_th": station.name_th,
+                "error": str(e),
+                "is_synced": False
+            })
+
+    # Calculate overall health
+    synced_count = sum(1 for c in comparisons if c.get("is_synced", False))
+    sync_rate = (synced_count / len(comparisons) * 100) if comparisons else 0
+
+    return {
+        "timestamp": now.isoformat(),
+        "last_ingestion": {
+            "run_type": latest_ingestion.run_type if latest_ingestion else None,
+            "started_at": latest_ingestion.started_at.isoformat() if latest_ingestion else None,
+            "status": latest_ingestion.status if latest_ingestion else None,
+            "records_inserted": latest_ingestion.records_inserted if latest_ingestion else None,
+        } if latest_ingestion else None,
+        "station_comparisons": comparisons,
+        "summary": {
+            "total_stations_tested": len(comparisons),
+            "synced_stations": synced_count,
+            "sync_rate_percentage": round(sync_rate, 1),
+            "health_status": "healthy" if sync_rate >= 80 else "degraded" if sync_rate >= 50 else "critical"
+        }
+    }
 
 
 # ============== Model Training ==============

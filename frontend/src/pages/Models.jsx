@@ -161,6 +161,13 @@ export default function Models() {
                     <Icon name="arrow_back" size="sm" />
                     {t('models.backToDashboard')}
                 </Link>
+                <Link
+                    to="/admin"
+                    className={`transition flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
+                >
+                    <Icon name="admin_panel_settings" size="sm" />
+                    Admin
+                </Link>
                 <Button
                     onClick={handleTrainAll}
                     loading={trainingStation === 'all'}
