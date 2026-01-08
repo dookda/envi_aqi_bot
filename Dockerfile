@@ -12,13 +12,11 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements first for caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --timeout=1000 --retries=5 -r requirements.txt
 
 # Copy application code
 COPY backend_model/ ./backend_model/
 COPY backend_api/ ./backend_api/
-COPY alembic/ ./alembic/
-COPY alembic.ini .
 
 # Create directories for models and logs
 RUN mkdir -p /app/models /app/logs

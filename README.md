@@ -124,7 +124,6 @@ envi_aqi_bot/
 ├── database/
 │   └── init/
 │       └── 01_init.sql       # Database initialization
-├── alembic/                  # Database migrations
 ├── tests/                    # Unit tests
 ├── models/                   # Saved LSTM models (generated)
 ├── logs/                     # Application logs (generated)
