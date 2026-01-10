@@ -38,14 +38,45 @@ class Station(Base):
 
 
 class AQIHourly(Base):
-    """Hourly AQI measurements model"""
+    """Hourly AQI measurements model - Full Air4Thai API data with per-parameter imputation tracking"""
     
     __tablename__ = "aqi_hourly"
     
     station_id = Column(String, ForeignKey("stations.station_id", ondelete="CASCADE"), primary_key=True)
     datetime = Column(DateTime, primary_key=True)
-    pm25 = Column(Float, nullable=True)
-    is_imputed = Column(Boolean, default=False)
+    
+    # === Pollutant Measurements ===
+    pm25 = Column(Float, nullable=True)      # PM2.5 (μg/m³)
+    pm10 = Column(Float, nullable=True)      # PM10 (μg/m³)
+    o3 = Column(Float, nullable=True)        # Ozone (ppb)
+    co = Column(Float, nullable=True)        # Carbon Monoxide (ppm)
+    no2 = Column(Float, nullable=True)       # Nitrogen Dioxide (ppb)
+    so2 = Column(Float, nullable=True)       # Sulfur Dioxide (ppb)
+    
+    # === Weather/Meteorological Data ===
+    ws = Column(Float, nullable=True)        # Wind Speed (m/s)
+    wd = Column(Float, nullable=True)        # Wind Direction (degrees, 0-360)
+    temp = Column(Float, nullable=True)      # Temperature (°C)
+    rh = Column(Float, nullable=True)        # Relative Humidity (%)
+    bp = Column(Float, nullable=True)        # Barometric Pressure (mmHg)
+    rain = Column(Float, nullable=True)      # Rainfall (mm)
+    
+    # === Imputation Flags (per-parameter tracking) ===
+    is_imputed = Column(Boolean, default=False)       # Legacy: any parameter imputed
+    pm25_imputed = Column(Boolean, default=False)
+    pm10_imputed = Column(Boolean, default=False)
+    o3_imputed = Column(Boolean, default=False)
+    co_imputed = Column(Boolean, default=False)
+    no2_imputed = Column(Boolean, default=False)
+    so2_imputed = Column(Boolean, default=False)
+    ws_imputed = Column(Boolean, default=False)
+    wd_imputed = Column(Boolean, default=False)
+    temp_imputed = Column(Boolean, default=False)
+    rh_imputed = Column(Boolean, default=False)
+    bp_imputed = Column(Boolean, default=False)
+    rain_imputed = Column(Boolean, default=False)
+    
+    # === Metadata ===
     model_version = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
     
@@ -57,22 +88,38 @@ class AQIHourly(Base):
 
 
 class ImputationLog(Base):
-    """Log of all imputation events for auditability"""
+    """Log of all imputation events for auditability - supports all Air4Thai parameters"""
     
     __tablename__ = "imputation_log"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     station_id = Column(String, ForeignKey("stations.station_id", ondelete="CASCADE"))
     datetime = Column(DateTime, nullable=False)
+    
+    # === Parameter Identification ===
+    parameter = Column(String, nullable=False, default="pm25")  # pm25, pm10, o3, co, no2, so2, ws, wd, temp, rh, bp, rain
+    
+    # === Imputation Values ===
     imputed_value = Column(Float, nullable=False)
+    original_value = Column(Float, nullable=True)  # Store original if correcting anomaly
+    
+    # === Context Window ===
     input_window_start = Column(DateTime, nullable=False)
     input_window_end = Column(DateTime, nullable=False)
+    
+    # === Model Info ===
     model_version = Column(String, nullable=False)
+    imputation_method = Column(String, default="lstm")  # lstm, linear, mean, forward_fill
+    
+    # === Quality Metrics ===
     rmse_score = Column(Float, nullable=True)
+    confidence_score = Column(Float, nullable=True)  # 0-1 confidence in imputation
+    
+    # === Metadata ===
     created_at = Column(DateTime, default=func.now())
     
     def __repr__(self):
-        return f"<ImputationLog(station={self.station_id}, datetime={self.datetime}, value={self.imputed_value})>"
+        return f"<ImputationLog(station={self.station_id}, param={self.parameter}, datetime={self.datetime}, value={self.imputed_value})>"
 
 
 class ModelTrainingLog(Base):

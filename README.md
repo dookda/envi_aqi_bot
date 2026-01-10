@@ -173,6 +173,31 @@ envi_aqi_bot/
 ### Pipeline
 - `POST /api/pipeline/run` - Run full pipeline
 
+## 💻 Dashboard & Visualization
+
+The application provides a modern, interactive dashboard available at `http://localhost:5800/ebot/`.
+
+### Key Features
+
+1.  **Real-Time Monitoring**:
+    - Interactive map showing all monitoring stations.
+    - Click on any station to view detailed data.
+    - Status indicators for "Measured" vs "Gap-Filled" data.
+
+2.  **Smart Charts**:
+    - **Multi-Parameter Support**: Visualize PM2.5, PM10, O3, CO, NO2, Temperature, Humidity, etc.
+    - **Gap Detection**: Automatically highlights missing data periods.
+    - **Gap Filling Visualization**: Shows imputed values (filled gaps) in a distinct gold color to differentiate from measured data.
+    - **Spike Detection**: Identifies anomalies and sudden spikes in pollutant levels.
+
+3.  **Advanced Data Analysis** ("Data" Tab):
+    - **Detailed Historical Table**: View hour-by-hour readings for any selected parameter.
+    - **Status Tracking**: Clearly marks data as "Measured", "Gap-Filled" (by LSTM), or "Missing".
+    - **Parameter Selection**: Switch between different pollutants and meteorological data.
+
+4.  **AI Integration**:
+    - Built-in AI Chatbot for querying air quality trends and insights.
+
 ## 🧠 LSTM Model Architecture
 
 As specified in `lstm_spec.md`:

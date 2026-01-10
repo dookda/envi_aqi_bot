@@ -235,15 +235,50 @@ async def root():
 
 # ============== Stations ==============
 
-@app.get("/api/stations", response_model=List[StationResponse], tags=["Stations"])
+@app.get("/api/stations", tags=["Stations"])
 async def list_stations(
     db: Session = Depends(get_db),
     skip: int = 0,
-    limit: int = 100
+    limit: int = 100,
+    include_latest: bool = Query(default=True, description="Include latest PM2.5 reading for each station")
 ):
-    """List all air quality monitoring stations with pagination"""
+    """
+    List all air quality monitoring stations with pagination.
+    
+    When include_latest=true (default), returns the most recent PM2.5 value
+    for each station, which can be used for map marker coloring based on AQI levels.
+    """
     stations = db.query(Station).offset(skip).limit(limit).all()
-    return stations
+    
+    if not include_latest:
+        return stations
+    
+    # Get latest PM2.5 for each station for map coloring
+    result = []
+    for station in stations:
+        # Get latest PM2.5 reading
+        latest = db.query(AQIHourly)\
+            .filter(AQIHourly.station_id == station.station_id)\
+            .filter(AQIHourly.pm25.isnot(None))\
+            .order_by(AQIHourly.datetime.desc())\
+            .first()
+        
+        station_data = {
+            "station_id": station.station_id,
+            "name_th": station.name_th,
+            "name_en": station.name_en,
+            "lat": station.lat,
+            "lon": station.lon,
+            "station_type": station.station_type,
+            "created_at": station.created_at,
+            "updated_at": station.updated_at,
+            "latest_pm25": round(latest.pm25, 2) if latest and latest.pm25 else None,
+            "latest_datetime": latest.datetime.isoformat() if latest else None
+        }
+        result.append(station_data)
+    
+    return result
+
 
 
 @app.get("/api/stations/search", tags=["Stations", "AI Chat"])
@@ -411,6 +446,298 @@ async def analyze_missing_data(
         medium_gaps=analysis.get("medium_gaps", 0),
         long_gaps=analysis.get("long_gaps", 0)
     )
+
+
+@app.get("/api/aqi/mockup/{station_id}", tags=["AQI Data"])
+async def get_mockup_aqi_data(
+    station_id: str,
+    days: int = Query(default=7, ge=1, le=30, description="Number of days of mockup data"),
+    parameters: Optional[str] = Query(
+        default=None, 
+        description="Comma-separated list of parameters to include (e.g., 'pm25,pm10,temp,rh'). Available: pm25, pm10, o3, co, no2, so2, ws, wd, temp, rh, bp, rain. If not specified, all parameters are returned."
+    )
+):
+    """
+    Get mockup AQI data with selectable environmental parameters for testing.
+    
+    **Available pollutant parameters:**
+    - `pm25` - PM2.5 (µg/m³)
+    - `pm10` - PM10 (µg/m³)
+    - `o3` - Ozone (ppb)
+    - `co` - Carbon Monoxide (ppm)
+    - `no2` - Nitrogen Dioxide (ppb)
+    - `so2` - Sulfur Dioxide (ppb)
+    
+    **Available meteorological parameters:**
+    - `ws` - Wind Speed (m/s)
+    - `wd` - Wind Direction (degrees)
+    - `temp` - Temperature (°C)
+    - `rh` - Relative Humidity (%)
+    - `bp` - Barometric Pressure (hPa)
+    - `rain` - Rainfall (mm)
+    
+    **Example usage:**
+    - `/api/aqi/mockup/demo?parameters=pm25,pm10,temp` - Only PM2.5, PM10, and Temperature
+    - `/api/aqi/mockup/demo?parameters=pm25,o3,no2,so2` - Only pollutants without PM10
+    - `/api/aqi/mockup/demo` - All parameters (default)
+    
+    **Note:** This returns generated demo data for UI testing purposes.
+    """
+    import random
+    from datetime import datetime, timedelta
+    
+    # Define all available parameters with their units
+    all_units = {
+        "pm25": "µg/m³",
+        "pm10": "µg/m³",
+        "o3": "ppb",
+        "co": "ppm",
+        "no2": "ppb",
+        "so2": "ppb",
+        "ws": "m/s",
+        "wd": "degrees",
+        "temp": "°C",
+        "rh": "%",
+        "bp": "hPa",
+        "rain": "mm"
+    }
+    
+    pollutant_params = ["pm25", "pm10", "o3", "co", "no2", "so2"]
+    meteorological_params = ["ws", "wd", "temp", "rh", "bp", "rain"]
+    all_params = pollutant_params + meteorological_params
+    
+    # Parse selected parameters
+    if parameters:
+        selected_params = [p.strip().lower() for p in parameters.split(",")]
+        # Validate parameters
+        invalid_params = [p for p in selected_params if p not in all_params]
+        if invalid_params:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid parameters: {invalid_params}. Available: {all_params}"
+            )
+    else:
+        selected_params = all_params
+    
+    end_time = datetime.now().replace(minute=0, second=0, microsecond=0)
+    data_points = []
+    
+    for i in range(days * 24):
+        timestamp = end_time - timedelta(hours=i)
+        
+        # Generate realistic mockup values with some variation
+        base_pm25 = random.uniform(15, 85)
+        
+        # Generate all values first
+        all_values = {
+            "pm25": round(base_pm25 + random.uniform(-5, 10), 2),
+            "pm10": round(base_pm25 * random.uniform(1.3, 1.8) + random.uniform(-5, 15), 2),
+            "o3": round(random.uniform(10, 120), 2),
+            "co": round(random.uniform(0.2, 2.5), 3),
+            "no2": round(random.uniform(5, 60), 2),
+            "so2": round(random.uniform(1, 25), 2),
+            "ws": round(random.uniform(0.5, 8.0), 2),
+            "wd": round(random.uniform(0, 360), 1),
+            "temp": round(random.uniform(22, 38), 1),
+            "rh": round(random.uniform(40, 95), 1),
+            "bp": round(random.uniform(1005, 1020), 1),
+            "rain": round(random.uniform(0, 5), 2) if random.random() < 0.2 else 0.0
+        }
+        
+        # Build data point with only selected parameters
+        data_point = {
+            "station_id": station_id,
+            "datetime": timestamp.isoformat(),
+        }
+        
+        for param in selected_params:
+            data_point[param] = all_values[param]
+        
+        data_point["is_mockup"] = True
+        data_points.append(data_point)
+    
+    # Build response with filtered parameters
+    selected_pollutants = [p for p in selected_params if p in pollutant_params]
+    selected_meteorological = [p for p in selected_params if p in meteorological_params]
+    selected_units = {p: all_units[p] for p in selected_params}
+    
+    return {
+        "station_id": station_id,
+        "data_type": "mockup",
+        "period": {
+            "start": data_points[-1]["datetime"] if data_points else None,
+            "end": data_points[0]["datetime"] if data_points else None,
+            "days": days,
+            "total_points": len(data_points)
+        },
+        "parameters": {
+            "selected": selected_params,
+            "pollutants": selected_pollutants,
+            "meteorological": selected_meteorological,
+            "available": all_params
+        },
+        "units": selected_units,
+        "data": data_points
+    }
+
+
+@app.get("/api/aqi/full/{station_id}", tags=["AQI Data"])
+async def get_full_aqi_data(
+    station_id: str,
+    db: Session = Depends(get_db),
+    start: Optional[datetime] = Query(default=None, description="Start datetime (defaults to 7 days ago)"),
+    end: Optional[datetime] = Query(default=None, description="End datetime (defaults to now)"),
+    parameters: Optional[str] = Query(
+        default=None, 
+        description="Comma-separated list of parameters (e.g., 'pm25,pm10,temp'). Available: pm25, pm10, o3, co, no2, so2, ws, wd, temp, rh, bp, rain. If not specified, all are returned."
+    ),
+    limit: int = Query(default=720, le=8760, description="Maximum number of records")
+):
+    """
+    Get complete Air4Thai data with all pollutant and weather parameters.
+    
+    **This endpoint fetches REAL data from the database (from Air4Thai API).**
+    
+    **Available pollutant parameters:**
+    - `pm25` - PM2.5 (µg/m³)
+    - `pm10` - PM10 (µg/m³)
+    - `o3` - Ozone (ppb)
+    - `co` - Carbon Monoxide (ppm)
+    - `no2` - Nitrogen Dioxide (ppb)
+    - `so2` - Sulfur Dioxide (ppb)
+    
+    **Available meteorological parameters:**
+    - `ws` - Wind Speed (m/s)
+    - `wd` - Wind Direction (degrees 0-360)
+    - `temp` - Temperature (°C)
+    - `rh` - Relative Humidity (%)
+    - `bp` - Barometric Pressure (mmHg)
+    - `rain` - Rainfall (mm)
+    
+    **Example usage:**
+    - `/api/aqi/full/95t` - All parameters for last 7 days
+    - `/api/aqi/full/95t?parameters=pm25,pm10,temp,rh` - Only selected parameters
+    - `/api/aqi/full/95t?start=2026-01-01&end=2026-01-10` - Custom date range
+    """
+    # Validate station exists
+    station = db.query(Station).filter(Station.station_id == station_id).first()
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station '{station_id}' not found")
+    
+    # Default date range: last 7 days
+    if not end:
+        end = datetime.now()
+    if not start:
+        start = end - timedelta(days=7)
+    
+    # Define all available parameters with their units
+    all_param_info = {
+        "pm25": {"unit": "µg/m³", "category": "pollutant"},
+        "pm10": {"unit": "µg/m³", "category": "pollutant"},
+        "o3": {"unit": "ppb", "category": "pollutant"},
+        "co": {"unit": "ppm", "category": "pollutant"},
+        "no2": {"unit": "ppb", "category": "pollutant"},
+        "so2": {"unit": "ppb", "category": "pollutant"},
+        "ws": {"unit": "m/s", "category": "weather"},
+        "wd": {"unit": "degrees", "category": "weather"},
+        "temp": {"unit": "°C", "category": "weather"},
+        "rh": {"unit": "%", "category": "weather"},
+        "bp": {"unit": "mmHg", "category": "weather"},
+        "rain": {"unit": "mm", "category": "weather"},
+    }
+    all_params = list(all_param_info.keys())
+    
+    # Parse selected parameters
+    if parameters:
+        selected_params = [p.strip().lower() for p in parameters.split(",")]
+        # Validate parameters
+        invalid_params = [p for p in selected_params if p not in all_params]
+        if invalid_params:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid parameters: {invalid_params}. Available: {all_params}"
+            )
+    else:
+        selected_params = all_params
+    
+    # Query data from database
+    query = db.query(AQIHourly).filter(
+        AQIHourly.station_id == station_id,
+        AQIHourly.datetime >= start,
+        AQIHourly.datetime <= end
+    ).order_by(AQIHourly.datetime.desc()).limit(limit)
+    
+    records = query.all()
+    
+    if not records:
+        return {
+            "station_id": station_id,
+            "station_name": station.name_en or station.name_th,
+            "data_type": "real",
+            "period": {"start": start.isoformat(), "end": end.isoformat()},
+            "parameters": {"selected": selected_params, "available": all_params},
+            "units": {p: all_param_info[p]["unit"] for p in selected_params},
+            "total_records": 0,
+            "data": [],
+            "message": "No data available for this period"
+        }
+    
+    # Build data points with selected parameters
+    data_points = []
+    for record in records:
+        data_point = {
+            "station_id": station_id,
+            "datetime": record.datetime.isoformat(),
+            "is_imputed": record.is_imputed,
+        }
+        
+        # Add selected parameters
+        for param in selected_params:
+            value = getattr(record, param, None)
+            data_point[param] = value
+        
+        data_points.append(data_point)
+    
+    # Calculate statistics for each parameter
+    statistics = {}
+    for param in selected_params:
+        values = [getattr(r, param) for r in records if getattr(r, param) is not None]
+        if values:
+            statistics[param] = {
+                "min": round(min(values), 2),
+                "max": round(max(values), 2),
+                "avg": round(sum(values) / len(values), 2),
+                "valid_count": len(values),
+                "null_count": len(records) - len(values)
+            }
+        else:
+            statistics[param] = {"min": None, "max": None, "avg": None, "valid_count": 0, "null_count": len(records)}
+    
+    # Group parameters by category
+    selected_pollutants = [p for p in selected_params if all_param_info[p]["category"] == "pollutant"]
+    selected_weather = [p for p in selected_params if all_param_info[p]["category"] == "weather"]
+    
+    return {
+        "station_id": station_id,
+        "station_name": station.name_en or station.name_th,
+        "data_type": "real",
+        "source": "Air4Thai API",
+        "period": {
+            "start": data_points[-1]["datetime"] if data_points else start.isoformat(),
+            "end": data_points[0]["datetime"] if data_points else end.isoformat()
+        },
+        "parameters": {
+            "selected": selected_params,
+            "pollutants": selected_pollutants,
+            "weather": selected_weather,
+            "available": all_params
+        },
+        "units": {p: all_param_info[p]["unit"] for p in selected_params},
+        "total_records": len(data_points),
+        "statistics": statistics,
+        "data": data_points
+    }
 
 
 @app.get("/api/aqi/history", response_model=List[AQIHistoryDataPoint], tags=["AQI Data"])

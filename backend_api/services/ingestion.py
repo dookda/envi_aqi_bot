@@ -210,22 +210,27 @@ class IngestionService:
         self, 
         station_id: str, 
         start_date: datetime, 
-        end_date: datetime
+        end_date: datetime,
+        all_params: bool = True
     ) -> List[Dict]:
         """
-        Fetch historical PM2.5 data for a station
+        Fetch historical air quality and weather data for a station
         
         Args:
             station_id: Station identifier
             start_date: Start date for data fetch
             end_date: End date for data fetch
+            all_params: If True, fetch all parameters (PM25, PM10, O3, CO, NO2, SO2, WS, WD, TEMP, RH, BP, RAIN)
             
         Returns:
             List of hourly measurement dictionaries
         """
+        # Full parameter list from Air4Thai API
+        param_list = "PM25,PM10,O3,CO,NO2,SO2,WS,WD,TEMP,RH,BP,RAIN" if all_params else "PM25"
+        
         params = {
             "stationID": station_id,
-            "param": "PM25",
+            "param": param_list,
             "type": "hr",
             "sdate": start_date.strftime("%Y-%m-%d"),
             "edate": end_date.strftime("%Y-%m-%d"),
@@ -234,7 +239,7 @@ class IngestionService:
         }
         
         logger.bind(context="ingestion").debug(
-            f"Fetching data for station {station_id} from {start_date.date()} to {end_date.date()}"
+            f"Fetching data for station {station_id} from {start_date.date()} to {end_date.date()} (params: {param_list})"
         )
         
         data = await self.fetch_with_retry(self.history_api, params)
@@ -254,26 +259,53 @@ class IngestionService:
         measurements = stations_data[0].get("data", [])
         return measurements
     
+    def _parse_float_value(self, value: Any, min_val: float = None, max_val: float = None) -> Optional[float]:
+        """
+        Safely parse a float value from API response
+        
+        Args:
+            value: Raw value from API (can be None, empty string, "-", or number)
+            min_val: Optional minimum valid value
+            max_val: Optional maximum valid value
+            
+        Returns:
+            Parsed float or None if invalid
+        """
+        if value is None or value == "" or value == "-":
+            return None
+        
+        try:
+            float_val = float(value)
+            
+            # Check for negative values (usually invalid for pollutants)
+            if min_val is not None and float_val < min_val:
+                return None
+            if max_val is not None and float_val > max_val:
+                return None
+                
+            return float_val
+        except (ValueError, TypeError):
+            return None
+    
     def parse_measurements(
         self, 
         station_id: str, 
         measurements: List[Dict]
     ) -> List[Dict]:
         """
-        Parse API response into database-ready records
+        Parse API response into database-ready records with all parameters
         
         Args:
             station_id: Station identifier
             measurements: Raw measurement data from API
             
         Returns:
-            List of parsed measurement records
+            List of parsed measurement records with full Air4Thai data
         """
         records = []
         
         for m in measurements:
             datetime_str = m.get("DATETIMEDATA")
-            pm25_value = m.get("PM25")
             
             if not datetime_str:
                 continue
@@ -282,21 +314,40 @@ class IngestionService:
                 # Parse datetime (format: YYYY-MM-DD HH:MM:SS)
                 dt = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M:%S")
                 
-                # Handle PM25 value (can be null, empty string, or number)
-                pm25 = None
-                if pm25_value is not None and pm25_value != "" and pm25_value != "-":
-                    try:
-                        pm25 = float(pm25_value)
-                        # Sanity check - PM2.5 should be non-negative
-                        if pm25 < 0:
-                            pm25 = None
-                    except (ValueError, TypeError):
-                        pm25 = None
+                # Parse all pollutant values (non-negative)
+                pm25 = self._parse_float_value(m.get("PM25"), min_val=0)
+                pm10 = self._parse_float_value(m.get("PM10"), min_val=0)
+                o3 = self._parse_float_value(m.get("O3"), min_val=0)
+                co = self._parse_float_value(m.get("CO"), min_val=0)
+                no2 = self._parse_float_value(m.get("NO2"), min_val=0)
+                so2 = self._parse_float_value(m.get("SO2"), min_val=0)
+                
+                # Parse weather values
+                ws = self._parse_float_value(m.get("WS"), min_val=0)  # Wind speed >= 0
+                wd = self._parse_float_value(m.get("WD"), min_val=0, max_val=360)  # 0-360 degrees
+                temp = self._parse_float_value(m.get("TEMP"), min_val=-50, max_val=60)  # -50 to 60°C
+                rh = self._parse_float_value(m.get("RH"), min_val=0, max_val=100)  # 0-100%
+                bp = self._parse_float_value(m.get("BP"), min_val=600, max_val=900)  # mmHg range
+                rain = self._parse_float_value(m.get("RAIN"), min_val=0)  # Rainfall >= 0
                 
                 records.append({
                     "station_id": station_id,
                     "datetime": dt,
+                    # Pollutants
                     "pm25": pm25,
+                    "pm10": pm10,
+                    "o3": o3,
+                    "co": co,
+                    "no2": no2,
+                    "so2": so2,
+                    # Weather
+                    "ws": ws,
+                    "wd": wd,
+                    "temp": temp,
+                    "rh": rh,
+                    "bp": bp,
+                    "rain": rain,
+                    # Metadata
                     "is_imputed": False,
                 })
             except ValueError as e:
@@ -376,7 +427,7 @@ class IngestionService:
         records: List[Dict]
     ) -> Tuple[int, int]:
         """
-        Save measurement records to database (upsert)
+        Save measurement records to database (upsert) with all Air4Thai parameters
         
         Args:
             db: Database session
@@ -393,7 +444,20 @@ class IngestionService:
         stmt = stmt.on_conflict_do_update(
             index_elements=["station_id", "datetime"],
             set_={
+                # Pollutants
                 "pm25": stmt.excluded.pm25,
+                "pm10": stmt.excluded.pm10,
+                "o3": stmt.excluded.o3,
+                "co": stmt.excluded.co,
+                "no2": stmt.excluded.no2,
+                "so2": stmt.excluded.so2,
+                # Weather
+                "ws": stmt.excluded.ws,
+                "wd": stmt.excluded.wd,
+                "temp": stmt.excluded.temp,
+                "rh": stmt.excluded.rh,
+                "bp": stmt.excluded.bp,
+                "rain": stmt.excluded.rain,
                 # Don't overwrite imputed data with NULL
                 "is_imputed": AQIHourly.is_imputed,
             },
