@@ -577,7 +577,7 @@ export default function Dashboard() {
 
                 {/* Tab Content */}
                 {activeTab === 'overview' && (
-                    <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-start">
                         {/* Map */}
                         <StationMap
                             stations={stations}
@@ -747,8 +747,6 @@ export default function Dashboard() {
                             </div>
                         </Card>
                     </section>
-                )}
-
                 )}
 
                 {activeTab === 'map' && ( // "map" is the ID for "Data" tab now
