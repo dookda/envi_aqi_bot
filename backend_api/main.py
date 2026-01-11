@@ -8,6 +8,7 @@ Provides REST API for:
 - System health monitoring
 """
 
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -187,7 +188,6 @@ app.add_middleware(
 )
 
 # Mount static files
-import os
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -198,7 +198,8 @@ if os.path.exists(static_dir):
 @app.get("/chart", tags=["Health"], include_in_schema=False)
 async def chart_page():
     """Serve the time series chart visualization page"""
-    chart_path = os.path.join(os.path.dirname(__file__), "static", "chart.html")
+    chart_path = os.path.join(os.path.dirname(
+        __file__), "static", "chart.html")
     if os.path.exists(chart_path):
         return FileResponse(chart_path, media_type="text/html")
     raise HTTPException(status_code=404, detail="Chart page not found")
@@ -214,7 +215,7 @@ async def health_check(db: Session = Depends(get_db)):
         db_status = "connected"
     except Exception as e:
         db_status = f"error: {str(e)}"
-    
+
     return HealthResponse(
         status="healthy" if db_status == "connected" else "degraded",
         database=db_status,
@@ -240,19 +241,20 @@ async def list_stations(
     db: Session = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
-    include_latest: bool = Query(default=True, description="Include latest PM2.5 reading for each station")
+    include_latest: bool = Query(
+        default=True, description="Include latest PM2.5 reading for each station")
 ):
     """
     List all air quality monitoring stations with pagination.
-    
+
     When include_latest=true (default), returns the most recent PM2.5 value
     for each station, which can be used for map marker coloring based on AQI levels.
     """
     stations = db.query(Station).offset(skip).limit(limit).all()
-    
+
     if not include_latest:
         return stations
-    
+
     # Get latest PM2.5 for each station for map coloring
     result = []
     for station in stations:
@@ -262,7 +264,7 @@ async def list_stations(
             .filter(AQIHourly.pm25.isnot(None))\
             .order_by(AQIHourly.datetime.desc())\
             .first()
-        
+
         station_data = {
             "station_id": station.station_id,
             "name_th": station.name_th,
@@ -276,15 +278,16 @@ async def list_stations(
             "latest_datetime": latest.datetime.isoformat() if latest else None
         }
         result.append(station_data)
-    
-    return result
 
+    return result
 
 
 @app.get("/api/stations/search", tags=["Stations", "AI Chat"])
 async def search_stations(
-    query: str = Query(..., description="Search query (e.g., 'Chiang Mai', 'เชียงใหม่', 'Bangkok')"),
-    include_summary: bool = Query(default=True, description="Include recent AQI summary for each station")
+    query: str = Query(...,
+                       description="Search query (e.g., 'Chiang Mai', 'เชียงใหม่', 'Bangkok')"),
+    include_summary: bool = Query(
+        default=True, description="Include recent AQI summary for each station")
 ):
     """
     Search for air quality monitoring stations by location name.
@@ -305,9 +308,9 @@ async def search_stations(
     ```
     """
     from backend_api.services.ai.orchestrator import get_api_orchestrator
-    
+
     orchestrator = get_api_orchestrator()
-    
+
     if include_summary:
         result = await orchestrator.search_stations_with_summary(query)
     else:
@@ -318,18 +321,19 @@ async def search_stations(
             "stations": stations,
             "search_summary": f"Found {len(stations)} station(s) matching '{query}'"
         }
-    
+
     return result
 
 
 @app.get("/api/stations/{station_id}", response_model=StationWithStats, tags=["Stations"])
 async def get_station(station_id: str, db: Session = Depends(get_db)):
     """Get station details with data statistics (total records, missing, imputed)"""
-    station = db.query(Station).filter(Station.station_id == station_id).first()
-    
+    station = db.query(Station).filter(
+        Station.station_id == station_id).first()
+
     if not station:
         raise HTTPException(status_code=404, detail="Station not found")
-    
+
     # Get statistics
     result = db.execute(
         text("""
@@ -342,11 +346,11 @@ async def get_station(station_id: str, db: Session = Depends(get_db)):
         """),
         {"station_id": station_id}
     ).first()
-    
+
     total = result[0] if result else 0
     missing = result[1] if result else 0
     imputed = result[2] if result else 0
-    
+
     return StationWithStats(
         **station.__dict__,
         total_records=total,
@@ -384,14 +388,14 @@ async def get_aqi_data(
 ):
     """Get hourly PM2.5 data for a station with optional date range filtering"""
     query = db.query(AQIHourly).filter(AQIHourly.station_id == station_id)
-    
+
     if start:
         query = query.filter(AQIHourly.datetime >= start)
     if end:
         query = query.filter(AQIHourly.datetime <= end)
     if not include_imputed:
         query = query.filter(AQIHourly.is_imputed == False)
-    
+
     data = query.order_by(AQIHourly.datetime.desc()).limit(limit).all()
     return data
 
@@ -404,10 +408,10 @@ async def get_latest_aqi(station_id: str, db: Session = Depends(get_db)):
         .filter(AQIHourly.pm25.isnot(None))\
         .order_by(AQIHourly.datetime.desc())\
         .first()
-    
+
     if not latest:
         raise HTTPException(status_code=404, detail="No data available")
-    
+
     return latest
 
 
@@ -420,11 +424,11 @@ async def analyze_missing_data(
     """Analyze missing data gaps for a station (short: 1-3h, medium: 4-24h, long: >24h)"""
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
-    
+
     analysis = ingestion_service.detect_missing_data(
         db, station_id, start_date, end_date
     )
-    
+
     gaps = [
         MissingDataGap(
             start=g["start"],
@@ -434,11 +438,12 @@ async def analyze_missing_data(
         )
         for g in analysis.get("gaps", [])
     ]
-    
+
     return MissingDataAnalysis(
         station_id=station_id,
         total_expected_hours=days * 24,
-        total_present_hours=analysis.get("total_hours", 0) - analysis.get("missing_hours", 0),
+        total_present_hours=analysis.get(
+            "total_hours", 0) - analysis.get("missing_hours", 0),
         total_missing_hours=analysis.get("missing_hours", 0),
         missing_percentage=analysis.get("missing_percentage", 0),
         gaps=gaps,
@@ -451,15 +456,16 @@ async def analyze_missing_data(
 @app.get("/api/aqi/mockup/{station_id}", tags=["AQI Data"])
 async def get_mockup_aqi_data(
     station_id: str,
-    days: int = Query(default=7, ge=1, le=30, description="Number of days of mockup data"),
+    days: int = Query(default=7, ge=1, le=30,
+                      description="Number of days of mockup data"),
     parameters: Optional[str] = Query(
-        default=None, 
+        default=None,
         description="Comma-separated list of parameters to include (e.g., 'pm25,pm10,temp,rh'). Available: pm25, pm10, o3, co, no2, so2, ws, wd, temp, rh, bp, rain. If not specified, all parameters are returned."
     )
 ):
     """
     Get mockup AQI data with selectable environmental parameters for testing.
-    
+
     **Available pollutant parameters:**
     - `pm25` - PM2.5 (µg/m³)
     - `pm10` - PM10 (µg/m³)
@@ -467,7 +473,7 @@ async def get_mockup_aqi_data(
     - `co` - Carbon Monoxide (ppm)
     - `no2` - Nitrogen Dioxide (ppb)
     - `so2` - Sulfur Dioxide (ppb)
-    
+
     **Available meteorological parameters:**
     - `ws` - Wind Speed (m/s)
     - `wd` - Wind Direction (degrees)
@@ -475,17 +481,17 @@ async def get_mockup_aqi_data(
     - `rh` - Relative Humidity (%)
     - `bp` - Barometric Pressure (hPa)
     - `rain` - Rainfall (mm)
-    
+
     **Example usage:**
     - `/api/aqi/mockup/demo?parameters=pm25,pm10,temp` - Only PM2.5, PM10, and Temperature
     - `/api/aqi/mockup/demo?parameters=pm25,o3,no2,so2` - Only pollutants without PM10
     - `/api/aqi/mockup/demo` - All parameters (default)
-    
+
     **Note:** This returns generated demo data for UI testing purposes.
     """
     import random
     from datetime import datetime, timedelta
-    
+
     # Define all available parameters with their units
     all_units = {
         "pm25": "µg/m³",
@@ -501,11 +507,11 @@ async def get_mockup_aqi_data(
         "bp": "hPa",
         "rain": "mm"
     }
-    
+
     pollutant_params = ["pm25", "pm10", "o3", "co", "no2", "so2"]
     meteorological_params = ["ws", "wd", "temp", "rh", "bp", "rain"]
     all_params = pollutant_params + meteorological_params
-    
+
     # Parse selected parameters
     if parameters:
         selected_params = [p.strip().lower() for p in parameters.split(",")]
@@ -514,21 +520,21 @@ async def get_mockup_aqi_data(
         if invalid_params:
             from fastapi import HTTPException
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Invalid parameters: {invalid_params}. Available: {all_params}"
             )
     else:
         selected_params = all_params
-    
+
     end_time = datetime.now().replace(minute=0, second=0, microsecond=0)
     data_points = []
-    
+
     for i in range(days * 24):
         timestamp = end_time - timedelta(hours=i)
-        
+
         # Generate realistic mockup values with some variation
         base_pm25 = random.uniform(15, 85)
-        
+
         # Generate all values first
         all_values = {
             "pm25": round(base_pm25 + random.uniform(-5, 10), 2),
@@ -544,24 +550,25 @@ async def get_mockup_aqi_data(
             "bp": round(random.uniform(1005, 1020), 1),
             "rain": round(random.uniform(0, 5), 2) if random.random() < 0.2 else 0.0
         }
-        
+
         # Build data point with only selected parameters
         data_point = {
             "station_id": station_id,
             "datetime": timestamp.isoformat(),
         }
-        
+
         for param in selected_params:
             data_point[param] = all_values[param]
-        
+
         data_point["is_mockup"] = True
         data_points.append(data_point)
-    
+
     # Build response with filtered parameters
     selected_pollutants = [p for p in selected_params if p in pollutant_params]
-    selected_meteorological = [p for p in selected_params if p in meteorological_params]
+    selected_meteorological = [
+        p for p in selected_params if p in meteorological_params]
     selected_units = {p: all_units[p] for p in selected_params}
-    
+
     return {
         "station_id": station_id,
         "data_type": "mockup",
@@ -586,19 +593,22 @@ async def get_mockup_aqi_data(
 async def get_full_aqi_data(
     station_id: str,
     db: Session = Depends(get_db),
-    start: Optional[datetime] = Query(default=None, description="Start datetime (defaults to 7 days ago)"),
-    end: Optional[datetime] = Query(default=None, description="End datetime (defaults to now)"),
+    start: Optional[datetime] = Query(
+        default=None, description="Start datetime (defaults to 7 days ago)"),
+    end: Optional[datetime] = Query(
+        default=None, description="End datetime (defaults to now)"),
     parameters: Optional[str] = Query(
-        default=None, 
+        default=None,
         description="Comma-separated list of parameters (e.g., 'pm25,pm10,temp'). Available: pm25, pm10, o3, co, no2, so2, ws, wd, temp, rh, bp, rain. If not specified, all are returned."
     ),
-    limit: int = Query(default=720, le=8760, description="Maximum number of records")
+    limit: int = Query(default=720, le=8760,
+                       description="Maximum number of records")
 ):
     """
     Get complete Air4Thai data with all pollutant and weather parameters.
-    
+
     **This endpoint fetches REAL data from the database (from Air4Thai API).**
-    
+
     **Available pollutant parameters:**
     - `pm25` - PM2.5 (µg/m³)
     - `pm10` - PM10 (µg/m³)
@@ -606,7 +616,7 @@ async def get_full_aqi_data(
     - `co` - Carbon Monoxide (ppm)
     - `no2` - Nitrogen Dioxide (ppb)
     - `so2` - Sulfur Dioxide (ppb)
-    
+
     **Available meteorological parameters:**
     - `ws` - Wind Speed (m/s)
     - `wd` - Wind Direction (degrees 0-360)
@@ -614,23 +624,25 @@ async def get_full_aqi_data(
     - `rh` - Relative Humidity (%)
     - `bp` - Barometric Pressure (mmHg)
     - `rain` - Rainfall (mm)
-    
+
     **Example usage:**
     - `/api/aqi/full/95t` - All parameters for last 7 days
     - `/api/aqi/full/95t?parameters=pm25,pm10,temp,rh` - Only selected parameters
     - `/api/aqi/full/95t?start=2026-01-01&end=2026-01-10` - Custom date range
     """
     # Validate station exists
-    station = db.query(Station).filter(Station.station_id == station_id).first()
+    station = db.query(Station).filter(
+        Station.station_id == station_id).first()
     if not station:
-        raise HTTPException(status_code=404, detail=f"Station '{station_id}' not found")
-    
+        raise HTTPException(
+            status_code=404, detail=f"Station '{station_id}' not found")
+
     # Default date range: last 7 days
     if not end:
         end = datetime.now()
     if not start:
         start = end - timedelta(days=7)
-    
+
     # Define all available parameters with their units
     all_param_info = {
         "pm25": {"unit": "µg/m³", "category": "pollutant"},
@@ -647,7 +659,7 @@ async def get_full_aqi_data(
         "rain": {"unit": "mm", "category": "weather"},
     }
     all_params = list(all_param_info.keys())
-    
+
     # Parse selected parameters
     if parameters:
         selected_params = [p.strip().lower() for p in parameters.split(",")]
@@ -655,21 +667,21 @@ async def get_full_aqi_data(
         invalid_params = [p for p in selected_params if p not in all_params]
         if invalid_params:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Invalid parameters: {invalid_params}. Available: {all_params}"
             )
     else:
         selected_params = all_params
-    
+
     # Query data from database
     query = db.query(AQIHourly).filter(
         AQIHourly.station_id == station_id,
         AQIHourly.datetime >= start,
         AQIHourly.datetime <= end
     ).order_by(AQIHourly.datetime.desc()).limit(limit)
-    
+
     records = query.all()
-    
+
     if not records:
         return {
             "station_id": station_id,
@@ -682,7 +694,7 @@ async def get_full_aqi_data(
             "data": [],
             "message": "No data available for this period"
         }
-    
+
     # Build data points with selected parameters
     data_points = []
     for record in records:
@@ -691,18 +703,22 @@ async def get_full_aqi_data(
             "datetime": record.datetime.isoformat(),
             "is_imputed": record.is_imputed,
         }
-        
-        # Add selected parameters
+
+        # Add selected parameters and their imputation flags
         for param in selected_params:
             value = getattr(record, param, None)
             data_point[param] = value
-        
+            # Add parameter-specific imputation flag
+            imputed_flag = getattr(record, f"{param}_imputed", False)
+            data_point[f"{param}_imputed"] = imputed_flag
+
         data_points.append(data_point)
-    
+
     # Calculate statistics for each parameter
     statistics = {}
     for param in selected_params:
-        values = [getattr(r, param) for r in records if getattr(r, param) is not None]
+        values = [getattr(r, param)
+                  for r in records if getattr(r, param) is not None]
         if values:
             statistics[param] = {
                 "min": round(min(values), 2),
@@ -712,12 +728,15 @@ async def get_full_aqi_data(
                 "null_count": len(records) - len(values)
             }
         else:
-            statistics[param] = {"min": None, "max": None, "avg": None, "valid_count": 0, "null_count": len(records)}
-    
+            statistics[param] = {"min": None, "max": None, "avg": None,
+                                 "valid_count": 0, "null_count": len(records)}
+
     # Group parameters by category
-    selected_pollutants = [p for p in selected_params if all_param_info[p]["category"] == "pollutant"]
-    selected_weather = [p for p in selected_params if all_param_info[p]["category"] == "weather"]
-    
+    selected_pollutants = [
+        p for p in selected_params if all_param_info[p]["category"] == "pollutant"]
+    selected_weather = [
+        p for p in selected_params if all_param_info[p]["category"] == "weather"]
+
     return {
         "station_id": station_id,
         "station_name": station.name_en or station.name_th,
@@ -743,10 +762,12 @@ async def get_full_aqi_data(
 @app.get("/api/aqi/history", response_model=List[AQIHistoryDataPoint], tags=["AQI Data"])
 async def get_aqi_history(
     station_id: str = Query(..., description="Station ID"),
-    pollutant: str = Query(default="pm25", description="Pollutant type (currently only pm25 supported)"),
+    pollutant: str = Query(
+        default="pm25", description="Pollutant type (currently only pm25 supported)"),
     start_date: datetime = Query(..., description="Start datetime"),
     end_date: datetime = Query(..., description="End datetime"),
-    interval: str = Query(default="hour", description="Aggregation interval: 15min | hour | day"),
+    interval: str = Query(
+        default="hour", description="Aggregation interval: 15min | hour | day"),
     db: Session = Depends(get_db)
 ):
     """
@@ -765,14 +786,17 @@ async def get_aqi_history(
     """
     # Validate interval
     if interval not in ["15min", "hour", "day"]:
-        raise HTTPException(status_code=400, detail="Invalid interval. Must be 15min, hour, or day")
+        raise HTTPException(
+            status_code=400, detail="Invalid interval. Must be 15min, hour, or day")
 
     # Validate pollutant (currently only pm25)
     if pollutant != "pm25":
-        raise HTTPException(status_code=400, detail="Currently only pm25 pollutant is supported")
+        raise HTTPException(
+            status_code=400, detail="Currently only pm25 pollutant is supported")
 
     # Validate station exists
-    station = db.query(Station).filter(Station.station_id == station_id).first()
+    station = db.query(Station).filter(
+        Station.station_id == station_id).first()
     if not station:
         raise HTTPException(status_code=404, detail="Station not found")
 
@@ -852,33 +876,30 @@ async def get_chart_data(
 ):
     """
     Get time-series chart data for visualization
-    
+
     Returns data formatted for charting with imputed value markers:
     - **timestamps**: ISO datetime strings for x-axis
     - **values**: PM2.5 values (null for gaps)
     - **is_imputed**: Boolean array to highlight gap-filled points
     - **gaps**: Array of gap period markers
-    
+
     Use `is_imputed=true` points to render with different marker style (e.g., filled circles)
     """
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
-    
+
     query = db.query(AQIHourly).filter(
         AQIHourly.station_id == station_id,
         AQIHourly.datetime >= start_date,
         AQIHourly.datetime <= end_date
     ).order_by(AQIHourly.datetime.asc())
-    
+
     if not include_imputed:
         query = query.filter(AQIHourly.is_imputed == False)
-    
+
     data = query.all()
-    
-    if not data:
-        raise HTTPException(status_code=404, detail="No data available for this period")
-    
-    # Format for charting
+
+    # Format for charting - return empty structure if no data
     chart_data = {
         "station_id": station_id,
         "period": {
@@ -901,18 +922,19 @@ async def get_chart_data(
             "mean": None,
             "min": None,
             "max": None
-        }
+        },
+        "message": "No data available for this period" if not data else None
     }
-    
+
     # Build series data
     valid_values = []
     current_gap_start = None
-    
+
     for record in data:
         chart_data["series"]["timestamps"].append(record.datetime.isoformat())
         chart_data["series"]["values"].append(record.pm25)
         chart_data["series"]["is_imputed"].append(record.is_imputed)
-        
+
         if record.pm25 is not None:
             valid_values.append(record.pm25)
             if current_gap_start is not None:
@@ -922,29 +944,31 @@ async def get_chart_data(
                     "end": record.datetime.isoformat()
                 })
                 current_gap_start = None
-            
+
             if record.is_imputed:
                 chart_data["statistics"]["imputed_points"] += 1
         else:
             if current_gap_start is None:
                 current_gap_start = record.datetime
             chart_data["statistics"]["missing_points"] += 1
-    
+
     # Calculate statistics
     chart_data["statistics"]["total_points"] = len(data)
     chart_data["statistics"]["valid_points"] = len(valid_values)
-    
+
     if valid_values:
-        chart_data["statistics"]["mean"] = round(sum(valid_values) / len(valid_values), 2)
+        chart_data["statistics"]["mean"] = round(
+            sum(valid_values) / len(valid_values), 2)
         chart_data["statistics"]["min"] = round(min(valid_values), 2)
         chart_data["statistics"]["max"] = round(max(valid_values), 2)
         chart_data["statistics"]["completeness"] = round(
             len(valid_values) / len(data) * 100, 2
         ) if data else 0
-    
+
     # Add anomaly detection
     try:
-        anomaly_data = anomaly_service.get_chart_data_with_anomalies(station_id, days)
+        anomaly_data = anomaly_service.get_chart_data_with_anomalies(
+            station_id, days)
         chart_data["anomalies"] = anomaly_data["anomalies"]
         chart_data["anomaly_timestamps"] = anomaly_data["anomaly_timestamps"]
         chart_data["statistics"]["anomaly_count"] = anomaly_data["summary"]["anomaly_count"]
@@ -953,7 +977,7 @@ async def get_chart_data(
         chart_data["anomalies"] = []
         chart_data["anomaly_timestamps"] = []
         chart_data["statistics"]["anomaly_count"] = 0
-    
+
     return chart_data
 
 
@@ -962,57 +986,61 @@ async def get_chart_data(
 @app.get("/api/aqi/{station_id}/anomalies", tags=["AQI Data"])
 async def detect_anomalies(
     station_id: str,
-    days: int = Query(default=7, ge=1, le=90, description="Number of days to analyze"),
-    method: str = Query(default="all", description="Detection method: all, statistical, threshold, rate")
+    days: int = Query(default=7, ge=1, le=90,
+                      description="Number of days to analyze"),
+    method: str = Query(
+        default="all", description="Detection method: all, statistical, threshold, rate")
 ):
     """
     Detect anomalies in PM2.5 data for a station.
-    
+
     **Detection Methods:**
     - `statistical`: Z-score based outlier detection
     - `threshold`: AQI threshold exceedances (unhealthy levels)
     - `rate`: Sudden spikes or drops in values
     - `all`: Combine all methods
-    
+
     **Returns:**
     - List of anomalies with timestamps, values, types, and severity
     - Summary statistics including anomaly rate
     """
     from datetime import datetime, timedelta
-    
+
     end_datetime = datetime.now()
     start_datetime = end_datetime - timedelta(days=days)
-    
+
     result = anomaly_service.detect_anomalies(
         station_id=station_id,
         start_datetime=start_datetime,
         end_datetime=end_datetime,
         method=method
     )
-    
+
     return result
 
 
 @app.get("/api/anomalies/summary", tags=["AQI Data"])
 async def get_anomaly_summary(
-    days: int = Query(default=7, ge=1, le=30, description="Number of days to analyze"),
-    limit: int = Query(default=20, ge=1, le=100, description="Number of stations to check")
+    days: int = Query(default=7, ge=1, le=30,
+                      description="Number of days to analyze"),
+    limit: int = Query(default=20, ge=1, le=100,
+                       description="Number of stations to check")
 ):
     """
     Get anomaly summary across all stations.
-    
+
     Returns stations with the most anomalies for quick identification
     of problematic monitoring stations or areas with poor air quality.
     """
     from datetime import datetime, timedelta
-    
+
     end_datetime = datetime.now()
     start_datetime = end_datetime - timedelta(days=days)
-    
+
     with get_db_context() as db:
         # Get stations with data
         stations = db.query(Station).limit(limit).all()
-    
+
     results = []
     for station in stations:
         try:
@@ -1022,7 +1050,7 @@ async def get_anomaly_summary(
                 end_datetime=end_datetime,
                 method="all"
             )
-            
+
             if anomaly_data["summary"]["anomaly_count"] > 0:
                 results.append({
                     "station_id": station.station_id,
@@ -1033,11 +1061,12 @@ async def get_anomaly_summary(
                     "max_pm25": anomaly_data["summary"]["max_pm25"],
                 })
         except Exception as e:
-            logger.warning(f"Error checking anomalies for {station.station_id}: {e}")
-    
+            logger.warning(
+                f"Error checking anomalies for {station.station_id}: {e}")
+
     # Sort by anomaly count descending
     results.sort(key=lambda x: x["anomaly_count"], reverse=True)
-    
+
     return {
         "period": {
             "start": start_datetime.isoformat(),
@@ -1050,8 +1079,6 @@ async def get_anomaly_summary(
     }
 
 
-
-
 @app.post("/api/ingest/batch", tags=["🚀 Quick Start", "Ingestion"])
 async def start_batch_ingestion(
     request: IngestionRequest,
@@ -1059,10 +1086,10 @@ async def start_batch_ingestion(
 ):
     """
     **🚀 Step 1: Initial 30-day data load**
-    
+
     Fetches historical PM2.5 data from Air4Thai API for all stations.
     This should be run first to populate the database with historical data.
-    
+
     - Runs as a background task
     - Fetches up to 30 days of hourly data per station
     - Automatically detects and logs missing data gaps
@@ -1117,7 +1144,8 @@ async def get_ingestion_logs(
 @app.get("/api/admin/data-status", tags=["Admin"])
 async def get_data_status(
     db: Session = Depends(get_db),
-    sample_size: int = Query(default=5, ge=1, le=20, description="Number of stations to test")
+    sample_size: int = Query(default=5, ge=1, le=20,
+                             description="Number of stations to test")
 ):
     """
     Test data freshness by comparing Air4Thai live data with database
@@ -1134,7 +1162,8 @@ async def get_data_status(
     stations = db.query(Station).limit(sample_size).all()
 
     if not stations:
-        raise HTTPException(status_code=404, detail="No stations found in database")
+        raise HTTPException(
+            status_code=404, detail="No stations found in database")
 
     # Get latest ingestion log
     latest_ingestion = db.query(IngestionLog).order_by(
@@ -1191,7 +1220,8 @@ async def get_data_status(
 
             # Calculate freshness
             if air4thai_latest_time and db_latest_time:
-                time_diff = abs((air4thai_latest_time - db_latest_time).total_seconds() / 60)  # in minutes
+                time_diff = abs(
+                    (air4thai_latest_time - db_latest_time).total_seconds() / 60)  # in minutes
                 is_synced = time_diff <= 60  # Within 1 hour
             else:
                 time_diff = None
@@ -1212,7 +1242,8 @@ async def get_data_status(
             })
 
         except Exception as e:
-            logger.error(f"Error comparing data for station {station.station_id}: {e}")
+            logger.error(
+                f"Error comparing data for station {station.station_id}: {e}")
             comparisons.append({
                 "station_id": station.station_id,
                 "station_name_en": station.name_en,
@@ -1275,9 +1306,9 @@ async def train_all_models(
 ):
     """
     **🚀 Step 2: Train LSTM for all stations**
-    
+
     Trains LSTM models for each station using contiguous PM2.5 sequences.
-    
+
     - Architecture: LSTM(64) → LSTM(32) → Dense(1)
     - Sequence length: 24 hours
     - Uses early stopping with patience=10
@@ -1302,10 +1333,10 @@ async def _train_all_models_task(force_retrain: bool):
 async def get_model_info(station_id: str):
     """Get trained model info including RMSE, MAE, and training samples"""
     info = lstm_model_service.get_model_info(station_id)
-    
+
     if not info:
         raise HTTPException(status_code=404, detail="Model not found")
-    
+
     return info
 
 
@@ -1316,7 +1347,7 @@ async def get_all_models_status(
 ):
     """
     Get status of all LSTM models and gap-filling capability per station.
-    
+
     Returns:
     - Model availability per station
     - Training metrics (RMSE, MAE)
@@ -1324,14 +1355,14 @@ async def get_all_models_status(
     - Gap-filling readiness
     """
     stations = db.query(Station).limit(limit).all()
-    
+
     results = []
     for station in stations:
         station_id = station.station_id
-        
+
         # Get model info
         model_info = lstm_model_service.get_model_info(station_id)
-        
+
         # Count data points
         data_count = db.execute(text("""
             SELECT 
@@ -1341,12 +1372,12 @@ async def get_all_models_status(
                 COUNT(*) FILTER (WHERE pm25 IS NULL) as missing
             FROM aqi_hourly WHERE station_id = :station_id
         """), {"station_id": station_id}).fetchone()
-        
+
         # Determine gap-fill capability
         has_model = model_info is not None
         has_enough_data = data_count.valid >= 24 if data_count else False
         can_gap_fill = has_model and has_enough_data
-        
+
         results.append({
             "station_id": station_id,
             "station_name": station.name_en or station.name_th,
@@ -1365,12 +1396,12 @@ async def get_all_models_status(
             },
             "gap_fill_ready": can_gap_fill,
         })
-    
+
     # Summary
     total_stations = len(results)
     models_trained = sum(1 for r in results if r["model_status"]["has_model"])
     gap_fill_ready = sum(1 for r in results if r["gap_fill_ready"])
-    
+
     return {
         "summary": {
             "total_stations": total_stations,
@@ -1382,7 +1413,6 @@ async def get_all_models_status(
     }
 
 
-
 @app.get("/api/model/training-logs", response_model=List[ModelTrainingLogResponse], tags=["Model Training"])
 async def get_training_logs(
     db: Session = Depends(get_db),
@@ -1391,11 +1421,12 @@ async def get_training_logs(
 ):
     """Get model training history with performance metrics"""
     query = db.query(ModelTrainingLog)
-    
+
     if station_id:
         query = query.filter(ModelTrainingLog.station_id == station_id)
-    
-    logs = query.order_by(ModelTrainingLog.created_at.desc()).limit(limit).all()
+
+    logs = query.order_by(
+        ModelTrainingLog.created_at.desc()).limit(limit).all()
     return logs
 
 
@@ -1425,16 +1456,17 @@ def _imputation_task(
     end_datetime: Optional[datetime]
 ):
     """Background task for imputation"""
-    imputation_service.impute_station_gaps(station_id, start_datetime, end_datetime)
+    imputation_service.impute_station_gaps(
+        station_id, start_datetime, end_datetime)
 
 
 @app.post("/api/impute/all", tags=["🚀 Quick Start", "Imputation"])
 async def trigger_imputation_all(background_tasks: BackgroundTasks):
     """
     **🚀 Step 3: Impute missing values**
-    
+
     Runs LSTM imputation for all stations with missing data.
-    
+
     - Imputes short gaps (1-3 hours) and medium gaps (4-24 hours)
     - Skips long gaps (>24 hours) - flagged only
     - Requires minimum 24 hours of context for prediction
@@ -1457,10 +1489,10 @@ async def get_imputation_logs(
 ):
     """Get imputation audit logs with imputed values and model versions"""
     query = db.query(ImputationLog)
-    
+
     if station_id:
         query = query.filter(ImputationLog.station_id == station_id)
-    
+
     logs = query.order_by(ImputationLog.created_at.desc()).limit(limit).all()
     return logs
 
@@ -1473,7 +1505,8 @@ async def rollback_imputation(
     db: Session = Depends(get_db)
 ):
     """Rollback imputed values to NULL within a date range (for re-imputation)"""
-    rolled_back = imputation_service.rollback_imputation(db, station_id, start, end)
+    rolled_back = imputation_service.rollback_imputation(
+        db, station_id, start, end)
     db.commit()
     return {
         "station_id": station_id,
@@ -1490,18 +1523,19 @@ async def validate_model(
 ):
     """
     **🚀 Step 4: Validate model accuracy**
-    
+
     Performs offline validation by masking known values and comparing predictions.
-    
+
     - Compares LSTM against linear interpolation and forward-fill baselines
     - Reports RMSE, MAE, and improvement percentages
     - Acceptance criteria: LSTM RMSE < Linear interpolation RMSE
     """
     result = validation_service.offline_validation(station_id, mask_percentage)
-    
+
     if not result:
-        raise HTTPException(status_code=400, detail="Validation failed - insufficient data or no model")
-    
+        raise HTTPException(
+            status_code=400, detail="Validation failed - insufficient data or no model")
+
     return ValidationResult(**result)
 
 
@@ -1526,12 +1560,12 @@ def _validation_all_task(mask_percentage: float):
 async def run_full_pipeline(background_tasks: BackgroundTasks):
     """
     **🚀 Step 5: Full automated pipeline**
-    
+
     Runs the complete hourly pipeline:
     1. **Ingest**: Fetch latest data from Air4Thai
     2. **Detect**: Identify missing values
     3. **Impute**: Fill gaps using LSTM (where applicable)
-    
+
     This is the same workflow that runs automatically every hour.
     """
     background_tasks.add_task(_full_pipeline_task)
@@ -1541,13 +1575,13 @@ async def run_full_pipeline(background_tasks: BackgroundTasks):
 async def _full_pipeline_task():
     """Background task for full pipeline execution"""
     logger.info("Starting full pipeline")
-    
+
     # Step 1: Ingest
     await ingestion_service.ingest_hourly_update()
-    
+
     # Step 2: Impute
     await imputation_service.run_imputation_cycle()
-    
+
     logger.info("Full pipeline completed")
 
 
@@ -1557,7 +1591,7 @@ async def _full_pipeline_task():
 async def get_scheduler_status():
     """
     Get current scheduler status and health
-    
+
     Returns:
     - is_running: Whether scheduler is active
     - jobs: List of scheduled jobs with next run times
@@ -1572,7 +1606,7 @@ async def get_scheduler_status():
 async def list_scheduled_jobs():
     """
     List all scheduled jobs with their next run times
-    
+
     **Scheduled Jobs:**
     | Job | Schedule | Description |
     |-----|----------|-------------|
@@ -1593,7 +1627,7 @@ async def start_scheduler():
     """Start the automated scheduler (if not running)"""
     if scheduler_service.is_running:
         return {"message": "Scheduler already running", "status": "running"}
-    
+
     scheduler_service.start()
     return {"message": "Scheduler started", "status": "running"}
 
@@ -1603,7 +1637,7 @@ async def stop_scheduler():
     """Stop the automated scheduler"""
     if not scheduler_service.is_running:
         return {"message": "Scheduler not running", "status": "stopped"}
-    
+
     scheduler_service.stop()
     return {"message": "Scheduler stopped", "status": "stopped"}
 
@@ -1612,7 +1646,7 @@ async def stop_scheduler():
 async def trigger_hourly_ingestion(background_tasks: BackgroundTasks):
     """
     Manually trigger hourly data ingestion
-    
+
     **Best Practice**: Automated job runs at XX:05 (5 min after hour)
     to ensure Air4Thai has updated their data.
     """
@@ -1624,7 +1658,7 @@ async def trigger_hourly_ingestion(background_tasks: BackgroundTasks):
 async def trigger_gap_imputation(background_tasks: BackgroundTasks):
     """
     Manually trigger gap detection and LSTM imputation
-    
+
     **Best Practice**: Automated job runs every 6 hours (00:30, 06:30, 12:30, 18:30)
     to fill accumulated gaps.
     """
@@ -1716,29 +1750,29 @@ async def chat_health_check():
 async def chat_claude_query(request: ChatQueryRequest):
     """
     Process natural language query using **Claude AI (Anthropic API)**.
-    
+
     ⚡ **Faster than Ollama** - Cloud-based inference for comparison.
-    
+
     **Requires:**
     - `ANTHROPIC_API_KEY` environment variable
     - Optional: `CLAUDE_MODEL` (default: claude-3-haiku-20240307)
-    
+
     **Available Models:**
     - `claude-3-haiku-20240307` - Fastest, cheapest (~$0.25/1M tokens)
     - `claude-3-5-sonnet-20241022` - Balanced speed/quality
     - `claude-3-opus-20240229` - Highest quality
-    
+
     **Same query support as Ollama version:**
     - Thai/English air quality queries
     - Station search
     - Historical data retrieval
-    
+
     **Response includes:**
     - `response_time_ms`: Time taken for LLM inference
     - `llm_provider`: "claude"
     """
     from backend_api.services.ai.claude_chatbot import claude_service
-    
+
     try:
         result = await claude_service.process_query(request.query)
         return ChatResponse(**result)
@@ -1767,6 +1801,6 @@ async def chat_claude_health_check():
     - API orchestrator
     """
     from backend_api.services.ai.claude_chatbot import claude_service
-    
+
     health = await claude_service.health_check()
     return health
