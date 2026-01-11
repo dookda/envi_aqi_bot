@@ -14,6 +14,9 @@ geoalchemy2==0.14.3  # PostGIS spatial database support
 httpx==0.26.0
 aiohttp==3.9.1
 
+# Form data handling
+python-multipart==0.0.6
+
 # Data Processing
 pandas==2.1.4
 numpy==1.26.3

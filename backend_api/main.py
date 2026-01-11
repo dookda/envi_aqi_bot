@@ -8,6 +8,8 @@ Provides REST API for:
 - System health monitoring
 """
 
+from pydantic import BaseModel
+from fastapi import File, UploadFile
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -128,6 +130,10 @@ tags_metadata = [
     {
         "name": "AI Chat",
         "description": "Natural language chatbot for air quality queries (Thai/English) with local LLM",
+    },
+    {
+        "name": "Data Upload",
+        "description": "Import AQI data from external API URLs or CSV files",
     },
 ]
 
@@ -1804,3 +1810,197 @@ async def chat_claude_health_check():
 
     health = await claude_service.health_check()
     return health
+
+
+# =============================================================================
+# Data Upload Endpoints
+# =============================================================================
+
+
+class ApiUrlRequest(BaseModel):
+    url: str
+
+
+@app.post("/api/upload/preview-api", tags=["Data Upload"])
+async def preview_api_data(request: ApiUrlRequest):
+    """
+    Preview data from an external API URL before importing.
+
+    Supports Air4Thai history API format and generic JSON arrays.
+
+    **Example URL:**
+    ```
+    http://air4thai.com/forweb/getHistoryData.php?stationID=35t&param=PM25,PM10&type=hr&sdate=2026-01-01&edate=2026-01-10
+    ```
+    """
+    from backend_api.services.upload import upload_service
+
+    try:
+        records, columns, station_id = await upload_service.fetch_api_data(request.url)
+
+        # Normalize columns for preview
+        column_mapping = upload_service.normalize_columns(columns)
+        db_columns = list(set(column_mapping.values()))
+
+        # Normalize sample records
+        normalized_records = []
+        for record in records[:10]:
+            normalized = upload_service.normalize_record(
+                record, column_mapping, station_id)
+            if normalized:
+                normalized_records.append(normalized)
+
+        return {
+            "preview": {
+                "columns": db_columns,
+                "rows": normalized_records,
+                "total_rows": len(records)
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error previewing API data: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/upload/preview-csv", tags=["Data Upload"])
+async def preview_csv_data(file: UploadFile = File(...)):
+    """
+    Preview data from a CSV file before importing.
+
+    **Expected CSV format:**
+    ```
+    station_id,datetime,pm25,pm10,o3,co,no2,so2,temp,rh,ws,wd,bp,rain
+    35t,2026-01-01 00:00:00,25.5,40.2,15.0,0.5,12.0,3.0,28.5,75,2.5,180,1013,0
+    ```
+    """
+    from backend_api.services.upload import upload_service
+
+    try:
+        content = await file.read()
+        records, columns = upload_service.parse_csv_data(content)
+
+        # Normalize columns for preview
+        column_mapping = upload_service.normalize_columns(columns)
+        db_columns = list(set(column_mapping.values()))
+
+        # Normalize sample records
+        normalized_records = []
+        for record in records[:10]:
+            normalized = upload_service.normalize_record(
+                record, column_mapping)
+            if normalized:
+                normalized_records.append(normalized)
+
+        return {
+            "preview": {
+                "columns": db_columns,
+                "rows": normalized_records,
+                "total_rows": len(records)
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error previewing CSV data: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/upload/import-api", tags=["Data Upload"])
+async def import_api_data(request: ApiUrlRequest):
+    """
+    Import data from an external API URL into the database.
+
+    Uses upsert logic (ON CONFLICT UPDATE) to handle duplicates.
+    """
+    from backend_api.services.upload import upload_service
+
+    try:
+        # Fetch data
+        records, columns, station_id = await upload_service.fetch_api_data(request.url)
+
+        # Normalize columns
+        column_mapping = upload_service.normalize_columns(columns)
+
+        # Normalize all records
+        normalized_records = []
+        for record in records:
+            normalized = upload_service.normalize_record(
+                record, column_mapping, station_id)
+            if normalized:
+                normalized_records.append(normalized)
+
+        if not normalized_records:
+            return {
+                "success": False,
+                "message": "No valid records to import",
+                "records_inserted": 0,
+                "records_updated": 0,
+                "records_failed": len(records)
+            }
+
+        # Import to database
+        inserted, updated, failed, errors = upload_service.import_records(
+            normalized_records)
+
+        return {
+            "success": failed == 0 or inserted > 0,
+            "message": f"Imported {inserted} records" if inserted > 0 else "Import completed with errors",
+            "records_inserted": inserted,
+            "records_updated": updated,
+            "records_failed": failed,
+            "errors": errors if errors else None
+        }
+    except Exception as e:
+        logger.error(f"Error importing API data: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/upload/import-csv", tags=["Data Upload"])
+async def import_csv_data(file: UploadFile = File(...)):
+    """
+    Import data from a CSV file into the database.
+
+    Uses upsert logic (ON CONFLICT UPDATE) to handle duplicates.
+
+    **Required columns:** station_id, datetime
+    **Optional columns:** pm25, pm10, o3, co, no2, so2, temp, rh, ws, wd, bp, rain, aqi
+    """
+    from backend_api.services.upload import upload_service
+
+    try:
+        content = await file.read()
+        records, columns = upload_service.parse_csv_data(content)
+
+        # Normalize columns
+        column_mapping = upload_service.normalize_columns(columns)
+
+        # Normalize all records
+        normalized_records = []
+        for record in records:
+            normalized = upload_service.normalize_record(
+                record, column_mapping)
+            if normalized:
+                normalized_records.append(normalized)
+
+        if not normalized_records:
+            return {
+                "success": False,
+                "message": "No valid records to import",
+                "records_inserted": 0,
+                "records_updated": 0,
+                "records_failed": len(records)
+            }
+
+        # Import to database
+        inserted, updated, failed, errors = upload_service.import_records(
+            normalized_records)
+
+        return {
+            "success": failed == 0 or inserted > 0,
+            "message": f"Imported {inserted} records" if inserted > 0 else "Import completed with errors",
+            "records_inserted": inserted,
+            "records_updated": updated,
+            "records_failed": failed,
+            "errors": errors if errors else None
+        }
+    except Exception as e:
+        logger.error(f"Error importing CSV data: {e}")
+        raise HTTPException(status_code=400, detail=str(e))

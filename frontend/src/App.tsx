@@ -2,7 +2,7 @@
  * Main App Component with Routing
  */
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import { Dashboard, Models, Chat, Claude, Admin } from './pages'
+import { Dashboard, Models, Chat, Claude, Admin, DataUpload } from './pages'
 import { LanguageProvider, ThemeProvider, ToastProvider } from './contexts'
 
 const App: React.FC = () => {
@@ -17,6 +17,7 @@ const App: React.FC = () => {
               <Route path="/chat" element={<Chat />} />
               <Route path="/chat/claude" element={<Claude />} />
               <Route path="/admin" element={<Admin />} />
+              <Route path="/upload" element={<DataUpload />} />
             </Routes>
           </Router>
         </ToastProvider>

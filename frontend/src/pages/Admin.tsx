@@ -189,6 +189,13 @@ export default function Admin(): React.ReactElement {
                     {lang === 'th' ? 'กลับไปแดชบอร์ด' : 'Back to Dashboard'}
                 </Link>
                 <Link
+                    to="/upload"
+                    className={`transition flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
+                >
+                    <Icon name="upload" size="sm" />
+                    {lang === 'th' ? 'อัปโหลดข้อมูล' : 'Upload Data'}
+                </Link>
+                <Link
                     to="/models"
                     className={`transition flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >
