@@ -6,9 +6,11 @@
 type BadgeVariant =
   | 'default'
   | 'primary'
+  | 'secondary'
   | 'success'
   | 'warning'
   | 'danger'
+  | 'info'
   | 'aqi-excellent'
   | 'aqi-good'
   | 'aqi-moderate'
@@ -22,9 +24,11 @@ type BadgeSize = 'sm' | 'md' | 'lg'
 const variants: Record<BadgeVariant, string> = {
   default: 'bg-dark-600 text-white',
   primary: 'bg-primary-500/20 text-primary-400 border border-primary-500/30',
+  secondary: 'bg-gray-500/20 text-gray-400 border border-gray-500/30',
   success: 'bg-success-500/20 text-success-400 border border-success-500/30',
   warning: 'bg-warning-500/20 text-warning-400 border border-warning-500/30',
   danger: 'bg-danger-500/20 text-danger-400 border border-danger-500/30',
+  info: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
   // AQI specific variants
   'aqi-excellent': 'aqi-excellent',
   'aqi-good': 'aqi-good',

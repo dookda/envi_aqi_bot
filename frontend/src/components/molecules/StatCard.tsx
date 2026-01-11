@@ -4,10 +4,11 @@
  */
 import { Card, Icon } from '../atoms'
 
-type StatColor = 'primary' | 'success' | 'warning' | 'danger' | 'default'
+type StatColor = 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'default'
 
 const colorVariants: Record<StatColor, string> = {
   primary: 'text-primary-400',
+  secondary: 'text-gray-400',
   success: 'text-success-400',
   warning: 'text-warning-400',
   danger: 'text-danger-400',

@@ -167,6 +167,7 @@ interface AQIParams {
   end_date?: string
   limit?: number
   include_imputed?: boolean
+  [key: string]: string | number | boolean | null | undefined
 }
 
 // AQI Data endpoints

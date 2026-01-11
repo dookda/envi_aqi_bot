@@ -26,6 +26,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   size?: ButtonSize
   disabled?: boolean
   loading?: boolean
+  icon?: string
   onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void
   className?: string
 }
@@ -36,6 +37,7 @@ const Button: React.FC<ButtonProps> = ({
   size = 'md',
   disabled = false,
   loading = false,
+  icon,
   onClick,
   className = '',
   ...props
@@ -61,6 +63,7 @@ const Button: React.FC<ButtonProps> = ({
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>
       )}
+      {icon && !loading && <span className="material-symbols-rounded text-lg">{icon}</span>}
       {children}
     </button>
   )

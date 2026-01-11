@@ -142,7 +142,7 @@ const MockupDataChart: React.FC<MockupDataChartProps> = ({
 
             return {
                 name: config.label,
-                type: 'line',
+                type: 'line' as const,
                 data: seriesData,
                 smooth: true,
                 symbol: 'circle',
@@ -150,12 +150,12 @@ const MockupDataChart: React.FC<MockupDataChartProps> = ({
                 lineStyle: { color: config.color, width: 2 },
                 itemStyle: { color: config.color },
                 emphasis: {
-                    focus: 'series',
+                    focus: 'series' as const,
                     lineStyle: { width: 3 },
                 },
                 yAxisIndex: config.group === 'meteorological' ? 1 : 0,
             }
-        }).filter(Boolean)
+        }).filter((s): s is NonNullable<typeof s> => s !== null)
 
         const legendData = selectedParams
             .map(param => PARAMETER_CONFIG[param]?.label)
@@ -324,8 +324,8 @@ const MockupDataChart: React.FC<MockupDataChartProps> = ({
                                     key={key}
                                     onClick={() => toggleParam(key)}
                                     className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${selectedParams.includes(key)
-                                            ? 'ring-2'
-                                            : buttonClass
+                                        ? 'ring-2'
+                                        : buttonClass
                                         }`}
                                     style={{
                                         backgroundColor: selectedParams.includes(key)
@@ -363,8 +363,8 @@ const MockupDataChart: React.FC<MockupDataChartProps> = ({
                                     key={key}
                                     onClick={() => toggleParam(key)}
                                     className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${selectedParams.includes(key)
-                                            ? 'ring-2'
-                                            : buttonClass
+                                        ? 'ring-2'
+                                        : buttonClass
                                         }`}
                                     style={{
                                         backgroundColor: selectedParams.includes(key)

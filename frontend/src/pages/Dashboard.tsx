@@ -2,7 +2,7 @@
  * Dashboard Page - Premium Redesign
  * Modern air quality monitoring dashboard with full environmental data
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Card, Icon, Badge, Spinner } from '../components/atoms'
 import { StationSelector, DataTable } from '../components/molecules'
@@ -132,8 +132,8 @@ const TIME_PERIODS: TimePeriodOption[] = [
 
 // ============== Components ==============
 
-// Parameter Gauge Component - Shows ratio of value vs health thresholds
-const ParameterGauge: React.FC<ParameterGaugeProps> = ({
+// Compact Parameter Gauge Component - Mini version for grid layout
+const CompactGauge: React.FC<ParameterGaugeProps> = ({
     label,
     value,
     unit,
@@ -143,45 +143,34 @@ const ParameterGauge: React.FC<ParameterGaugeProps> = ({
     isLight
 }) => {
     const percentage = value ? Math.min((value / maxScale) * 100, 100) : 0
-
-    // Find current threshold level
     const currentLevel = thresholds.find(t => value !== undefined && value <= t.max) || thresholds[thresholds.length - 1]
 
     return (
-        <div className={`p-4 rounded-xl ${isLight ? 'bg-gray-50' : 'bg-dark-700/50'}`}>
-            <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                    <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center"
-                        style={{ backgroundColor: currentLevel?.color || '#64748b' }}
-                    >
-                        <Icon name={icon} className="text-white" size="sm" />
-                    </div>
-                    <div>
-                        <span className={`font-semibold ${isLight ? 'text-gray-800' : 'text-white'}`}>
+        <div className={`p-3 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-dark-700/50'}`}>
+            <div className="flex items-center gap-2 mb-2">
+                <div
+                    className="w-7 h-7 rounded-md flex items-center justify-center"
+                    style={{ backgroundColor: currentLevel?.color || '#64748b' }}
+                >
+                    <Icon name={icon} className="text-white" size="xs" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-1">
+                        <span className={`text-sm font-semibold ${isLight ? 'text-gray-800' : 'text-white'}`}>
                             {label}
                         </span>
-                        <span className={`ml-2 text-sm ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                        <span className={`text-xs ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
                             {unit}
                         </span>
                     </div>
                 </div>
-                <div className="text-right">
-                    <span className={`text-2xl font-bold ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                        {value?.toFixed(1) || '—'}
-                    </span>
-                    <span
-                        className="ml-2 text-sm font-medium px-2 py-0.5 rounded-full"
-                        style={{ backgroundColor: `${currentLevel?.color}20`, color: currentLevel?.color }}
-                    >
-                        {currentLevel?.label || '—'}
-                    </span>
-                </div>
+                <span className={`text-lg font-bold ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                    {value?.toFixed(1) || '—'}
+                </span>
             </div>
 
-            {/* Progress bar with threshold segments */}
-            <div className="relative h-3 rounded-full overflow-hidden bg-gray-200 dark:bg-dark-600">
-                {/* Threshold gradient segments */}
+            {/* Compact progress bar */}
+            <div className="relative h-2 rounded-full overflow-hidden bg-gray-200 dark:bg-dark-600">
                 <div className="absolute inset-0 flex">
                     {thresholds.map((threshold, idx) => {
                         const prevMax = idx > 0 ? thresholds[idx - 1].max : 0
@@ -189,38 +178,25 @@ const ParameterGauge: React.FC<ParameterGaugeProps> = ({
                         return (
                             <div
                                 key={idx}
-                                style={{ width: `${width}%`, backgroundColor: `${threshold.color}40` }}
+                                style={{ width: `${width}%`, backgroundColor: `${threshold.color}30` }}
                             />
                         )
                     })}
                 </div>
-
-                {/* Current value indicator */}
                 <div
-                    className="absolute inset-y-0 left-0 rounded-full transition-all duration-500 ease-out"
+                    className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
                     style={{
                         width: `${percentage}%`,
-                        background: `linear-gradient(90deg, ${currentLevel?.color}80, ${currentLevel?.color})`
+                        backgroundColor: currentLevel?.color
                     }}
                 />
-
-                {/* Value marker */}
-                {value && (
-                    <div
-                        className="absolute top-0 w-1 h-full bg-white shadow-md rounded"
-                        style={{ left: `${Math.min(percentage, 99)}%` }}
-                    />
-                )}
-            </div>
-
-            {/* Scale labels */}
-            <div className="flex justify-between mt-1">
-                <span className={`text-xs ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>0</span>
-                <span className={`text-xs ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>{maxScale}</span>
             </div>
         </div>
     )
 }
+
+// Status filter type
+type StatusFilter = 'all' | 'measured' | 'imputed' | 'missing'
 
 // Data Table View Component
 const DataTableView: React.FC<DataTableViewProps> = ({
@@ -234,7 +210,45 @@ const DataTableView: React.FC<DataTableViewProps> = ({
     onParamChange,
     totalRecords
 }) => {
+    const [searchDate, setSearchDate] = useState<string>('')
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+
     const currentStation = stations.find(s => s.station_id === selectedStation)
+
+    // Filter data based on search and status
+    const filteredData = useMemo(() => {
+        if (!data) return []
+
+        return data.filter(row => {
+            // Date search filter
+            if (searchDate) {
+                const rowDate = new Date(row.datetime)
+                const searchLower = searchDate.toLowerCase()
+                const dateStr = rowDate.toLocaleDateString().toLowerCase()
+                const timeStr = rowDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()
+                const fullDateStr = `${dateStr} ${timeStr}`
+                if (!fullDateStr.includes(searchLower) && !row.datetime.toLowerCase().includes(searchLower)) {
+                    return false
+                }
+            }
+
+            // Status filter
+            const value = row[selectedParam as keyof AQIHourlyData]
+            const isImputed = row.is_imputed || row[`${selectedParam}_imputed` as keyof AQIHourlyData]
+
+            if (statusFilter === 'measured') {
+                return value !== null && value !== undefined && !isImputed
+            }
+            if (statusFilter === 'imputed') {
+                return isImputed
+            }
+            if (statusFilter === 'missing') {
+                return value === null || value === undefined
+            }
+
+            return true
+        })
+    }, [data, searchDate, statusFilter, selectedParam])
 
     // Define columns dynamically based on language and selected parameter
     const columns: TableColumn<AQIHourlyData>[] = [
@@ -300,46 +314,150 @@ const DataTableView: React.FC<DataTableViewProps> = ({
         }
     ]
 
+    // Count stats for filter badges
+    const stats = useMemo(() => {
+        if (!data) return { measured: 0, imputed: 0, missing: 0 }
+        return data.reduce((acc, row) => {
+            const value = row[selectedParam as keyof AQIHourlyData]
+            const isImputed = row.is_imputed || row[`${selectedParam}_imputed` as keyof AQIHourlyData]
+            if (value === null || value === undefined) {
+                acc.missing++
+            } else if (isImputed) {
+                acc.imputed++
+            } else {
+                acc.measured++
+            }
+            return acc
+        }, { measured: 0, imputed: 0, missing: 0 })
+    }, [data, selectedParam])
+
     return (
         <section>
             <Card className="p-0 overflow-hidden">
                 {/* Table Header with Parameter Selection */}
                 <div className={`p-4 border-b ${isLight ? 'border-gray-100' : 'border-dark-700'}`}>
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="flex items-center gap-2">
-                            <h3 className={`text-lg font-semibold flex items-center gap-2 ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                                <Icon name="table_chart" />
-                                {lang === 'th' ? 'ข้อมูลรายชั่วโมง' : 'Hourly Data'}
-                            </h3>
-                            <Badge variant="primary">
-                                {totalRecords || data?.length || 0} {lang === 'th' ? 'รายการ' : 'records'}
-                            </Badge>
+                    <div className="flex flex-col gap-4">
+                        {/* Top row: Title and Parameter selector */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex items-center gap-2">
+                                <h3 className={`text-lg font-semibold flex items-center gap-2 ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                    <Icon name="table_chart" />
+                                    {lang === 'th' ? 'ข้อมูลรายชั่วโมง' : 'Hourly Data'}
+                                </h3>
+                                <Badge variant="primary">
+                                    {filteredData.length}/{totalRecords || data?.length || 0} {lang === 'th' ? 'รายการ' : 'records'}
+                                </Badge>
+                            </div>
+
+                            {/* Parameter Selector */}
+                            <div className="flex items-center gap-2">
+                                <span className={`text-sm font-medium ${isLight ? 'text-gray-600' : 'text-dark-400'}`}>
+                                    {lang === 'th' ? 'พารามิเตอร์:' : 'Parameter:'}
+                                </span>
+                                <select
+                                    value={selectedParam}
+                                    onChange={(e) => onParamChange(e.target.value as ParameterKey)}
+                                    className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${isLight
+                                        ? 'bg-white border-gray-200 text-gray-800 hover:border-primary-400'
+                                        : 'bg-dark-700 border-dark-600 text-white hover:border-primary-500'
+                                        }`}
+                                >
+                                    <option value="pm25">PM2.5</option>
+                                    <option value="pm10">PM10</option>
+                                    <option value="o3">O3 (Ozone)</option>
+                                    <option value="co">CO</option>
+                                    <option value="no2">NO2</option>
+                                    <option value="so2">SO2</option>
+                                    <option value="temp">Temperature</option>
+                                    <option value="rh">Humidity</option>
+                                    <option value="ws">Wind Speed</option>
+                                    <option value="bp">Pressure</option>
+                                </select>
+                            </div>
                         </div>
 
-                        {/* Parameter Selector in Table Header */}
-                        <div className="flex items-center gap-2">
-                            <span className={`text-sm font-medium ${isLight ? 'text-gray-600' : 'text-dark-400'}`}>
-                                {lang === 'th' ? 'พารามิเตอร์:' : 'Parameter:'}
-                            </span>
-                            <select
-                                value={selectedParam}
-                                onChange={(e) => onParamChange(e.target.value as ParameterKey)}
-                                className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${isLight
-                                    ? 'bg-white border-gray-200 text-gray-800 hover:border-primary-400'
-                                    : 'bg-dark-700 border-dark-600 text-white hover:border-primary-500'
-                                    }`}
-                            >
-                                <option value="pm25">PM2.5</option>
-                                <option value="pm10">PM10</option>
-                                <option value="o3">O3 (Ozone)</option>
-                                <option value="co">CO</option>
-                                <option value="no2">NO2</option>
-                                <option value="so2">SO2</option>
-                                <option value="temp">Temperature</option>
-                                <option value="rh">Humidity</option>
-                                <option value="ws">Wind Speed</option>
-                                <option value="bp">Pressure</option>
-                            </select>
+                        {/* Bottom row: Search and Status Filters */}
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                            {/* Date Search */}
+                            <div className="relative flex-1 max-w-xs">
+                                <Icon
+                                    name="search"
+                                    size="sm"
+                                    className={`absolute left-3 top-1/2 -translate-y-1/2 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}
+                                />
+                                <input
+                                    type="text"
+                                    placeholder={lang === 'th' ? 'ค้นหาวันที่...' : 'Search date...'}
+                                    value={searchDate}
+                                    onChange={(e) => setSearchDate(e.target.value)}
+                                    className={`w-full pl-9 pr-3 py-1.5 rounded-lg border text-sm transition-all ${isLight
+                                        ? 'bg-white border-gray-200 text-gray-800 placeholder-gray-400 focus:border-primary-400'
+                                        : 'bg-dark-700 border-dark-600 text-white placeholder-dark-500 focus:border-primary-500'
+                                        } focus:outline-none focus:ring-1 focus:ring-primary-500/30`}
+                                />
+                                {searchDate && (
+                                    <button
+                                        onClick={() => setSearchDate('')}
+                                        className={`absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-dark-600`}
+                                    >
+                                        <Icon name="close" size="xs" className={isLight ? 'text-gray-400' : 'text-dark-400'} />
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Status Filter Buttons */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`text-xs font-medium mr-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                    {lang === 'th' ? 'สถานะ:' : 'Status:'}
+                                </span>
+                                <button
+                                    onClick={() => setStatusFilter('all')}
+                                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${statusFilter === 'all'
+                                            ? 'bg-primary-500 text-white'
+                                            : isLight
+                                                ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                : 'bg-dark-700 text-dark-300 hover:bg-dark-600'
+                                        }`}
+                                >
+                                    {lang === 'th' ? 'ทั้งหมด' : 'All'}
+                                </button>
+                                <button
+                                    onClick={() => setStatusFilter('measured')}
+                                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${statusFilter === 'measured'
+                                            ? 'bg-emerald-500 text-white'
+                                            : isLight
+                                                ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                                                : 'bg-emerald-900/30 text-emerald-400 hover:bg-emerald-900/50'
+                                        }`}
+                                >
+                                    <Icon name="check_circle" size="xs" />
+                                    {lang === 'th' ? 'วัดจริง' : 'Measured'} ({stats.measured})
+                                </button>
+                                <button
+                                    onClick={() => setStatusFilter('imputed')}
+                                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${statusFilter === 'imputed'
+                                            ? 'bg-amber-500 text-white'
+                                            : isLight
+                                                ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                                                : 'bg-amber-900/30 text-amber-400 hover:bg-amber-900/50'
+                                        }`}
+                                >
+                                    <Icon name="auto_fix_high" size="xs" />
+                                    {lang === 'th' ? 'เติมค่า' : 'Gap-Filled'} ({stats.imputed})
+                                </button>
+                                <button
+                                    onClick={() => setStatusFilter('missing')}
+                                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${statusFilter === 'missing'
+                                            ? 'bg-gray-500 text-white'
+                                            : isLight
+                                                ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                                : 'bg-dark-700 text-dark-400 hover:bg-dark-600'
+                                        }`}
+                                >
+                                    <Icon name="help_outline" size="xs" />
+                                    {lang === 'th' ? 'ขาดหาย' : 'Missing'} ({stats.missing})
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -347,9 +465,12 @@ const DataTableView: React.FC<DataTableViewProps> = ({
                 {/* DataTable */}
                 <DataTable
                     columns={columns}
-                    data={data || []}
+                    data={filteredData}
                     loading={loading}
-                    emptyMessage={lang === 'th' ? 'ไม่พบข้อมูล' : 'No data available'}
+                    emptyMessage={searchDate || statusFilter !== 'all'
+                        ? (lang === 'th' ? 'ไม่พบข้อมูลที่ตรงกับตัวกรอง' : 'No data matches the filter')
+                        : (lang === 'th' ? 'ไม่พบข้อมูล' : 'No data available')
+                    }
                     pageSize={15}
                 />
             </Card>
@@ -720,111 +841,100 @@ export default function Dashboard(): React.ReactElement {
                             loading={fullDataLoading}
                         />
 
-                        {/* Parameter Ratio Gauges - Quick Reference */}
-                        <Card className="p-6">
-                            <h3 className={`text-lg font-semibold mb-6 flex items-center gap-2 ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                                <Icon name="speed" />
+                        {/* Compact Pollutant Gauges - Grid Layout */}
+                        <Card className="p-4">
+                            <h3 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                <Icon name="speed" size="sm" />
                                 {lang === 'th' ? 'ระดับมลพิษตามมาตรฐาน' : 'Pollutant Levels vs Standards'}
                             </h3>
 
-                            <div className="space-y-5">
-                                {/* PM2.5 Gauge */}
-                                <ParameterGauge
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                                <CompactGauge
                                     label="PM2.5"
                                     value={latestData.pm25}
                                     unit="µg/m³"
                                     icon="blur_on"
                                     thresholds={[
-                                        { max: 25, color: '#009966', label: lang === 'th' ? 'ดีมาก' : 'Excellent' },
-                                        { max: 50, color: '#00e400', label: lang === 'th' ? 'ดี' : 'Good' },
-                                        { max: 100, color: '#ffff00', label: lang === 'th' ? 'ปานกลาง' : 'Moderate' },
-                                        { max: 200, color: '#ff7e00', label: lang === 'th' ? 'มีผลต่อสุขภาพ' : 'Unhealthy' },
-                                        { max: 300, color: '#ff0000', label: lang === 'th' ? 'อันตราย' : 'Hazardous' },
+                                        { max: 25, color: '#009966', label: 'Excellent' },
+                                        { max: 50, color: '#00e400', label: 'Good' },
+                                        { max: 100, color: '#ffff00', label: 'Moderate' },
+                                        { max: 200, color: '#ff7e00', label: 'Unhealthy' },
+                                        { max: 300, color: '#ff0000', label: 'Hazardous' },
                                     ]}
                                     maxScale={300}
                                     isLight={isLight}
                                 />
-
-                                {/* PM10 Gauge */}
-                                <ParameterGauge
+                                <CompactGauge
                                     label="PM10"
                                     value={latestData.pm10}
                                     unit="µg/m³"
                                     icon="grain"
                                     thresholds={[
-                                        { max: 50, color: '#009966', label: lang === 'th' ? 'ดีมาก' : 'Excellent' },
-                                        { max: 80, color: '#00e400', label: lang === 'th' ? 'ดี' : 'Good' },
-                                        { max: 120, color: '#ffff00', label: lang === 'th' ? 'ปานกลาง' : 'Moderate' },
-                                        { max: 180, color: '#ff7e00', label: lang === 'th' ? 'มีผลต่อสุขภาพ' : 'Unhealthy' },
-                                        { max: 250, color: '#ff0000', label: lang === 'th' ? 'อันตราย' : 'Hazardous' },
+                                        { max: 50, color: '#009966', label: 'Excellent' },
+                                        { max: 80, color: '#00e400', label: 'Good' },
+                                        { max: 120, color: '#ffff00', label: 'Moderate' },
+                                        { max: 180, color: '#ff7e00', label: 'Unhealthy' },
+                                        { max: 250, color: '#ff0000', label: 'Hazardous' },
                                     ]}
                                     maxScale={250}
                                     isLight={isLight}
                                 />
-
-                                {/* O3 Gauge */}
-                                <ParameterGauge
+                                <CompactGauge
                                     label="O₃"
                                     value={latestData.o3}
                                     unit="ppb"
                                     icon="cloud"
                                     thresholds={[
-                                        { max: 35, color: '#009966', label: lang === 'th' ? 'ดีมาก' : 'Excellent' },
-                                        { max: 70, color: '#00e400', label: lang === 'th' ? 'ดี' : 'Good' },
-                                        { max: 120, color: '#ffff00', label: lang === 'th' ? 'ปานกลาง' : 'Moderate' },
-                                        { max: 200, color: '#ff7e00', label: lang === 'th' ? 'มีผลต่อสุขภาพ' : 'Unhealthy' },
-                                        { max: 300, color: '#ff0000', label: lang === 'th' ? 'อันตราย' : 'Hazardous' },
+                                        { max: 35, color: '#009966', label: 'Excellent' },
+                                        { max: 70, color: '#00e400', label: 'Good' },
+                                        { max: 120, color: '#ffff00', label: 'Moderate' },
+                                        { max: 200, color: '#ff7e00', label: 'Unhealthy' },
+                                        { max: 300, color: '#ff0000', label: 'Hazardous' },
                                     ]}
                                     maxScale={300}
                                     isLight={isLight}
                                 />
-
-                                {/* CO Gauge */}
-                                <ParameterGauge
+                                <CompactGauge
                                     label="CO"
                                     value={latestData.co}
                                     unit="ppm"
                                     icon="local_fire_department"
                                     thresholds={[
-                                        { max: 4.4, color: '#009966', label: lang === 'th' ? 'ดีมาก' : 'Excellent' },
-                                        { max: 6.4, color: '#00e400', label: lang === 'th' ? 'ดี' : 'Good' },
-                                        { max: 9.0, color: '#ffff00', label: lang === 'th' ? 'ปานกลาง' : 'Moderate' },
-                                        { max: 15, color: '#ff7e00', label: lang === 'th' ? 'มีผลต่อสุขภาพ' : 'Unhealthy' },
-                                        { max: 30, color: '#ff0000', label: lang === 'th' ? 'อันตราย' : 'Hazardous' },
+                                        { max: 4.4, color: '#009966', label: 'Excellent' },
+                                        { max: 6.4, color: '#00e400', label: 'Good' },
+                                        { max: 9.0, color: '#ffff00', label: 'Moderate' },
+                                        { max: 15, color: '#ff7e00', label: 'Unhealthy' },
+                                        { max: 30, color: '#ff0000', label: 'Hazardous' },
                                     ]}
                                     maxScale={30}
                                     isLight={isLight}
                                 />
-
-                                {/* NO2 Gauge */}
-                                <ParameterGauge
+                                <CompactGauge
                                     label="NO₂"
                                     value={latestData.no2}
                                     unit="ppb"
                                     icon="factory"
                                     thresholds={[
-                                        { max: 60, color: '#009966', label: lang === 'th' ? 'ดีมาก' : 'Excellent' },
-                                        { max: 106, color: '#00e400', label: lang === 'th' ? 'ดี' : 'Good' },
-                                        { max: 170, color: '#ffff00', label: lang === 'th' ? 'ปานกลาง' : 'Moderate' },
-                                        { max: 340, color: '#ff7e00', label: lang === 'th' ? 'มีผลต่อสุขภาพ' : 'Unhealthy' },
-                                        { max: 500, color: '#ff0000', label: lang === 'th' ? 'อันตราย' : 'Hazardous' },
+                                        { max: 60, color: '#009966', label: 'Excellent' },
+                                        { max: 106, color: '#00e400', label: 'Good' },
+                                        { max: 170, color: '#ffff00', label: 'Moderate' },
+                                        { max: 340, color: '#ff7e00', label: 'Unhealthy' },
+                                        { max: 500, color: '#ff0000', label: 'Hazardous' },
                                     ]}
                                     maxScale={500}
                                     isLight={isLight}
                                 />
-
-                                {/* SO2 Gauge */}
-                                <ParameterGauge
+                                <CompactGauge
                                     label="SO₂"
                                     value={latestData.so2}
                                     unit="ppb"
                                     icon="volcano"
                                     thresholds={[
-                                        { max: 100, color: '#009966', label: lang === 'th' ? 'ดีมาก' : 'Excellent' },
-                                        { max: 200, color: '#00e400', label: lang === 'th' ? 'ดี' : 'Good' },
-                                        { max: 350, color: '#ffff00', label: lang === 'th' ? 'ปานกลาง' : 'Moderate' },
-                                        { max: 500, color: '#ff7e00', label: lang === 'th' ? 'มีผลต่อสุขภาพ' : 'Unhealthy' },
-                                        { max: 700, color: '#ff0000', label: lang === 'th' ? 'อันตราย' : 'Hazardous' },
+                                        { max: 100, color: '#009966', label: 'Excellent' },
+                                        { max: 200, color: '#00e400', label: 'Good' },
+                                        { max: 350, color: '#ffff00', label: 'Moderate' },
+                                        { max: 500, color: '#ff7e00', label: 'Unhealthy' },
+                                        { max: 700, color: '#ff0000', label: 'Hazardous' },
                                     ]}
                                     maxScale={700}
                                     isLight={isLight}

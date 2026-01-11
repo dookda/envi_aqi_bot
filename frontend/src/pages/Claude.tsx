@@ -732,8 +732,8 @@ function EnhancedChart({ data, summary, isLight, language }: EnhancedChartProps)
     const avg = values.reduce((a, b) => a + b, 0) / values.length
     const range = max - min || 1
 
-    const firstTime = validData[0]?.time ? new Date(validData[0].time) : null
-    const lastTime = validData[validData.length - 1]?.time ? new Date(validData[validData.length - 1].time) : null
+    const firstTime = validData[0]?.time ? new Date(validData[0].time as string) : null
+    const lastTime = validData[validData.length - 1]?.time ? new Date(validData[validData.length - 1].time as string) : null
 
     // Determine bar color based on average
     const getBarColor = (value: number): string => {

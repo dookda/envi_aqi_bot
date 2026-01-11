@@ -103,7 +103,7 @@ const StationMap: React.FC<StationMapProps> = ({
         style: MAP_STYLE,
         center: THAILAND_CENTER,
         zoom: THAILAND_ZOOM,
-        attributionControl: true,
+        attributionControl: {},
       })
 
       // Add navigation controls
