@@ -182,9 +182,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                                                     ${isCollapsed ? 'px-2 py-2.5' : 'px-3 py-2.5'} rounded-xl
                                                     transition-all duration-200 group
                                                     ${active
-                                                        ? isLight
-                                                            ? 'bg-primary-50 text-primary-700 shadow-sm'
-                                                            : 'bg-primary-900/30 text-primary-400'
+                                                        ? 'bg-primary-500 text-white shadow-md shadow-primary-500/25'
                                                         : isLight
                                                             ? 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                                                             : 'text-dark-300 hover:bg-dark-800 hover:text-white'
@@ -196,7 +194,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                                                     ${isCollapsed ? 'w-10 h-10' : 'w-8 h-8'} rounded-lg flex items-center justify-center
                                                     transition-colors duration-200 flex-shrink-0
                                                     ${active
-                                                        ? 'bg-primary-500 text-white'
+                                                        ? 'bg-white/20 text-white'
                                                         : isLight
                                                             ? 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'
                                                             : 'bg-dark-700 text-dark-400 group-hover:bg-dark-600'
@@ -212,9 +210,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                                                         {item.badge && (
                                                             <span className={`
                                                                 text-[10px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0
-                                                                ${item.badgeColor === 'purple'
-                                                                    ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
-                                                                    : 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+                                                                ${active
+                                                                    ? 'bg-white/20 text-white'
+                                                                    : item.badgeColor === 'purple'
+                                                                        ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
+                                                                        : 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
                                                                 }
                                                             `}>
                                                                 {item.badge}
