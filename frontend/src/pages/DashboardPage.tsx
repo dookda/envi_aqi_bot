@@ -559,6 +559,13 @@ export default function Dashboard(): React.ReactElement {
                 subtitle={currentStation ? (currentStation.name_en || currentStation.name_th) : t('dashboard.subtitle')}
             >
                 <Link
+                    to="/cctv"
+                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
+                >
+                    <Icon name="videocam" size="sm" />
+                    {lang === 'th' ? 'กล้อง CCTV' : 'CCTV'}
+                </Link>
+                <Link
                     to="/chat"
                     className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
                 >

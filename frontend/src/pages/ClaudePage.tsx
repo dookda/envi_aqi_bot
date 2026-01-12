@@ -786,20 +786,56 @@ function EnhancedChart({ data, summary, isLight, language }: EnhancedChartProps)
                     <span className="text-right">{min.toFixed(0)}</span>
                 </div>
 
-                {/* Chart Area */}
+                {/* Chart Area - Line Chart */}
                 <div className="flex-1">
-                    <div className={`flex items-end gap-0.5 h-24 border-l border-b rounded-bl-lg ${isLight ? 'border-gray-300' : 'border-dark-600'}`}>
-                        {validData.slice(-60).map((point, index) => {
-                            const height = ((point.value! - min) / range) * 100
-                            return (
-                                <div
-                                    key={index}
-                                    className={`flex-1 bg-gradient-to-t ${getBarColor(point.value!)} rounded-t opacity-80 hover:opacity-100 transition cursor-pointer`}
-                                    style={{ height: `${Math.max(height, 3)}%`, minWidth: '2px' }}
-                                    title={`${point.value?.toFixed(1)} μg/m³\n${point.time ? new Date(point.time).toLocaleString() : ''}`}
-                                />
-                            )
-                        })}
+                    <div className={`relative h-24 border-l border-b rounded-bl-lg ${isLight ? 'border-gray-300' : 'border-dark-600'}`}>
+                        <svg width="100%" height="100%" className="overflow-visible">
+                            {/* Background grid */}
+                            <line x1="0" y1="50%" x2="100%" y2="50%" stroke={isLight ? '#e5e7eb' : '#374151'} strokeWidth="1" strokeDasharray="4 4" opacity="0.5" />
+
+                            {/* Line path */}
+                            <polyline
+                                points={validData.slice(-60).map((point, index) => {
+                                    const x = (index / Math.max(validData.slice(-60).length - 1, 1)) * 100
+                                    const y = 100 - ((point.value! - min) / range) * 100
+                                    return `${x}%,${y}%`
+                                }).join(' ')}
+                                fill="none"
+                                stroke="url(#lineGradientClaude)"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="transition-all duration-300"
+                            />
+
+                            {/* Gradient definition */}
+                            <defs>
+                                <linearGradient id="lineGradientClaude" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stopColor="#9333ea" />
+                                    <stop offset="50%" stopColor="#a855f7" />
+                                    <stop offset="100%" stopColor="#d946ef" />
+                                </linearGradient>
+                            </defs>
+
+                            {/* Data points */}
+                            {validData.slice(-60).map((point, index) => {
+                                const x = (index / Math.max(validData.slice(-60).length - 1, 1)) * 100
+                                const y = 100 - ((point.value! - min) / range) * 100
+                                const color = point.value! <= 50 ? '#10b981' : point.value! <= 100 ? '#f59e0b' : '#ef4444'
+                                return (
+                                    <circle
+                                        key={index}
+                                        cx={`${x}%`}
+                                        cy={`${y}%`}
+                                        r="3"
+                                        fill={color}
+                                        className="opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
+                                    >
+                                        <title>{`${point.value?.toFixed(1)} μg/m³\n${point.time ? new Date(point.time).toLocaleString() : ''}`}</title>
+                                    </circle>
+                                )
+                            })}
+                        </svg>
                     </div>
 
                     {/* X-axis */}

@@ -13,6 +13,66 @@ from datetime import datetime
 from backend_model.logger import logger
 
 
+# Parameter Standard Thresholds (WHO & Thailand PCD Guidelines)
+PARAMETER_THRESHOLDS = {
+    "pm25": {
+        "unit": "μg/m³",
+        "levels": [
+            {"max": 25, "level": "excellent", "label_en": "Excellent", "label_th": "ดีมาก"},
+            {"max": 50, "level": "good", "label_en": "Good", "label_th": "ดี"},
+            {"max": 100, "level": "moderate", "label_en": "Moderate", "label_th": "ปานกลาง"},
+            {"max": 200, "level": "unhealthy_sensitive", "label_en": "Unhealthy for Sensitive", "label_th": "มีผลต่อกลุ่มเสี่ยง"},
+        ],
+        "critical": 200,  # Above this is critical
+    },
+    "pm10": {
+        "unit": "μg/m³",
+        "levels": [
+            {"max": 50, "level": "good", "label_en": "Good", "label_th": "ดี"},
+            {"max": 80, "level": "moderate", "label_en": "Moderate", "label_th": "ปานกลาง"},
+            {"max": 120, "level": "unhealthy_sensitive", "label_en": "Unhealthy", "label_th": "มีผลต่อสุขภาพ"},
+        ],
+        "critical": 120,
+    },
+    "o3": {
+        "unit": "ppb",
+        "levels": [
+            {"max": 70, "level": "good", "label_en": "Good", "label_th": "ดี"},
+            {"max": 120, "level": "moderate", "label_en": "Moderate", "label_th": "ปานกลาง"},
+            {"max": 200, "level": "unhealthy", "label_en": "Unhealthy", "label_th": "มีผลต่อสุขภาพ"},
+        ],
+        "critical": 200,
+    },
+    "co": {
+        "unit": "ppm",
+        "levels": [
+            {"max": 6.4, "level": "good", "label_en": "Good", "label_th": "ดี"},
+            {"max": 9.0, "level": "moderate", "label_en": "Moderate", "label_th": "ปานกลาง"},
+            {"max": 15, "level": "unhealthy", "label_en": "Unhealthy", "label_th": "มีผลต่อสุขภาพ"},
+        ],
+        "critical": 15,
+    },
+    "no2": {
+        "unit": "ppb",
+        "levels": [
+            {"max": 106, "level": "good", "label_en": "Good", "label_th": "ดี"},
+            {"max": 170, "level": "moderate", "label_en": "Moderate", "label_th": "ปานกลาง"},
+            {"max": 340, "level": "unhealthy", "label_en": "Unhealthy", "label_th": "มีผลต่อสุขภาพ"},
+        ],
+        "critical": 340,
+    },
+    "so2": {
+        "unit": "ppb",
+        "levels": [
+            {"max": 200, "level": "good", "label_en": "Good", "label_th": "ดี"},
+            {"max": 350, "level": "moderate", "label_en": "Moderate", "label_th": "ปานกลาง"},
+            {"max": 500, "level": "unhealthy", "label_en": "Unhealthy", "label_th": "มีผลต่อสุขภาพ"},
+        ],
+        "critical": 500,
+    },
+}
+
+
 # AQI Level Definitions with Health Advice
 AQI_LEVELS = {
     "excellent": {
@@ -88,13 +148,141 @@ def get_aqi_level_from_pm25(pm25_value: float) -> str:
     """Determine AQI level from PM2.5 value"""
     if pm25_value is None:
         return "unknown"
-    
+
     for level, config in AQI_LEVELS.items():
         min_val, max_val = config["range"]
         if min_val <= pm25_value <= max_val:
             return level
-    
+
     return "hazardous" if pm25_value > 300 else "unknown"
+
+
+def check_parameter_threshold(parameter: str, value: float) -> Dict[str, Any]:
+    """
+    Check if a parameter value exceeds safety thresholds
+
+    Args:
+        parameter: Parameter name (pm25, pm10, o3, co, no2, so2)
+        value: Parameter value
+
+    Returns:
+        Dictionary with threshold info, warnings, and status
+    """
+    if value is None or parameter not in PARAMETER_THRESHOLDS:
+        return {"exceeds_standard": False, "level": "unknown"}
+
+    threshold_config = PARAMETER_THRESHOLDS[parameter]
+    unit = threshold_config["unit"]
+    critical = threshold_config["critical"]
+
+    # Determine level
+    current_level = "good"
+    level_label_en = "Good"
+    level_label_th = "ดี"
+
+    for level_info in threshold_config["levels"]:
+        if value <= level_info["max"]:
+            current_level = level_info["level"]
+            level_label_en = level_info["label_en"]
+            level_label_th = level_info["label_th"]
+            break
+        else:
+            current_level = "critical"
+            level_label_en = "Critical"
+            level_label_th = "วิกฤติ"
+
+    exceeds_standard = value > threshold_config["levels"][0]["max"]  # Exceeds "good" level
+    is_critical = value > critical
+
+    return {
+        "exceeds_standard": exceeds_standard,
+        "is_critical": is_critical,
+        "level": current_level,
+        "label_en": level_label_en,
+        "label_th": level_label_th,
+        "value": value,
+        "unit": unit,
+        "critical_threshold": critical,
+    }
+
+
+def generate_threshold_warnings(
+    data: List[Dict[str, Any]],
+    intent: Dict[str, Any],
+    language: str = "en"
+) -> Optional[str]:
+    """
+    Generate warnings for parameters that exceed safety thresholds
+
+    Args:
+        data: Time series data with all parameters
+        intent: Query intent with pollutant info
+        language: Response language (en/th)
+
+    Returns:
+        Warning message string if any parameters exceed thresholds, else None
+    """
+    if not data:
+        return None
+
+    # Get latest data point
+    latest = data[0] if isinstance(data, list) else data
+
+    # Check all tracked parameters
+    warnings = []
+    critical_warnings = []
+
+    for param in ["pm25", "pm10", "o3", "co", "no2", "so2"]:
+        value = latest.get(param)
+        if value is None:
+            continue
+
+        check = check_parameter_threshold(param, value)
+
+        if check["is_critical"]:
+            param_name = param.upper().replace("PM", "PM") if "pm" in param else param.upper()
+            if language == "th":
+                critical_warnings.append(
+                    f"⚠️ **{param_name}: {value:.1f} {check['unit']}** (วิกฤติ! เกินมาตรฐาน)"
+                )
+            else:
+                critical_warnings.append(
+                    f"⚠️ **{param_name}: {value:.1f} {check['unit']}** (CRITICAL! Exceeds safe levels)"
+                )
+        elif check["exceeds_standard"]:
+            param_name = param.upper().replace("PM", "PM") if "pm" in param else param.upper()
+            if language == "th":
+                warnings.append(
+                    f"⚠️ {param_name}: {value:.1f} {check['unit']} ({check['label_th']})"
+                )
+            else:
+                warnings.append(
+                    f"⚠️ {param_name}: {value:.1f} {check['unit']} ({check['label_en']})"
+                )
+
+    # Compose warning message
+    if critical_warnings:
+        if language == "th":
+            header = "🚨 **คำเตือนสำคัญ!**\n\n"
+            message = header + "\n".join(critical_warnings)
+            message += "\n\n⚠️ **ระวัง:** ค่ามลพิษอยู่ในระดับอันตราย! หลีกเลี่ยงกิจกรรมกลางแจ้ง อยู่ในอาคารและปิดหน้าต่าง สวมหน้ากาก N95 หากจำเป็นต้องออกนอกบ้าน"
+        else:
+            header = "🚨 **CRITICAL WARNING!**\n\n"
+            message = header + "\n".join(critical_warnings)
+            message += "\n\n⚠️ **CAUTION:** Pollution levels are dangerous! Avoid outdoor activities. Stay indoors with windows closed. Wear N95 mask if you must go outside."
+        return message
+    elif warnings:
+        if language == "th":
+            header = "⚠️ **คำเตือน: ค่ามลพิษเกินมาตรฐาน**\n\n"
+            message = header + "\n".join(warnings)
+            message += "\n\n💡 **คำแนะนำ:** ลดกิจกรรมกลางแจ้ง กลุ่มเสี่ยงควรสวมหน้ากากเมื่อออกนอกบ้าน"
+        else:
+            header = "⚠️ **Warning: Elevated Pollution Levels**\n\n"
+            message = header + "\n".join(warnings)
+            message += "\n\n💡 **Advice:** Limit outdoor activities. Sensitive groups should wear masks when outdoors."
+        return message
+
+    return None
 
 
 def compose_search_response(
@@ -239,7 +427,10 @@ def compose_data_response(
     avg_pm25 = summary.get("mean")
     aqi_level = get_aqi_level_from_pm25(avg_pm25) if avg_pm25 else "unknown"
     level_config = AQI_LEVELS.get(aqi_level, {})
-    
+
+    # Generate threshold warnings for all parameters
+    threshold_warning = generate_threshold_warnings(data, intent, language)
+
     # Determine trend description
     trend = summary.get("trend", "unknown")
     if language == "th":
@@ -254,10 +445,13 @@ def compose_data_response(
             "decreasing": "📉 Decreasing (improving)",
             "stable": "➡️ Stable",
         }.get(trend, "❓ Insufficient data")
-    
+
     # Build response message
+    warning_prefix = f"{threshold_warning}\n\n{'─' * 40}\n\n" if threshold_warning else ""
+
     if language == "th":
         message = (
+            f"{warning_prefix}"
             f"📊 **ข้อมูล PM2.5 สถานี {station_id}**\n\n"
             f"{level_config.get('emoji', '')} **ระดับคุณภาพอากาศ:** {level_config.get('label_th', 'ไม่ทราบ')}\n\n"
             f"📈 **สถิติช่วงเวลาที่เลือก:**\n"
@@ -270,6 +464,7 @@ def compose_data_response(
         )
     else:
         message = (
+            f"{warning_prefix}"
             f"📊 **PM2.5 Data for {station_id}**\n\n"
             f"{level_config.get('emoji', '')} **Air Quality Level:** {level_config.get('label_en', 'Unknown')}\n\n"
             f"📈 **Statistics for Selected Period:**\n"
