@@ -379,26 +379,6 @@ export default function CCTVPage(): React.ReactElement {
 
     return (
         <div className={`min-h-screen ${isLight ? 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50' : 'gradient-dark'}`}>
-            {/* Header */}
-            <Navbar
-                title={lang === 'th' ? '📹 กล้องตรวจจับสิ่งแวดล้อม' : '📹 CCTV Environmental Monitoring'}
-                subtitle={currentStation ? (currentStation.name_en || currentStation.name_th) : (lang === 'th' ? 'เลือกสถานีเพื่อดูภาพจากกล้อง' : 'Select station to view camera feed')}
-            >
-                <Link
-                    to="/"
-                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
-                >
-                    <Icon name="dashboard" size="sm" />
-                    {t('dashboard.title')}
-                </Link>
-                <Link
-                    to="/models"
-                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
-                >
-                    <Icon name="psychology" size="sm" />
-                    {t('dashboard.modelsStatus')}
-                </Link>
-            </Navbar>
 
             <main className="max-w-7xl mx-auto px-4 py-6">
                 {/* Controls Section */}

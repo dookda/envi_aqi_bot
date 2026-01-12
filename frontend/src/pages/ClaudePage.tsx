@@ -175,25 +175,6 @@ export default function Claude(): React.ReactElement {
 
     return (
         <div className="min-h-screen gradient-dark">
-            <Navbar
-                title="🧠 Claude AI Chat"
-                subtitle={language === 'th' ? 'ขับเคลื่อนโดย Anthropic Claude' : 'Powered by Anthropic Claude'}
-            >
-                <Link
-                    to="/chat"
-                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-blue-600 hover:text-blue-800' : 'text-blue-400 hover:text-blue-300'}`}
-                >
-                    <Icon name="smart_toy" size="sm" />
-                    🤖 Ollama AI
-                </Link>
-                <Link
-                    to="/"
-                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
-                >
-                    <Icon name="dashboard" size="sm" />
-                    {t('chat.dashboard')}
-                </Link>
-            </Navbar>
 
             <main className="max-w-7xl mx-auto px-4 py-6">
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

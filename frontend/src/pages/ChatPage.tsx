@@ -174,25 +174,6 @@ export default function Chat(): React.ReactElement {
 
     return (
         <div className="min-h-screen gradient-dark">
-            <Navbar
-                title={t('chat.title')}
-                subtitle={t('chat.subtitle')}
-            >
-                <Link
-                    to="/chat/claude"
-                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-purple-600 hover:text-purple-800' : 'text-purple-400 hover:text-purple-300'}`}
-                >
-                    <Icon name="psychology" size="sm" />
-                    🧠 Claude AI
-                </Link>
-                <Link
-                    to="/"
-                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
-                >
-                    <Icon name="dashboard" size="sm" />
-                    {t('chat.dashboard')}
-                </Link>
-            </Navbar>
 
             <main className="max-w-7xl mx-auto px-4 py-6">
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

@@ -195,34 +195,27 @@ export default function Models(): React.ReactElement {
 
     return (
         <div className="min-h-screen gradient-dark">
-            {/* Header with Language/Theme toggles */}
-            <Navbar
-                title={t('models.title')}
-                subtitle={t('models.subtitle')}
-            >
-                <Link
-                    to="/"
-                    className={`transition flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
-                >
-                    <Icon name="arrow_back" size="sm" />
-                    {t('models.backToDashboard')}
-                </Link>
-                <Link
-                    to="/admin"
-                    className={`transition flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
-                >
-                    <Icon name="admin_panel_settings" size="sm" />
-                    Admin
-                </Link>
-                <Button
-                    onClick={handleTrainAll}
-                    loading={trainingStation === 'all'}
-                    variant="primary"
-                >
-                    <Icon name="model_training" size="sm" />
-                    {t('models.trainAll')}
-                </Button>
-            </Navbar>
+            {/* Page Header with Train All button */}
+            <div className="max-w-7xl mx-auto px-4 pt-6 pb-2">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className={`text-2xl font-bold ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                            {t('models.title')}
+                        </h1>
+                        <p className={`text-sm ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                            {t('models.subtitle')}
+                        </p>
+                    </div>
+                    <Button
+                        onClick={handleTrainAll}
+                        loading={trainingStation === 'all'}
+                        variant="primary"
+                    >
+                        <Icon name="model_training" size="sm" />
+                        {t('models.trainAll')}
+                    </Button>
+                </div>
+            </div>
 
             <main className="max-w-7xl mx-auto px-4 py-6">
                 {/* Summary Stats */}

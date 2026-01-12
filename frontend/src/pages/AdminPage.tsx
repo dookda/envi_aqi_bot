@@ -177,32 +177,6 @@ export default function Admin(): React.ReactElement {
 
     return (
         <div className="min-h-screen gradient-dark">
-            <Navbar
-                title={lang === 'th' ? 'การตรวจสอบระบบ' : 'Admin Monitoring'}
-                subtitle={lang === 'th' ? 'ตรวจสอบสถานะและความสมบูรณ์ของข้อมูล' : 'Monitor data status and integrity'}
-            >
-                <Link
-                    to="/"
-                    className={`transition flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
-                >
-                    <Icon name="arrow_back" size="sm" />
-                    {lang === 'th' ? 'กลับไปแดชบอร์ด' : 'Back to Dashboard'}
-                </Link>
-                <Link
-                    to="/upload"
-                    className={`transition flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
-                >
-                    <Icon name="upload" size="sm" />
-                    {lang === 'th' ? 'อัปโหลดข้อมูล' : 'Upload Data'}
-                </Link>
-                <Link
-                    to="/models"
-                    className={`transition flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
-                >
-                    <Icon name="psychology" size="sm" />
-                    {lang === 'th' ? 'โมเดล' : 'Models'}
-                </Link>
-            </Navbar>
 
             <main className="max-w-7xl mx-auto px-4 py-6">{loading ? (
                 <>

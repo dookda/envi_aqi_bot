@@ -4,6 +4,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Dashboard, Models, Chat, Claude, Admin, DataUpload, CCTV } from './pages'
 import { LanguageProvider, ThemeProvider, ToastProvider } from './contexts'
+import { Layout } from './components/organisms'
 
 const App: React.FC = () => {
   return (
@@ -11,15 +12,17 @@ const App: React.FC = () => {
       <ThemeProvider>
         <ToastProvider>
           <Router basename="/ebot">
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/models" element={<Models />} />
-              <Route path="/chat" element={<Chat />} />
-              <Route path="/chat/claude" element={<Claude />} />
-              <Route path="/admin" element={<Admin />} />
-              <Route path="/upload" element={<DataUpload />} />
-              <Route path="/cctv" element={<CCTV />} />
-            </Routes>
+            <Layout>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/models" element={<Models />} />
+                <Route path="/chat" element={<Chat />} />
+                <Route path="/chat/claude" element={<Claude />} />
+                <Route path="/admin" element={<Admin />} />
+                <Route path="/upload" element={<DataUpload />} />
+                <Route path="/cctv" element={<CCTV />} />
+              </Routes>
+            </Layout>
           </Router>
         </ToastProvider>
       </ThemeProvider>
@@ -28,3 +31,4 @@ const App: React.FC = () => {
 }
 
 export default App
+

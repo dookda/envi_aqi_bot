@@ -413,10 +413,10 @@ const DataTableView: React.FC<DataTableViewProps> = ({
                                 <button
                                     onClick={() => setStatusFilter('all')}
                                     className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${statusFilter === 'all'
-                                            ? 'bg-primary-500 text-white'
-                                            : isLight
-                                                ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                                : 'bg-dark-700 text-dark-300 hover:bg-dark-600'
+                                        ? 'bg-primary-500 text-white'
+                                        : isLight
+                                            ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            : 'bg-dark-700 text-dark-300 hover:bg-dark-600'
                                         }`}
                                 >
                                     {lang === 'th' ? 'ทั้งหมด' : 'All'}
@@ -424,10 +424,10 @@ const DataTableView: React.FC<DataTableViewProps> = ({
                                 <button
                                     onClick={() => setStatusFilter('measured')}
                                     className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${statusFilter === 'measured'
-                                            ? 'bg-emerald-500 text-white'
-                                            : isLight
-                                                ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                                                : 'bg-emerald-900/30 text-emerald-400 hover:bg-emerald-900/50'
+                                        ? 'bg-emerald-500 text-white'
+                                        : isLight
+                                            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                                            : 'bg-emerald-900/30 text-emerald-400 hover:bg-emerald-900/50'
                                         }`}
                                 >
                                     <Icon name="check_circle" size="xs" />
@@ -436,10 +436,10 @@ const DataTableView: React.FC<DataTableViewProps> = ({
                                 <button
                                     onClick={() => setStatusFilter('imputed')}
                                     className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${statusFilter === 'imputed'
-                                            ? 'bg-amber-500 text-white'
-                                            : isLight
-                                                ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                                                : 'bg-amber-900/30 text-amber-400 hover:bg-amber-900/50'
+                                        ? 'bg-amber-500 text-white'
+                                        : isLight
+                                            ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                                            : 'bg-amber-900/30 text-amber-400 hover:bg-amber-900/50'
                                         }`}
                                 >
                                     <Icon name="auto_fix_high" size="xs" />
@@ -448,10 +448,10 @@ const DataTableView: React.FC<DataTableViewProps> = ({
                                 <button
                                     onClick={() => setStatusFilter('missing')}
                                     className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${statusFilter === 'missing'
-                                            ? 'bg-gray-500 text-white'
-                                            : isLight
-                                                ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                                                : 'bg-dark-700 text-dark-400 hover:bg-dark-600'
+                                        ? 'bg-gray-500 text-white'
+                                        : isLight
+                                            ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                            : 'bg-dark-700 text-dark-400 hover:bg-dark-600'
                                         }`}
                                 >
                                     <Icon name="help_outline" size="xs" />
@@ -553,41 +553,6 @@ export default function Dashboard(): React.ReactElement {
 
     return (
         <div className={`min-h-screen ${isLight ? 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50' : 'gradient-dark'}`}>
-            {/* Header */}
-            <Navbar
-                title={t('dashboard.title')}
-                subtitle={currentStation ? (currentStation.name_en || currentStation.name_th) : t('dashboard.subtitle')}
-            >
-                <Link
-                    to="/cctv"
-                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
-                >
-                    <Icon name="videocam" size="sm" />
-                    {lang === 'th' ? 'กล้อง CCTV' : 'CCTV'}
-                </Link>
-                <Link
-                    to="/chat"
-                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
-                >
-                    <Icon name="smart_toy" size="sm" />
-                    {t('dashboard.aiChat')}
-                </Link>
-                <Link
-                    to="/models"
-                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
-                >
-                    <Icon name="psychology" size="sm" />
-                    {t('dashboard.modelsStatus')}
-                </Link>
-                <Link
-                    to="/admin"
-                    className={`transition text-sm flex items-center gap-1 ${isLight ? 'text-gray-600 hover:text-gray-900' : 'text-dark-400 hover:text-white'}`}
-                >
-                    <Icon name="admin_panel_settings" size="sm" />
-                    Admin
-                </Link>
-            </Navbar>
-
             <main className="max-w-7xl mx-auto px-4 py-6">
                 {/* Hero Section - Current AQI Status */}
                 <section className="mb-8">

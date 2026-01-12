@@ -196,10 +196,6 @@ export default function DataUpload(): React.ReactElement {
 
     return (
         <div className={`min-h-screen ${isLight ? 'bg-gray-50' : 'bg-gray-900'}`}>
-            <Navbar
-                title={lang === 'th' ? 'อัปโหลดข้อมูล' : 'Data Upload'}
-                subtitle={lang === 'th' ? 'นำเข้าข้อมูลจาก API หรือไฟล์ CSV' : 'Import data from API URL or CSV file'}
-            />
 
             <main className="container mx-auto px-4 py-6 max-w-6xl">
                 {/* Header */}
