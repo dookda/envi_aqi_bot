@@ -1,7 +1,7 @@
 // Pages
-export { default as Dashboard } from './Dashboard'
-export { default as Models } from './Models'
-export { default as Chat } from './Chat'
-export { default as Claude } from './Claude'
-export { default as Admin } from './Admin'
-export { default as DataUpload } from './DataUpload'
+export { default as Dashboard } from './DashboardPage'
+export { default as Models } from './ModelsPage'
+export { default as Chat } from './ChatPage'
+export { default as Claude } from './ClaudePage'
+export { default as Admin } from './AdminPage'
+export { default as DataUpload } from './DataUploadPage'
