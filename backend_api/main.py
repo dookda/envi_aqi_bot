@@ -2004,3 +2004,74 @@ async def import_csv_data(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Error importing CSV data: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# =============================================================================
+# CCTV Object Detection Endpoints
+# =============================================================================
+
+@app.post("/api/cctv/detect", tags=["CCTV Detection"])
+async def detect_objects_in_frame(file: UploadFile = File(...)):
+    """
+    Detect objects in a video frame using YOLO.
+
+    **Detected Objects:**
+    - Human (person)
+    - Vehicles (car, motorcycle, bicycle)
+    - Animals (bird, cat, dog, etc.)
+
+    **Request:**
+    - Upload a JPEG/PNG image file (video frame)
+
+    **Response:**
+    - `detections`: List of detected objects with bounding boxes
+    - `statistics`: Count by category (human, car, motorcycle, bicycle, animal)
+    - `processing_time_ms`: Detection processing time
+
+    **Bounding Box Format:**
+    - Coordinates are relative (0-1) to frame dimensions
+    - Format: `{x, y, width, height}` where x,y is top-left corner
+    """
+    from backend_api.services.yolo_detector import get_yolo_detector
+
+    try:
+        # Read uploaded frame
+        frame_data = await file.read()
+
+        if len(frame_data) == 0:
+            raise HTTPException(status_code=400, detail="Empty file uploaded")
+
+        # Detect objects
+        detector = get_yolo_detector()
+        result = detector.detect_frame(frame_data)
+
+        if not result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Detection failed: {result.get('error', 'Unknown error')}"
+            )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing detection request: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/cctv/model/info", tags=["CCTV Detection"])
+async def get_detection_model_info():
+    """
+    Get information about the loaded YOLO detection model.
+
+    Returns model configuration and target detection categories.
+    """
+    from backend_api.services.yolo_detector import get_yolo_detector
+
+    try:
+        detector = get_yolo_detector()
+        return detector.get_model_info()
+    except Exception as e:
+        logger.error(f"Error getting model info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

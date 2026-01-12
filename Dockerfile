@@ -2,12 +2,17 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies (including curl for health checks)
+# Install system dependencies (including curl for health checks and OpenCV deps)
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
     curl \
     procps \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for caching

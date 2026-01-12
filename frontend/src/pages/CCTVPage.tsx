@@ -83,38 +83,234 @@ export default function CCTVPage(): React.ReactElement {
         }
     }, [])
 
-    // Simulate detection updates (replace with actual API)
+    // Attach stream to video element when both exist
     useEffect(() => {
-        if (!isStreaming || !detectionEnabled) return
+        if (!isStreaming || !streamRef.current || !videoRef.current) return
 
+        console.log('🔗 Attaching stream to video element...')
+
+        const video = videoRef.current
+        const stream = streamRef.current
+
+        // Add event listeners for debugging
+        video.onloadedmetadata = () => {
+            console.log('✅ Video metadata loaded')
+            console.log('📊 Video dimensions:', {
+                videoWidth: video.videoWidth,
+                videoHeight: video.videoHeight,
+                readyState: video.readyState
+            })
+        }
+
+        video.onloadeddata = () => {
+            console.log('✅ Video data loaded')
+        }
+
+        video.oncanplay = () => {
+            console.log('✅ Video can play')
+        }
+
+        video.onerror = (error) => {
+            console.error('❌ Video element error:', error)
+        }
+
+        // Attach stream
+        video.srcObject = stream
+
+        console.log('🎬 Attempting to play video...')
+        video.play()
+            .then(() => {
+                console.log('✅ Video is playing')
+            })
+            .catch(error => {
+                console.error('❌ Error playing video:', error)
+            })
+
+        // Cleanup event listeners
+        return () => {
+            video.onloadedmetadata = null
+            video.onloadeddata = null
+            video.oncanplay = null
+            video.onerror = null
+        }
+    }, [isStreaming])
+
+    // Monitor video element state
+    useEffect(() => {
+        if (!isStreaming || !videoRef.current) return
+
+        console.log('🔍 Monitoring video element state...')
         const interval = setInterval(() => {
-            // Simulate random detections
-            const types: (keyof typeof DETECTION_TYPES)[] = ['human', 'car', 'motorcycle', 'bicycle', 'animal']
-            const randomType = types[Math.floor(Math.random() * types.length)]
-
-            setDetectionStats(prev => ({
-                ...prev,
-                [randomType]: prev[randomType] + 1,
-                total: prev.total + 1,
-                timestamp: new Date().toISOString(),
-            }))
-
-            // Add to recent detections
-            const newDetection: DetectionEvent = {
-                id: `det_${Date.now()}`,
-                type: randomType,
-                confidence: 0.75 + Math.random() * 0.24,
-                timestamp: new Date().toISOString(),
+            if (videoRef.current) {
+                console.log('📊 Video status:', {
+                    readyState: videoRef.current.readyState,
+                    networkState: videoRef.current.networkState,
+                    paused: videoRef.current.paused,
+                    ended: videoRef.current.ended,
+                    videoWidth: videoRef.current.videoWidth,
+                    videoHeight: videoRef.current.videoHeight,
+                    currentTime: videoRef.current.currentTime,
+                    hasStream: !!videoRef.current.srcObject,
+                    streamActive: streamRef.current?.active
+                })
             }
+        }, 2000)
 
-            setRecentDetections(prev => [newDetection, ...prev.slice(0, 9)])
-        }, 3000 + Math.random() * 4000)
+        return () => clearInterval(interval)
+    }, [isStreaming])
+
+    // Real-time YOLO detection
+    useEffect(() => {
+        if (!isStreaming || !detectionEnabled || !videoRef.current || !canvasRef.current) return
+
+        let isProcessing = false
+
+        const captureAndDetect = async () => {
+            if (isProcessing || !videoRef.current || !canvasRef.current) return
+
+            isProcessing = true
+
+            try {
+                const video = videoRef.current
+                const canvas = canvasRef.current
+
+                // Skip if video not ready
+                if (video.readyState !== 4) {
+                    isProcessing = false
+                    return
+                }
+
+                // Set canvas dimensions to match video
+                canvas.width = video.videoWidth
+                canvas.height = video.videoHeight
+
+                // Capture frame from video
+                const ctx = canvas.getContext('2d')
+                if (!ctx) {
+                    isProcessing = false
+                    return
+                }
+
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+                // Convert canvas to blob
+                canvas.toBlob(async (blob) => {
+                    if (!blob) {
+                        isProcessing = false
+                        return
+                    }
+
+                    // Send to YOLO API
+                    const formData = new FormData()
+                    formData.append('file', blob, 'frame.jpg')
+
+                    try {
+                        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+                        const response = await fetch(`${apiBaseUrl}/api/cctv/detect`, {
+                            method: 'POST',
+                            body: formData
+                        })
+
+                        if (!response.ok) {
+                            console.error('Detection API error:', response.statusText)
+                            isProcessing = false
+                            return
+                        }
+
+                        const result = await response.json()
+
+                        if (result.success) {
+                            // Update statistics
+                            const stats = result.statistics
+                            setDetectionStats({
+                                human: stats.human,
+                                car: stats.car,
+                                motorcycle: stats.motorcycle,
+                                bicycle: stats.bicycle,
+                                animal: stats.animal,
+                                total: stats.total,
+                                timestamp: new Date().toISOString()
+                            })
+
+                            // Draw bounding boxes on canvas
+                            drawBoundingBoxes(ctx, result.detections, canvas.width, canvas.height)
+
+                            // Add new detections to recent list
+                            const newDetections: DetectionEvent[] = result.detections.map((det: any) => ({
+                                id: `det_${Date.now()}_${Math.random()}`,
+                                type: det.type,
+                                confidence: det.confidence,
+                                timestamp: new Date().toISOString(),
+                                bbox: det.bbox
+                            }))
+
+                            if (newDetections.length > 0) {
+                                setRecentDetections(prev => [...newDetections, ...prev].slice(0, 10))
+                            }
+
+                            console.log(`🎯 Detected ${stats.total} objects in ${result.processing_time_ms}ms`)
+                        }
+                    } catch (error) {
+                        console.error('Detection error:', error)
+                    } finally {
+                        isProcessing = false
+                    }
+                }, 'image/jpeg', 0.8)
+            } catch (error) {
+                console.error('Frame capture error:', error)
+                isProcessing = false
+            }
+        }
+
+        // Run detection every 2 seconds
+        const interval = setInterval(captureAndDetect, 2000)
 
         return () => clearInterval(interval)
     }, [isStreaming, detectionEnabled])
 
+    // Draw bounding boxes on canvas
+    const drawBoundingBoxes = (
+        ctx: CanvasRenderingContext2D,
+        detections: any[],
+        canvasWidth: number,
+        canvasHeight: number
+    ) => {
+        // Clear previous boxes
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+
+        // Draw each detection
+        detections.forEach(det => {
+            const { x, y, width, height } = det.bbox
+            const config = DETECTION_TYPES[det.type as keyof typeof DETECTION_TYPES]
+
+            // Convert relative coordinates to pixels
+            const px = x * canvasWidth
+            const py = y * canvasHeight
+            const pw = width * canvasWidth
+            const ph = height * canvasHeight
+
+            // Draw bounding box
+            ctx.strokeStyle = config.color
+            ctx.lineWidth = 3
+            ctx.strokeRect(px, py, pw, ph)
+
+            // Draw label background
+            const label = `${config.label} ${(det.confidence * 100).toFixed(0)}%`
+            ctx.font = '16px Arial'
+            const textWidth = ctx.measureText(label).width
+            ctx.fillStyle = config.color
+            ctx.fillRect(px, py - 25, textWidth + 10, 25)
+
+            // Draw label text
+            ctx.fillStyle = 'white'
+            ctx.fillText(label, px + 5, py - 7)
+        })
+    }
+
     const handleStartStream = async () => {
         try {
+            console.log('🎥 Requesting camera access...')
+
             // Request access to camera
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: {
@@ -125,18 +321,26 @@ export default function CCTVPage(): React.ReactElement {
                 audio: false
             })
 
+            console.log('✅ Camera access granted')
+            console.log('📹 Stream tracks:', stream.getTracks().map(track => ({
+                kind: track.kind,
+                label: track.label,
+                enabled: track.enabled,
+                readyState: track.readyState
+            })))
+
             // Store stream reference
             streamRef.current = stream
 
-            // Attach stream to video element
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream
-                videoRef.current.play()
-            }
-
+            // Set streaming state - this will trigger the useEffect to attach the stream
             setIsStreaming(true)
+            console.log('✅ Streaming state set to true - video element will render and stream will attach')
         } catch (error) {
-            console.error('Error accessing camera:', error)
+            console.error('❌ Error accessing camera:', error)
+            console.error('Error details:', {
+                name: (error as Error).name,
+                message: (error as Error).message
+            })
             alert(lang === 'th'
                 ? 'ไม่สามารถเข้าถึงกล้องได้ กรุณาอนุญาตการเข้าถึงกล้องในเบราว์เซอร์'
                 : 'Cannot access camera. Please allow camera access in your browser.')
@@ -308,24 +512,26 @@ export default function CCTVPage(): React.ReactElement {
                                         {/* Video element (replace with actual stream) */}
                                         <video
                                             ref={videoRef}
-                                            className="w-full h-full object-contain"
+                                            className="w-full h-full object-cover"
                                             autoPlay
                                             muted
                                             playsInline
+                                            style={{ transform: 'scaleX(-1)' }}
                                         />
                                         {/* Detection overlay canvas */}
                                         <canvas
                                             ref={canvasRef}
                                             className="absolute inset-0 w-full h-full pointer-events-none"
+                                            style={{ transform: 'scaleX(-1)' }}
                                         />
                                         {/* Live indicator */}
-                                        <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-500 text-white px-3 py-1.5 rounded-lg shadow-lg">
+                                        <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-500 text-white px-3 py-1.5 rounded-lg shadow-lg z-10">
                                             <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
                                             <span className="text-sm font-bold">LIVE</span>
                                         </div>
                                         {/* Detection count overlay */}
                                         {detectionEnabled && (
-                                            <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-2 rounded-lg backdrop-blur-sm">
+                                            <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-2 rounded-lg backdrop-blur-sm z-10">
                                                 <div className="text-xs opacity-70">{lang === 'th' ? 'ตรวจพบ' : 'Detected'}</div>
                                                 <div className="text-2xl font-bold">{detectionStats.total}</div>
                                             </div>
@@ -356,10 +562,10 @@ export default function CCTVPage(): React.ReactElement {
                                         <Icon name="info" size="sm" className="text-green-500 mt-0.5" />
                                         <div>
                                             <p className={`text-sm ${isLight ? 'text-green-800' : 'text-green-300'}`}>
-                                                <strong>{lang === 'th' ? 'Demo Mode:' : 'Demo Mode:'}</strong>{' '}
+                                                <strong>{lang === 'th' ? '🎯 YOLO Detection Active:' : '🎯 YOLO Detection Active:'}</strong>{' '}
                                                 {lang === 'th'
-                                                    ? 'กำลังใช้กล้องของคอมพิวเตอร์เพื่อสาธิต ในการใช้งานจริงจะเชื่อมต่อกับกล้อง CCTV ที่สถานีตรวจวัดและรวมระบบ object detection (YOLO, TensorFlow)'
-                                                    : 'Using your computer camera for demonstration. In production, this will connect to station CCTV cameras and integrate object detection systems (YOLO, TensorFlow)'}
+                                                    ? 'กำลังใช้ YOLOv8 ตรวจจับวัตถุแบบเรียลไทม์ ระบบจะจับภาพจากกล้องทุก 2 วินาทีและวิเคราะห์หาคน ยานพาหนะ และสัตว์ พร้อมแสดงกรอบสีและความแม่นยำ'
+                                                    : 'YOLOv8 real-time object detection is running. The system captures frames every 2 seconds and detects humans, vehicles, and animals with bounding boxes and confidence scores.'}
                                             </p>
                                         </div>
                                     </div>
