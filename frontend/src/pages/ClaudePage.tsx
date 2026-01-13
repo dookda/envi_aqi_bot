@@ -190,7 +190,7 @@ export default function Claude(): React.ReactElement {
                                     </div>
                                     <div>
                                         <h3 className={`font-semibold ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                                            Claude AI
+                                            Model B
                                         </h3>
                                         <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
                                             {language === 'th' ? 'ตอบเร็ว 1-3 วินาที' : 'Fast 1-3s response'}
@@ -274,7 +274,7 @@ export default function Claude(): React.ReactElement {
                                     </button>
                                     <Icon name="psychology" className="text-purple-500" />
                                     <span className={`font-medium ${isLight ? 'text-gray-700' : 'text-white'}`}>
-                                        {language === 'th' ? 'สนทนากับ Claude' : 'Claude Conversation'}
+                                        {language === 'th' ? 'สนทนากับ Model B' : 'Model B Conversation'}
                                     </span>
                                     {messages.length > 0 && (
                                         <Badge variant="default" size="sm">
@@ -402,7 +402,7 @@ function TypingIndicator({ isLight, language }: TypingIndicatorProps): React.Rea
                         <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
                     <span className={`text-sm ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                        {language === 'th' ? 'Claude กำลังคิด...' : 'Claude is thinking...'}
+                        {language === 'th' ? 'Model B กำลังคิด...' : 'Model B is thinking...'}
                     </span>
                 </div>
             </div>
@@ -505,7 +505,7 @@ function ChatMessage({ message, isLight, language }: ChatMessageProps): React.Re
                         })}
                     </span>
                     {!isUser && (
-                        <span className="text-xs text-purple-400">🧠 Claude</span>
+                        <span className="text-xs text-purple-400">🧠 Model B</span>
                     )}
                     {isUser && (
                         <Icon name="done_all" size="xs" className={isLight ? 'text-gray-400' : 'text-dark-500'} />

@@ -86,7 +86,7 @@ export default function useClaude(): UseClaudeReturn {
       const errorMessage: ChatMessage = {
         id: Date.now() + 1,
         type: 'bot',
-        text: 'ขออภัย Claude AI ไม่สามารถประมวลผลได้ กรุณาตรวจสอบ ANTHROPIC_API_KEY',
+        text: 'ขออภัย Model B ไม่สามารถประมวลผลได้ กรุณาตรวจสอบ ANTHROPIC_API_KEY',
         timestamp: new Date(),
         status: 'error',
         llm_provider: 'claude'
@@ -128,7 +128,7 @@ function getResponseText(result: ClaudeApiResponse): string {
 
   if (result.status === 'success' && result.summary) {
     const s = result.summary
-    let text = `🧠 Claude AI Response (${result.response_time_ms}ms)\n\n`
+    let text = `🧠 Model B Response (${result.response_time_ms}ms)\n\n`
     text += `ข้อมูล PM2.5:\n\n`
     text += `• ค่าเฉลี่ย: ${s.mean} μg/m³\n`
     text += `• ค่าสูงสุด: ${s.max} μg/m³\n`

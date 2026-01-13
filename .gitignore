@@ -214,7 +214,7 @@ __marimo__/
 logs/
 
 # Data files
-*.csv
+# *.csv
 *.parquet
 
 # Jupyter notebooks

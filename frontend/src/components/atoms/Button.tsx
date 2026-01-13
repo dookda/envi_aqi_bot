@@ -64,7 +64,7 @@ const Button: React.FC<ButtonProps> = ({
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>
       )}
-      {icon && !loading && <span className="material-symbols-rounded text-lg">{icon}</span>}
+      {icon && !loading && <span className="material-symbols-outlined text-lg">{icon}</span>}
       {children}
     </button>
   )

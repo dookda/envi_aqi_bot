@@ -1,0 +1,3 @@
+station_id,name_th,name_en,lat,lon,station_type
+TEST01,สถานีทดสอบ 1,Test Station 1,13.7563,100.5018,industrial
+TEST02,สถานีทดสอบ 2,Test Station 2,18.7883,98.9853,urban

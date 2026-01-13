@@ -11,7 +11,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Dashboard
     'dashboard.title': 'AQI Monitoring Dashboard',
     'dashboard.subtitle': 'Real-time PM2.5 data with LSTM-based gap filling',
-    'dashboard.aiChat': 'AI Chat',
+    'dashboard.aiChat': 'Model A',
     'dashboard.modelsStatus': 'Models Status',
     'dashboard.showAnomalies': 'Show Anomalies',
     'dashboard.timePeriod': 'Time Period',
@@ -124,7 +124,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Dashboard
     'dashboard.title': 'แดชบอร์ดติดตามคุณภาพอากาศ',
     'dashboard.subtitle': 'ข้อมูล PM2.5 แบบเรียลไทม์พร้อมการเติมช่องว่างด้วย LSTM',
-    'dashboard.aiChat': 'แชท AI',
+    'dashboard.aiChat': 'Model A',
     'dashboard.modelsStatus': 'สถานะโมเดล',
     'dashboard.showAnomalies': 'แสดงความผิดปกติ',
     'dashboard.timePeriod': 'ช่วงเวลา',

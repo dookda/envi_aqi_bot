@@ -410,26 +410,28 @@ export default function Models(): React.ReactElement {
                             </div>
 
                             {/* Actions */}
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                                 <Button
                                     size="sm"
                                     variant="secondary"
                                     onClick={() => handleTrainModel(station.station_id)}
                                     loading={trainingStation === station.station_id}
                                     disabled={trainingStation === station.station_id}
-                                    className="flex-1"
+                                    className="min-w-0 flex-1 basis-[calc(50%-0.25rem)]"
                                 >
                                     <Icon name="model_training" size="xs" />
-                                    {station.model_status.has_model ? t('models.retrain') : t('models.train')}
+                                    <span className="truncate">
+                                        {station.model_status.has_model ? t('models.retrain') : t('models.train')}
+                                    </span>
                                 </Button>
                                 <Button
                                     size="sm"
                                     variant="ghost"
                                     onClick={() => navigate(`/?station=${station.station_id}`)}
-                                    className="flex-1"
+                                    className="min-w-0 flex-1 basis-[calc(50%-0.25rem)]"
                                 >
                                     <Icon name="show_chart" size="xs" />
-                                    {t('models.viewChart')}
+                                    <span className="truncate">{t('models.viewChart')}</span>
                                 </Button>
                                 {/* Fill Gaps button - always shown when model is ready for gap filling */}
                                 {station.gap_fill_ready && (
@@ -445,14 +447,16 @@ export default function Models(): React.ReactElement {
                                         onClick={() => handleFillGaps(station.station_id)}
                                         loading={imputingStation === station.station_id}
                                         disabled={imputingStation === station.station_id || station.data_status.missing_points === 0}
-                                        className="flex-1"
+                                        className="min-w-0 w-full"
                                     >
                                         <Icon name="auto_fix_high" size="xs" />
-                                        {station.data_status.missing_points === 0
-                                            ? 'Complete'
-                                            : filledStations.has(station.station_id)
-                                                ? 'Filled'
-                                                : 'Fill Gaps'}
+                                        <span className="truncate">
+                                            {station.data_status.missing_points === 0
+                                                ? 'Complete'
+                                                : filledStations.has(station.station_id)
+                                                    ? 'Filled'
+                                                    : 'Fill Gaps'}
+                                        </span>
                                     </Button>
                                 )}
                             </div>

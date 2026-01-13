@@ -331,57 +331,8 @@ async def search_stations(
     return result
 
 
-@app.get("/api/stations/{station_id}", response_model=StationWithStats, tags=["Stations"])
-async def get_station(station_id: str, db: Session = Depends(get_db)):
-    """Get station details with data statistics (total records, missing, imputed)"""
-    station = db.query(Station).filter(
-        Station.station_id == station_id).first()
-
-    if not station:
-        raise HTTPException(status_code=404, detail="Station not found")
-
-    # Get statistics
-    result = db.execute(
-        text("""
-            SELECT 
-                COUNT(*) as total,
-                COUNT(*) FILTER (WHERE pm25 IS NULL) as missing,
-                COUNT(*) FILTER (WHERE is_imputed = TRUE) as imputed
-            FROM aqi_hourly
-            WHERE station_id = :station_id
-        """),
-        {"station_id": station_id}
-    ).first()
-
-    total = result[0] if result else 0
-    missing = result[1] if result else 0
-    imputed = result[2] if result else 0
-
-    return StationWithStats(
-        **station.__dict__,
-        total_records=total,
-        missing_records=missing,
-        imputed_records=imputed,
-        missing_percentage=round(missing / total * 100, 2) if total > 0 else 0
-    )
-
-
-@app.post("/api/stations/sync", tags=["Stations"])
-async def sync_stations(background_tasks: BackgroundTasks):
-    """Sync station metadata from Air4Thai API (background task)"""
-    background_tasks.add_task(_sync_stations_task)
-    return {"message": "Station sync started", "status": "processing"}
-
-
-async def _sync_stations_task():
-    """Background task for station sync"""
-    stations = await ingestion_service.fetch_stations()
-    from backend_model.database import get_db_context
-    with get_db_context() as db:
-        ingestion_service.save_stations(db, stations)
-
-
 # ============== Station Management ==============
+# NOTE: These routes MUST come before /api/stations/{station_id} to avoid route conflict
 
 @app.get("/api/stations/manage", tags=["Stations"])
 async def list_stations_for_management(
@@ -433,6 +384,56 @@ async def list_stations_for_management(
         "total": len(result),
         "stations": result
     }
+
+
+@app.get("/api/stations/{station_id}", response_model=StationWithStats, tags=["Stations"])
+async def get_station(station_id: str, db: Session = Depends(get_db)):
+    """Get station details with data statistics (total records, missing, imputed)"""
+    station = db.query(Station).filter(
+        Station.station_id == station_id).first()
+
+    if not station:
+        raise HTTPException(status_code=404, detail="Station not found")
+
+    # Get statistics
+    result = db.execute(
+        text("""
+            SELECT 
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE pm25 IS NULL) as missing,
+                COUNT(*) FILTER (WHERE is_imputed = TRUE) as imputed
+            FROM aqi_hourly
+            WHERE station_id = :station_id
+        """),
+        {"station_id": station_id}
+    ).first()
+
+    total = result[0] if result else 0
+    missing = result[1] if result else 0
+    imputed = result[2] if result else 0
+
+    return StationWithStats(
+        **station.__dict__,
+        total_records=total,
+        missing_records=missing,
+        imputed_records=imputed,
+        missing_percentage=round(missing / total * 100, 2) if total > 0 else 0
+    )
+
+
+@app.post("/api/stations/sync", tags=["Stations"])
+async def sync_stations(background_tasks: BackgroundTasks):
+    """Sync station metadata from Air4Thai API (background task)"""
+    background_tasks.add_task(_sync_stations_task)
+    return {"message": "Station sync started", "status": "processing"}
+
+
+async def _sync_stations_task():
+    """Background task for station sync"""
+    stations = await ingestion_service.fetch_stations()
+    from backend_model.database import get_db_context
+    with get_db_context() as db:
+        ingestion_service.save_stations(db, stations)
 
 
 @app.delete("/api/stations/{station_id}", tags=["Stations"])

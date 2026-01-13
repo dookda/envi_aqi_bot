@@ -213,7 +213,6 @@ export default function StationsPage(): React.ReactElement {
                     <Button
                         onClick={fetchStations}
                         variant="secondary"
-                        icon="refresh"
                         loading={loading}
                     >
                         {lang === 'th' ? 'รีเฟรช' : 'Refresh'}
@@ -335,7 +334,7 @@ export default function StationsPage(): React.ReactElement {
                                                     className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-orange-100 text-orange-600' : 'hover:bg-orange-900/30 text-orange-400'}`}
                                                     title={lang === 'th' ? 'ลบข้อมูล' : 'Delete Data'}
                                                 >
-                                                    <Icon name="delete_sweep" size="sm" />
+                                                    <Icon name="delete" size="sm" />
                                                 </button>
                                                 <button
                                                     onClick={() => { setSelectedStation(station); setShowDeleteModal(true) }}
@@ -406,7 +405,6 @@ export default function StationsPage(): React.ReactElement {
                                 onClick={handleDeleteStation}
                                 variant="danger"
                                 loading={deleting}
-                                icon="delete_forever"
                                 className="flex-1"
                             >
                                 {lang === 'th' ? 'ลบสถานี' : 'Delete Station'}
@@ -422,7 +420,7 @@ export default function StationsPage(): React.ReactElement {
                     <div className={`${bgCard} rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl`}>
                         <div className="flex items-center gap-4 mb-6">
                             <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center">
-                                <Icon name="delete_sweep" className="text-orange-600" />
+                                <Icon name="delete" className="text-orange-600" />
                             </div>
                             <div>
                                 <h3 className={`text-lg font-bold ${textPrimary}`}>
@@ -459,7 +457,6 @@ export default function StationsPage(): React.ReactElement {
                                 onClick={handleDeleteData}
                                 variant="warning"
                                 loading={deleting}
-                                icon="delete_sweep"
                                 className="flex-1"
                             >
                                 {lang === 'th' ? 'ลบข้อมูล' : 'Delete Data'}
@@ -566,7 +563,6 @@ export default function StationsPage(): React.ReactElement {
                                 onClick={handleEditStation}
                                 variant="primary"
                                 loading={deleting}
-                                icon="save"
                                 className="flex-1"
                             >
                                 {lang === 'th' ? 'บันทึก' : 'Save Changes'}

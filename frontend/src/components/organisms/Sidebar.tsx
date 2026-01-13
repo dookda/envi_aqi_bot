@@ -41,8 +41,8 @@ const NAV_GROUPS: NavGroup[] = [
         labelEn: 'AI Assistant',
         labelTh: 'ผู้ช่วย AI',
         items: [
-            { id: 'chat', path: '/chat', icon: 'smart_toy', labelEn: 'AI Chat', labelTh: 'แชท AI', badge: 'Local' },
-            { id: 'claude', path: '/chat/claude', icon: 'psychology', labelEn: 'Claude AI', labelTh: 'Claude AI', badge: 'Pro', badgeColor: 'purple' },
+            { id: 'chat', path: '/chat', icon: 'smart_toy', labelEn: 'Model A', labelTh: 'Model A', badge: 'Local' },
+            { id: 'claude', path: '/chat/claude', icon: 'psychology', labelEn: 'Model B', labelTh: 'Model B', badge: 'Pro', badgeColor: 'purple' },
         ]
     },
     {
