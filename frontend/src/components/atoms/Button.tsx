@@ -3,7 +3,7 @@
  * Basic reusable button with variants
  */
 
-type ButtonVariant = 'primary' | 'secondary' | 'success' | 'danger' | 'ghost'
+type ButtonVariant = 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'ghost'
 type ButtonSize = 'sm' | 'md' | 'lg'
 
 const variants: Record<ButtonVariant, string> = {
@@ -11,6 +11,7 @@ const variants: Record<ButtonVariant, string> = {
   secondary: 'bg-dark-700 hover:bg-dark-600 text-white border border-white/10',
   success: 'bg-success-500 hover:bg-success-500/90 text-white',
   danger: 'bg-danger-500 hover:bg-danger-500/90 text-white',
+  warning: 'bg-orange-500 hover:bg-orange-600 text-white',
   ghost: 'bg-transparent hover:bg-white/10 text-white',
 }
 

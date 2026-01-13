@@ -78,6 +78,31 @@ This project implements the specification defined in `lstm_spec.md`:
    - API: http://localhost:5800/ebot/api/
    - API Docs: http://localhost:5800/ebot/docs
 
+### Development Mode with Hot-Reloading
+
+For faster development with automatic code reloading:
+
+```bash
+# Quick start (recommended for development)
+./dev.sh
+
+# Or manually with docker-compose
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+# Run in background
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+# Stop development services
+./dev-stop.sh
+```
+
+**Benefits:**
+- Frontend: Changes to `.tsx`, `.ts`, `.css` files reload automatically
+- Backend: FastAPI auto-reload on Python file changes
+- No need to rebuild Docker images during development
+
+See [DEVELOPMENT.md](DEVELOPMENT.md) for more details.
+
 ### Local Development
 
 1. **Create virtual environment**:

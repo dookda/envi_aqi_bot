@@ -26,6 +26,15 @@ interface PreviewData {
 
 type UploadMode = 'api' | 'csv'
 
+interface StationFormData {
+    station_id: string
+    name_th: string
+    name_en: string
+    lat: string
+    lon: string
+    station_type: string
+}
+
 export default function DataUpload(): React.ReactElement {
     const [mode, setMode] = useState<UploadMode>('api')
     const [apiUrl, setApiUrl] = useState<string>('')
@@ -34,6 +43,16 @@ export default function DataUpload(): React.ReactElement {
     const [previewData, setPreviewData] = useState<PreviewData | null>(null)
     const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    // Station form state
+    const [stationForm, setStationForm] = useState<StationFormData>({
+        station_id: '',
+        name_th: '',
+        name_en: '',
+        lat: '',
+        lon: '',
+        station_type: 'urban'
+    })
 
     const { t, lang } = useLanguage()
     const { isLight } = useTheme()
@@ -163,12 +182,91 @@ export default function DataUpload(): React.ReactElement {
         }
     }
 
+    // Handle station form submission
+    const handleStationSubmit = async () => {
+        // Validate form
+        if (!stationForm.station_id || !stationForm.name_en || !stationForm.lat || !stationForm.lon) {
+            toast.error('Please fill in all required fields')
+            return
+        }
+
+        // Validate coordinates
+        const lat = parseFloat(stationForm.lat)
+        const lon = parseFloat(stationForm.lon)
+        if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+            toast.error('Invalid latitude or longitude')
+            return
+        }
+
+        setLoading(true)
+        setUploadResult(null)
+
+        try {
+            // Create station data array
+            const csvData = `station_id,name_th,name_en,lat,lon,station_type
+${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${stationForm.name_en},${stationForm.lat},${stationForm.lon},${stationForm.station_type}`
+
+            const blob = new Blob([csvData], { type: 'text/csv' })
+            const file = new File([blob], 'station.csv', { type: 'text/csv' })
+
+            const formData = new FormData()
+            formData.append('file', file)
+
+            const res = await fetch(`${import.meta.env.BASE_URL}api/upload/import-stations-csv`.replace(/\/+/g, '/'), {
+                method: 'POST',
+                body: formData
+            })
+
+            if (!res.ok) {
+                const error = await res.json()
+                throw new Error(error.detail || 'Failed to add station')
+            }
+
+            const response = await res.json()
+            setUploadResult(response)
+
+            if (response.success) {
+                toast.success(`Successfully added station: ${stationForm.station_id}`)
+                // Reset form
+                setStationForm({
+                    station_id: '',
+                    name_th: '',
+                    name_en: '',
+                    lat: '',
+                    lon: '',
+                    station_type: 'urban'
+                })
+            } else {
+                toast.error(response.message || 'Failed to add station')
+            }
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to add station')
+            setUploadResult({
+                success: false,
+                records_inserted: 0,
+                records_updated: 0,
+                records_failed: 0,
+                message: err.message
+            })
+        } finally {
+            setLoading(false)
+        }
+    }
+
     // Clear form
     const handleClear = () => {
         setApiUrl('')
         setCsvFile(null)
         setPreviewData(null)
         setUploadResult(null)
+        setStationForm({
+            station_id: '',
+            name_th: '',
+            name_en: '',
+            lat: '',
+            lon: '',
+            station_type: 'urban'
+        })
         if (fileInputRef.current) {
             fileInputRef.current.value = ''
         }
@@ -255,7 +353,7 @@ export default function DataUpload(): React.ReactElement {
                         <h2 className={`text-lg font-semibold mb-4 ${isLight ? 'text-gray-900' : 'text-white'}`}>
                             {mode === 'api'
                                 ? (lang === 'th' ? '1. กรอก URL ของ API' : '1. Enter API URL')
-                                : (lang === 'th' ? '1. เลือกไฟล์ CSV' : '1. Select CSV File')}
+                                : (lang === 'th' ? 'อัปโหลดข้อมูล' : 'Upload Data')}
                         </h2>
 
                         {mode === 'api' ? (
@@ -304,58 +402,200 @@ export default function DataUpload(): React.ReactElement {
                                 </Button>
                             </div>
                         ) : (
-                            <div className="space-y-4">
-                                <div
-                                    onDragOver={handleDragOver}
-                                    onDrop={handleDrop}
-                                    className={`border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer hover:border-green-500 ${isLight
-                                        ? 'border-gray-300 bg-gray-50'
-                                        : 'border-gray-600 bg-gray-800'
-                                        }`}
-                                    onClick={() => fileInputRef.current?.click()}
-                                >
-                                    <Icon name="upload" size="lg" className={`mx-auto mb-4 ${isLight ? 'text-gray-400' : 'text-gray-500'}`} />
-                                    <p className={`text-sm ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
-                                        {lang === 'th'
-                                            ? 'ลากไฟล์มาวางที่นี่ หรือคลิกเพื่อเลือก'
-                                            : 'Drag & drop CSV file here, or click to browse'}
-                                    </p>
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        accept=".csv"
-                                        onChange={handleFileSelect}
-                                        className="hidden"
-                                    />
+                            <div className="space-y-6">
+                                {/* Station Form Section */}
+                                <div className={`border rounded-lg p-4 ${isLight ? 'bg-purple-50 border-purple-200' : 'bg-purple-900/20 border-purple-800'}`}>
+                                    <h3 className={`text-md font-semibold mb-3 flex items-center ${isLight ? 'text-purple-900' : 'text-purple-300'}`}>
+                                        <Icon name="add_location" size="sm" className="mr-2" />
+                                        {lang === 'th' ? 'เพิ่มสถานีใหม่' : 'Add New Station'}
+                                    </h3>
+                                    <div className="space-y-3">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className={`block text-xs font-medium mb-1 ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>
+                                                    Station ID <span className="text-red-500">*</span>
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={stationForm.station_id}
+                                                    onChange={(e) => setStationForm({ ...stationForm, station_id: e.target.value })}
+                                                    placeholder="TEST01"
+                                                    className={`w-full px-3 py-2 text-sm rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${isLight
+                                                        ? 'bg-white border-gray-300 text-gray-900'
+                                                        : 'bg-gray-800 border-gray-600 text-white'
+                                                        }`}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className={`block text-xs font-medium mb-1 ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>
+                                                    Station Type <span className="text-red-500">*</span>
+                                                </label>
+                                                <select
+                                                    value={stationForm.station_type}
+                                                    onChange={(e) => setStationForm({ ...stationForm, station_type: e.target.value })}
+                                                    className={`w-full px-3 py-2 text-sm rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${isLight
+                                                        ? 'bg-white border-gray-300 text-gray-900'
+                                                        : 'bg-gray-800 border-gray-600 text-white'
+                                                        }`}
+                                                >
+                                                    <option value="urban">Urban</option>
+                                                    <option value="industrial">Industrial</option>
+                                                    <option value="rural">Rural</option>
+                                                    <option value="background">Background</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className={`block text-xs font-medium mb-1 ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>
+                                                    Name (English) <span className="text-red-500">*</span>
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={stationForm.name_en}
+                                                    onChange={(e) => setStationForm({ ...stationForm, name_en: e.target.value })}
+                                                    placeholder="Test Station 1"
+                                                    className={`w-full px-3 py-2 text-sm rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${isLight
+                                                        ? 'bg-white border-gray-300 text-gray-900'
+                                                        : 'bg-gray-800 border-gray-600 text-white'
+                                                        }`}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className={`block text-xs font-medium mb-1 ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>
+                                                    Name (Thai)
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={stationForm.name_th}
+                                                    onChange={(e) => setStationForm({ ...stationForm, name_th: e.target.value })}
+                                                    placeholder="สถานีทดสอบ 1"
+                                                    className={`w-full px-3 py-2 text-sm rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${isLight
+                                                        ? 'bg-white border-gray-300 text-gray-900'
+                                                        : 'bg-gray-800 border-gray-600 text-white'
+                                                        }`}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className={`block text-xs font-medium mb-1 ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>
+                                                    Latitude <span className="text-red-500">*</span>
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    step="0.000001"
+                                                    value={stationForm.lat}
+                                                    onChange={(e) => setStationForm({ ...stationForm, lat: e.target.value })}
+                                                    placeholder="13.7563"
+                                                    className={`w-full px-3 py-2 text-sm rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${isLight
+                                                        ? 'bg-white border-gray-300 text-gray-900'
+                                                        : 'bg-gray-800 border-gray-600 text-white'
+                                                        }`}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className={`block text-xs font-medium mb-1 ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>
+                                                    Longitude <span className="text-red-500">*</span>
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    step="0.000001"
+                                                    value={stationForm.lon}
+                                                    onChange={(e) => setStationForm({ ...stationForm, lon: e.target.value })}
+                                                    placeholder="100.5018"
+                                                    className={`w-full px-3 py-2 text-sm rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${isLight
+                                                        ? 'bg-white border-gray-300 text-gray-900'
+                                                        : 'bg-gray-800 border-gray-600 text-white'
+                                                        }`}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <Button
+                                            onClick={handleStationSubmit}
+                                            disabled={loading}
+                                            variant="primary"
+                                            size="sm"
+                                            className="w-full bg-purple-600 hover:bg-purple-700"
+                                        >
+                                            {loading ? (
+                                                <>
+                                                    <Spinner size="sm" className="mr-2" />
+                                                    {lang === 'th' ? 'กำลังเพิ่ม...' : 'Adding...'}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Icon name="add" size="sm" className="mr-2" />
+                                                    {lang === 'th' ? 'เพิ่มสถานี' : 'Add Station'}
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
                                 </div>
 
-                                {csvFile && (
-                                    <div className={`flex items-center justify-between p-3 rounded-lg ${isLight ? 'bg-green-50' : 'bg-green-900/20'}`}>
-                                        <div className="flex items-center gap-2">
-                                            <Icon name="description" size="sm" className="text-green-600" />
-                                            <span className={`text-sm ${isLight ? 'text-green-700' : 'text-green-300'}`}>
-                                                {csvFile.name}
-                                            </span>
-                                            <Badge variant="success" size="sm">
-                                                {(csvFile.size / 1024).toFixed(1)} KB
-                                            </Badge>
-                                        </div>
-                                        <button
-                                            onClick={() => { setCsvFile(null); setPreviewData(null) }}
-                                            className="text-red-500 hover:text-red-700"
+                                {/* CSV Upload Section */}
+                                <div>
+                                    <h3 className={`text-md font-semibold mb-3 flex items-center ${isLight ? 'text-green-900' : 'text-green-300'}`}>
+                                        <Icon name="upload_file" size="sm" className="mr-2" />
+                                        {lang === 'th' ? 'อัปโหลด AQI Data CSV' : 'Upload AQI Data CSV'}
+                                    </h3>
+                                    <div className="space-y-4">
+                                        <div
+                                            onDragOver={handleDragOver}
+                                            onDrop={handleDrop}
+                                            className={`border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer hover:border-green-500 ${isLight
+                                                ? 'border-gray-300 bg-gray-50'
+                                                : 'border-gray-600 bg-gray-800'
+                                                }`}
+                                            onClick={() => fileInputRef.current?.click()}
                                         >
-                                            <Icon name="close" size="sm" />
-                                        </button>
-                                    </div>
-                                )}
+                                            <Icon name="upload" size="lg" className={`mx-auto mb-4 ${isLight ? 'text-gray-400' : 'text-gray-500'}`} />
+                                            <p className={`text-sm ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
+                                                {lang === 'th'
+                                                    ? 'ลากไฟล์มาวางที่นี่ หรือคลิกเพื่อเลือก'
+                                                    : 'Drag & drop CSV file here, or click to browse'}
+                                            </p>
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                accept=".csv"
+                                                onChange={handleFileSelect}
+                                                className="hidden"
+                                            />
+                                        </div>
 
-                                <div className={`p-4 rounded-lg ${isLight ? 'bg-green-50' : 'bg-green-900/20'}`}>
-                                    <p className={`text-sm font-medium mb-2 ${isLight ? 'text-green-700' : 'text-green-300'}`}>
-                                        {lang === 'th' ? 'รูปแบบ CSV ที่รองรับ:' : 'Expected CSV format:'}
-                                    </p>
-                                    <code className={`text-xs ${isLight ? 'text-green-600' : 'text-green-400'}`}>
-                                        station_id, datetime, pm25, pm10, o3, co, no2, so2, temp, rh, ws, wd, bp, rain
-                                    </code>
+                                        {csvFile && (
+                                            <div className={`flex items-center justify-between p-3 rounded-lg ${isLight ? 'bg-green-50' : 'bg-green-900/20'}`}>
+                                                <div className="flex items-center gap-2">
+                                                    <Icon name="description" size="sm" className="text-green-600" />
+                                                    <span className={`text-sm ${isLight ? 'text-green-700' : 'text-green-300'}`}>
+                                                        {csvFile.name}
+                                                    </span>
+                                                    <Badge variant="success" size="sm">
+                                                        {(csvFile.size / 1024).toFixed(1)} KB
+                                                    </Badge>
+                                                </div>
+                                                <button
+                                                    onClick={() => { setCsvFile(null); setPreviewData(null) }}
+                                                    className="text-red-500 hover:text-red-700"
+                                                >
+                                                    <Icon name="close" size="sm" />
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        <div className={`p-4 rounded-lg ${isLight ? 'bg-green-50' : 'bg-green-900/20'}`}>
+                                            <p className={`text-sm font-medium mb-2 ${isLight ? 'text-green-700' : 'text-green-300'}`}>
+                                                {lang === 'th' ? 'รูปแบบ CSV ที่รองรับ:' : 'Expected CSV format:'}
+                                            </p>
+                                            <code className={`text-xs ${isLight ? 'text-green-600' : 'text-green-400'}`}>
+                                                station_id, datetime, pm25, pm10, o3, co, no2, so2, temp, rh, ws, wd, bp, rain
+                                            </code>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -383,7 +623,7 @@ export default function DataUpload(): React.ReactElement {
                                 <p className="text-sm mt-2">
                                     {mode === 'api'
                                         ? (lang === 'th' ? 'กรอก URL และคลิกดึงข้อมูล' : 'Enter URL and click Fetch')
-                                        : (lang === 'th' ? 'เลือกไฟล์ CSV' : 'Select a CSV file')}
+                                        : (lang === 'th' ? 'เลือกไฟล์ CSV' : 'Select CSV file')}
                                 </p>
                             </div>
                         )}

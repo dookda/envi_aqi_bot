@@ -381,6 +381,236 @@ async def _sync_stations_task():
         ingestion_service.save_stations(db, stations)
 
 
+# ============== Station Management ==============
+
+@app.get("/api/stations/manage", tags=["Stations"])
+async def list_stations_for_management(
+    db: Session = Depends(get_db),
+    skip: int = 0,
+    limit: int = 200
+):
+    """
+    List all stations with data counts for management page.
+    
+    Returns station info along with:
+    - Total data records
+    - Date range of data
+    - Station type
+    """
+    stations = db.query(Station).offset(skip).limit(limit).all()
+    
+    result = []
+    for station in stations:
+        # Get data stats for this station
+        stats = db.execute(text("""
+            SELECT 
+                COUNT(*) as total_records,
+                MIN(datetime) as first_record,
+                MAX(datetime) as last_record,
+                COUNT(*) FILTER (WHERE pm25 IS NOT NULL) as pm25_count,
+                COUNT(*) FILTER (WHERE pm10 IS NOT NULL) as pm10_count
+            FROM aqi_hourly 
+            WHERE station_id = :station_id
+        """), {"station_id": station.station_id}).fetchone()
+        
+        result.append({
+            "station_id": station.station_id,
+            "name_th": station.name_th,
+            "name_en": station.name_en,
+            "lat": station.lat,
+            "lon": station.lon,
+            "station_type": station.station_type,
+            "created_at": station.created_at.isoformat() if station.created_at else None,
+            "updated_at": station.updated_at.isoformat() if station.updated_at else None,
+            "total_records": stats.total_records if stats else 0,
+            "first_record": stats.first_record.isoformat() if stats and stats.first_record else None,
+            "last_record": stats.last_record.isoformat() if stats and stats.last_record else None,
+            "pm25_count": stats.pm25_count if stats else 0,
+            "pm10_count": stats.pm10_count if stats else 0,
+        })
+    
+    return {
+        "total": len(result),
+        "stations": result
+    }
+
+
+@app.delete("/api/stations/{station_id}", tags=["Stations"])
+async def delete_station(
+    station_id: str,
+    db: Session = Depends(get_db),
+    delete_data: bool = Query(default=True, description="Also delete all associated AQI data")
+):
+    """
+    Delete a station from the database.
+    
+    Args:
+        station_id: The station ID to delete
+        delete_data: If true (default), also delete all AQI data for this station
+    
+    Returns:
+        Deletion status and counts
+    """
+    # Check if station exists
+    station = db.query(Station).filter(Station.station_id == station_id).first()
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station '{station_id}' not found")
+    
+    deleted_records = 0
+    
+    if delete_data:
+        # Delete all AQI data for this station first (foreign key constraint)
+        result = db.execute(
+            text("DELETE FROM aqi_hourly WHERE station_id = :station_id"),
+            {"station_id": station_id}
+        )
+        deleted_records = result.rowcount
+        logger.info(f"Deleted {deleted_records} AQI records for station {station_id}")
+    
+    # Delete the station
+    db.delete(station)
+    db.commit()
+    
+    logger.info(f"Deleted station {station_id}")
+    
+    return {
+        "success": True,
+        "message": f"Station '{station_id}' deleted successfully",
+        "station_id": station_id,
+        "data_records_deleted": deleted_records
+    }
+
+
+@app.delete("/api/stations/{station_id}/data", tags=["Stations"])
+async def delete_station_data(
+    station_id: str,
+    db: Session = Depends(get_db),
+    start: Optional[datetime] = Query(default=None, description="Start datetime (optional)"),
+    end: Optional[datetime] = Query(default=None, description="End datetime (optional)")
+):
+    """
+    Delete AQI data for a station (keeps the station record).
+    
+    Args:
+        station_id: The station ID
+        start: Optional start datetime to delete from
+        end: Optional end datetime to delete to
+    
+    Returns:
+        Number of records deleted
+    """
+    # Check if station exists
+    station = db.query(Station).filter(Station.station_id == station_id).first()
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station '{station_id}' not found")
+    
+    # Build delete query
+    if start and end:
+        result = db.execute(
+            text("DELETE FROM aqi_hourly WHERE station_id = :station_id AND datetime >= :start AND datetime <= :end"),
+            {"station_id": station_id, "start": start, "end": end}
+        )
+    elif start:
+        result = db.execute(
+            text("DELETE FROM aqi_hourly WHERE station_id = :station_id AND datetime >= :start"),
+            {"station_id": station_id, "start": start}
+        )
+    elif end:
+        result = db.execute(
+            text("DELETE FROM aqi_hourly WHERE station_id = :station_id AND datetime <= :end"),
+            {"station_id": station_id, "end": end}
+        )
+    else:
+        result = db.execute(
+            text("DELETE FROM aqi_hourly WHERE station_id = :station_id"),
+            {"station_id": station_id}
+        )
+    
+    deleted_records = result.rowcount
+    db.commit()
+    
+    logger.info(f"Deleted {deleted_records} AQI records for station {station_id}")
+    
+    return {
+        "success": True,
+        "message": f"Deleted {deleted_records} records for station '{station_id}'",
+        "station_id": station_id,
+        "records_deleted": deleted_records,
+        "date_range": {
+            "start": start.isoformat() if start else None,
+            "end": end.isoformat() if end else None
+        }
+    }
+
+
+@app.put("/api/stations/{station_id}", tags=["Stations"])
+async def update_station(
+    station_id: str,
+    db: Session = Depends(get_db),
+    name_th: Optional[str] = None,
+    name_en: Optional[str] = None,
+    lat: Optional[float] = None,
+    lon: Optional[float] = None,
+    station_type: Optional[str] = None
+):
+    """
+    Update station details.
+    
+    Args:
+        station_id: The station ID to update
+        name_th: Thai name (optional)
+        name_en: English name (optional)
+        lat: Latitude (optional)
+        lon: Longitude (optional)
+        station_type: Station type (optional)
+    
+    Returns:
+        Updated station data
+    """
+    # Check if station exists
+    station = db.query(Station).filter(Station.station_id == station_id).first()
+    if not station:
+        raise HTTPException(status_code=404, detail=f"Station '{station_id}' not found")
+    
+    # Update fields if provided
+    if name_th is not None:
+        station.name_th = name_th
+    if name_en is not None:
+        station.name_en = name_en
+    if lat is not None:
+        station.lat = lat
+    if lon is not None:
+        station.lon = lon
+    if station_type is not None:
+        station.station_type = station_type
+    
+    # Update location geometry if coordinates changed
+    if lat is not None or lon is not None:
+        from sqlalchemy import func
+        new_lat = lat if lat is not None else station.lat
+        new_lon = lon if lon is not None else station.lon
+        station.location = func.ST_SetSRID(func.ST_MakePoint(new_lon, new_lat), 4326)
+    
+    db.commit()
+    db.refresh(station)
+    
+    logger.info(f"Updated station {station_id}")
+    
+    return {
+        "success": True,
+        "message": f"Station '{station_id}' updated successfully",
+        "station": {
+            "station_id": station.station_id,
+            "name_th": station.name_th,
+            "name_en": station.name_en,
+            "lat": station.lat,
+            "lon": station.lon,
+            "station_type": station.station_type,
+            "updated_at": station.updated_at.isoformat() if station.updated_at else None
+        }
+    }
+
+
 # ============== AQI Data ==============
 
 @app.get("/api/aqi/{station_id}", response_model=List[AQIHourlyResponse], tags=["AQI Data"])
@@ -2003,6 +2233,94 @@ async def import_csv_data(file: UploadFile = File(...)):
         }
     except Exception as e:
         logger.error(f"Error importing CSV data: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/upload/preview-stations-csv", tags=["Data Upload"])
+async def preview_stations_csv(file: UploadFile = File(...)):
+    """
+    Preview station data from a CSV file before importing.
+
+    **Required columns:** station_id, name_en, lat, lon
+    **Optional columns:** name_th, station_type
+    """
+    from backend_api.services.upload import upload_service
+
+    try:
+        content = await file.read()
+        records, columns = upload_service.parse_station_csv(content)
+
+        # Validate records
+        valid_records = []
+        for record in records:
+            validated = upload_service.validate_station_record(record)
+            if validated:
+                valid_records.append(validated)
+
+        return {
+            "preview": {
+                "columns": columns,
+                "rows": valid_records[:10],  # First 10 rows
+                "total_rows": len(valid_records)
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error previewing station CSV: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/upload/import-stations-csv", tags=["Data Upload"])
+async def import_stations_csv(file: UploadFile = File(...)):
+    """
+    Import station metadata from a CSV file into the database.
+
+    Uses upsert logic (ON CONFLICT UPDATE) to handle duplicates.
+
+    **Required columns:** station_id, name_en, lat, lon
+    **Optional columns:** name_th, station_type
+
+    **Example CSV:**
+    ```
+    station_id,name_th,name_en,lat,lon,station_type
+    TEST01,สถานีทดสอบ,Test Station,13.7563,100.5018,urban
+    ```
+    """
+    from backend_api.services.upload import upload_service
+
+    try:
+        content = await file.read()
+        records, columns = upload_service.parse_station_csv(content)
+
+        # Validate all records
+        validated_stations = []
+        for record in records:
+            validated = upload_service.validate_station_record(record)
+            if validated:
+                validated_stations.append(validated)
+
+        if not validated_stations:
+            return {
+                "success": False,
+                "message": "No valid stations to import",
+                "records_inserted": 0,
+                "records_updated": 0,
+                "records_failed": len(records)
+            }
+
+        # Import to database
+        inserted, updated, failed, errors = upload_service.import_stations(
+            validated_stations)
+
+        return {
+            "success": failed == 0 or inserted > 0,
+            "message": f"Imported {inserted} stations" if inserted > 0 else "Import completed with errors",
+            "records_inserted": inserted,
+            "records_updated": updated,
+            "records_failed": failed,
+            "errors": errors if errors else None
+        }
+    except Exception as e:
+        logger.error(f"Error importing station CSV: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 
