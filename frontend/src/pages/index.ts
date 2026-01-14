@@ -7,4 +7,5 @@ export { default as Admin } from './AdminPage'
 export { default as DataUpload } from './DataUploadPage'
 export { default as CCTV } from './CCTVPage'
 export { default as Stations } from './StationsPage'
+export { default as Info } from './InfoPage'
 

@@ -62,6 +62,14 @@ const NAV_GROUPS: NavGroup[] = [
             { id: 'stations', path: '/stations', icon: 'location_on', labelEn: 'Stations', labelTh: 'จัดการสถานี' },
             { id: 'admin', path: '/admin', icon: 'admin_panel_settings', labelEn: 'Admin', labelTh: 'ผู้ดูแล' },
         ]
+    },
+    {
+        id: 'guide',
+        labelEn: 'Guide',
+        labelTh: 'คู่มือ',
+        items: [
+            { id: 'info', path: '/info', icon: 'menu_book', labelEn: 'Methods & Statistics', labelTh: 'วิธีการและสถิติ' },
+        ]
     }
 ]
 

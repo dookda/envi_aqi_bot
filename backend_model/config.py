@@ -126,7 +126,7 @@ class Settings(BaseSettings):
         return v
     
     # Model Paths
-    models_dir: str = "/app/models"
+    models_dir: str = "/app/models/pm25"
     logs_dir: str = "/app/logs"
     
     # Scheduler Configuration

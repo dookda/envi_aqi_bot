@@ -2,7 +2,7 @@
  * Main App Component with Routing
  */
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import { Dashboard, Models, Chat, Claude, Admin, DataUpload, CCTV, Stations } from './pages'
+import { Dashboard, Models, Chat, Claude, Admin, DataUpload, CCTV, Stations, Info } from './pages'
 import { LanguageProvider, ThemeProvider, ToastProvider } from './contexts'
 import { Layout } from './components/organisms'
 
@@ -22,6 +22,7 @@ const App: React.FC = () => {
                 <Route path="/upload" element={<DataUpload />} />
                 <Route path="/stations" element={<Stations />} />
                 <Route path="/cctv" element={<CCTV />} />
+                <Route path="/info" element={<Info />} />
               </Routes>
             </Layout>
           </Router>

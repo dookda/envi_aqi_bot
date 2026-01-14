@@ -44,7 +44,7 @@ export default function DataUpload(): React.ReactElement {
     const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    // Station form state
+    // Station form state - kept for compatibility but not used in simplified UI
     const [stationForm, setStationForm] = useState<StationFormData>({
         station_id: '',
         name_th: '',
@@ -53,6 +53,9 @@ export default function DataUpload(): React.ReactElement {
         lon: '',
         station_type: 'urban'
     })
+
+    // CSV type detection: 'station' | 'aqi' | null
+    const [csvType, setCsvType] = useState<'station' | 'aqi' | null>(null)
 
     const { t, lang } = useLanguage()
     const { isLight } = useTheme()
@@ -100,9 +103,10 @@ export default function DataUpload(): React.ReactElement {
         }
     }
 
-    // Preview CSV file
+    // Preview CSV file and detect type
     const handleCsvPreview = async (file: File) => {
         setLoading(true)
+        setCsvType(null)
         try {
             const formData = new FormData()
             formData.append('file', file)
@@ -119,7 +123,25 @@ export default function DataUpload(): React.ReactElement {
 
             const data = await response.json()
             setPreviewData(data.preview)
-            toast.success(`Loaded ${data.preview.total_rows} records from CSV`)
+
+            // Auto-detect CSV type based on columns
+            const columns = data.preview.columns.map((c: string) => c.toLowerCase())
+            const stationColumns = ['lat', 'lon', 'name_en', 'name_th', 'station_type']
+            const aqiColumns = ['datetime', 'pm25', 'pm10', 'o3', 'co', 'no2', 'so2']
+
+            const hasStationCols = stationColumns.some(col => columns.includes(col))
+            const hasAqiCols = aqiColumns.some(col => columns.includes(col))
+
+            if (hasStationCols && !hasAqiCols) {
+                setCsvType('station')
+                toast.success(`Detected Station CSV with ${data.preview.total_rows} records`)
+            } else if (hasAqiCols) {
+                setCsvType('aqi')
+                toast.success(`Detected AQI Data CSV with ${data.preview.total_rows} records`)
+            } else {
+                setCsvType('aqi') // Default to AQI
+                toast.info(`Loaded ${data.preview.total_rows} records - treating as AQI data`)
+            }
         } catch (err: any) {
             toast.error(err.message || 'Failed to preview CSV file')
         } finally {
@@ -149,7 +171,12 @@ export default function DataUpload(): React.ReactElement {
                 const formData = new FormData()
                 formData.append('file', csvFile)
 
-                const res = await fetch(`${import.meta.env.BASE_URL}api/upload/import-csv`.replace(/\/+/g, '/'), {
+                // Use appropriate endpoint based on detected CSV type
+                const endpoint = csvType === 'station'
+                    ? `${import.meta.env.BASE_URL}api/upload/import-stations-csv`
+                    : `${import.meta.env.BASE_URL}api/upload/import-csv`
+
+                const res = await fetch(endpoint.replace(/\/+/g, '/'), {
                     method: 'POST',
                     body: formData
                 })
@@ -253,12 +280,122 @@ ${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${statio
         }
     }
 
+    // Handle combined station + CSV upload
+    const handleApplyAll = async () => {
+        setLoading(true)
+        setUploadResult(null)
+
+        let stationResult: UploadResult | null = null
+        let csvResult: UploadResult | null = null
+
+        try {
+            // Step 1: Create station if form is filled
+            if (stationForm.station_id && stationForm.name_en && stationForm.lat && stationForm.lon) {
+                const lat = parseFloat(stationForm.lat)
+                const lon = parseFloat(stationForm.lon)
+
+                if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+                    toast.error('Invalid latitude or longitude')
+                    setLoading(false)
+                    return
+                }
+
+                const csvData = `station_id,name_th,name_en,lat,lon,station_type
+${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${stationForm.name_en},${stationForm.lat},${stationForm.lon},${stationForm.station_type}`
+
+                const blob = new Blob([csvData], { type: 'text/csv' })
+                const file = new File([blob], 'station.csv', { type: 'text/csv' })
+
+                const formData = new FormData()
+                formData.append('file', file)
+
+                const res = await fetch(`${import.meta.env.BASE_URL}api/upload/import-stations-csv`.replace(/\/+/g, '/'), {
+                    method: 'POST',
+                    body: formData
+                })
+
+                if (!res.ok) {
+                    const error = await res.json()
+                    throw new Error(error.detail || 'Failed to add station')
+                }
+
+                stationResult = await res.json()
+                if (stationResult?.success) {
+                    toast.success(`Station ${stationForm.station_id} added successfully`)
+                }
+            }
+
+            // Step 2: Import CSV data if file is selected
+            if (csvFile) {
+                const formData = new FormData()
+                formData.append('file', csvFile)
+
+                const endpoint = csvType === 'station'
+                    ? `${import.meta.env.BASE_URL}api/upload/import-stations-csv`
+                    : `${import.meta.env.BASE_URL}api/upload/import-csv`
+
+                const res = await fetch(endpoint.replace(/\/+/g, '/'), {
+                    method: 'POST',
+                    body: formData
+                })
+
+                if (!res.ok) {
+                    const error = await res.json()
+                    throw new Error(error.detail || 'Failed to import CSV')
+                }
+
+                csvResult = await res.json()
+            }
+
+            // Combine results
+            const combinedResult: UploadResult = {
+                success: true,
+                records_inserted: (stationResult?.records_inserted || 0) + (csvResult?.records_inserted || 0),
+                records_updated: (stationResult?.records_updated || 0) + (csvResult?.records_updated || 0),
+                records_failed: (stationResult?.records_failed || 0) + (csvResult?.records_failed || 0),
+                message: 'Import completed successfully'
+            }
+
+            setUploadResult(combinedResult)
+            toast.success(`Successfully imported ${combinedResult.records_inserted} records`)
+
+            // Reset form after success
+            setStationForm({
+                station_id: '',
+                name_th: '',
+                name_en: '',
+                lat: '',
+                lon: '',
+                station_type: 'urban'
+            })
+            setCsvFile(null)
+            setPreviewData(null)
+            setCsvType(null)
+            if (fileInputRef.current) {
+                fileInputRef.current.value = ''
+            }
+
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to import data')
+            setUploadResult({
+                success: false,
+                records_inserted: 0,
+                records_updated: 0,
+                records_failed: 0,
+                message: err.message
+            })
+        } finally {
+            setLoading(false)
+        }
+    }
+
     // Clear form
     const handleClear = () => {
         setApiUrl('')
         setCsvFile(null)
         setPreviewData(null)
         setUploadResult(null)
+        setCsvType(null)
         setStationForm({
             station_id: '',
             name_th: '',
@@ -293,7 +430,7 @@ ${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${statio
     }, [])
 
     return (
-        <div className={`min-h-screen ${isLight ? 'bg-gray-50' : 'bg-gray-900'}`}>
+        <div className={`min-h-screen ${isLight ? 'bg-gray-50' : 'bg-gray-900'}`} >
 
             <main className="container mx-auto px-4 py-6 max-w-6xl">
                 {/* Header */}
@@ -407,13 +544,13 @@ ${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${statio
                                 <div className={`border rounded-lg p-4 ${isLight ? 'bg-purple-50 border-purple-200' : 'bg-purple-900/20 border-purple-800'}`}>
                                     <h3 className={`text-md font-semibold mb-3 flex items-center ${isLight ? 'text-purple-900' : 'text-purple-300'}`}>
                                         <Icon name="add_location" size="sm" className="mr-2" />
-                                        {lang === 'th' ? 'เพิ่มสถานีใหม่' : 'Add New Station'}
+                                        {lang === 'th' ? 'ข้อมูลสถานี (ไม่บังคับ)' : 'Station Info (Optional)'}
                                     </h3>
                                     <div className="space-y-3">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             <div>
                                                 <label className={`block text-xs font-medium mb-1 ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>
-                                                    Station ID <span className="text-red-500">*</span>
+                                                    Station ID
                                                 </label>
                                                 <input
                                                     type="text"
@@ -428,7 +565,7 @@ ${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${statio
                                             </div>
                                             <div>
                                                 <label className={`block text-xs font-medium mb-1 ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>
-                                                    Station Type <span className="text-red-500">*</span>
+                                                    Station Type
                                                 </label>
                                                 <select
                                                     value={stationForm.station_type}
@@ -449,7 +586,7 @@ ${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${statio
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             <div>
                                                 <label className={`block text-xs font-medium mb-1 ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>
-                                                    Name (English) <span className="text-red-500">*</span>
+                                                    Name (English)
                                                 </label>
                                                 <input
                                                     type="text"
@@ -482,7 +619,7 @@ ${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${statio
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             <div>
                                                 <label className={`block text-xs font-medium mb-1 ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>
-                                                    Latitude <span className="text-red-500">*</span>
+                                                    Latitude
                                                 </label>
                                                 <input
                                                     type="number"
@@ -498,7 +635,7 @@ ${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${statio
                                             </div>
                                             <div>
                                                 <label className={`block text-xs font-medium mb-1 ${isLight ? 'text-gray-700' : 'text-gray-300'}`}>
-                                                    Longitude <span className="text-red-500">*</span>
+                                                    Longitude
                                                 </label>
                                                 <input
                                                     type="number"
@@ -513,46 +650,26 @@ ${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${statio
                                                 />
                                             </div>
                                         </div>
-
-                                        <Button
-                                            onClick={handleStationSubmit}
-                                            disabled={loading}
-                                            variant="primary"
-                                            size="sm"
-                                            className="w-full bg-purple-600 hover:bg-purple-700"
-                                        >
-                                            {loading ? (
-                                                <>
-                                                    <Spinner size="sm" className="mr-2" />
-                                                    {lang === 'th' ? 'กำลังเพิ่ม...' : 'Adding...'}
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Icon name="add" size="sm" className="mr-2" />
-                                                    {lang === 'th' ? 'เพิ่มสถานี' : 'Add Station'}
-                                                </>
-                                            )}
-                                        </Button>
                                     </div>
                                 </div>
 
                                 {/* CSV Upload Section */}
-                                <div>
+                                <div className={`border rounded-lg p-4 ${isLight ? 'bg-green-50 border-green-200' : 'bg-green-900/20 border-green-800'}`}>
                                     <h3 className={`text-md font-semibold mb-3 flex items-center ${isLight ? 'text-green-900' : 'text-green-300'}`}>
                                         <Icon name="upload_file" size="sm" className="mr-2" />
-                                        {lang === 'th' ? 'อัปโหลด AQI Data CSV' : 'Upload AQI Data CSV'}
+                                        {lang === 'th' ? 'อัปโหลด AQI Data CSV (ไม่บังคับ)' : 'Upload AQI Data CSV (Optional)'}
                                     </h3>
                                     <div className="space-y-4">
                                         <div
                                             onDragOver={handleDragOver}
                                             onDrop={handleDrop}
-                                            className={`border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer hover:border-green-500 ${isLight
-                                                ? 'border-gray-300 bg-gray-50'
+                                            className={`border-2 border-dashed rounded-lg p-6 text-center transition-all cursor-pointer hover:border-green-500 ${isLight
+                                                ? 'border-gray-300 bg-white'
                                                 : 'border-gray-600 bg-gray-800'
                                                 }`}
                                             onClick={() => fileInputRef.current?.click()}
                                         >
-                                            <Icon name="upload" size="lg" className={`mx-auto mb-4 ${isLight ? 'text-gray-400' : 'text-gray-500'}`} />
+                                            <Icon name="upload" size="md" className={`mx-auto mb-2 ${isLight ? 'text-gray-400' : 'text-gray-500'}`} />
                                             <p className={`text-sm ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
                                                 {lang === 'th'
                                                     ? 'ลากไฟล์มาวางที่นี่ หรือคลิกเพื่อเลือก'
@@ -568,7 +685,7 @@ ${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${statio
                                         </div>
 
                                         {csvFile && (
-                                            <div className={`flex items-center justify-between p-3 rounded-lg ${isLight ? 'bg-green-50' : 'bg-green-900/20'}`}>
+                                            <div className={`flex items-center justify-between p-3 rounded-lg ${isLight ? 'bg-green-100' : 'bg-green-900/30'}`}>
                                                 <div className="flex items-center gap-2">
                                                     <Icon name="description" size="sm" className="text-green-600" />
                                                     <span className={`text-sm ${isLight ? 'text-green-700' : 'text-green-300'}`}>
@@ -577,9 +694,14 @@ ${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${statio
                                                     <Badge variant="success" size="sm">
                                                         {(csvFile.size / 1024).toFixed(1)} KB
                                                     </Badge>
+                                                    {csvType && (
+                                                        <Badge variant={csvType === 'station' ? 'warning' : 'info'} size="sm">
+                                                            {csvType === 'station' ? 'Station' : 'AQI Data'}
+                                                        </Badge>
+                                                    )}
                                                 </div>
                                                 <button
-                                                    onClick={() => { setCsvFile(null); setPreviewData(null) }}
+                                                    onClick={() => { setCsvFile(null); setPreviewData(null); setCsvType(null) }}
                                                     className="text-red-500 hover:text-red-700"
                                                 >
                                                     <Icon name="close" size="sm" />
@@ -587,16 +709,36 @@ ${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${statio
                                             </div>
                                         )}
 
-                                        <div className={`p-4 rounded-lg ${isLight ? 'bg-green-50' : 'bg-green-900/20'}`}>
-                                            <p className={`text-sm font-medium mb-2 ${isLight ? 'text-green-700' : 'text-green-300'}`}>
-                                                {lang === 'th' ? 'รูปแบบ CSV ที่รองรับ:' : 'Expected CSV format:'}
+                                        <div className={`p-3 rounded-lg ${isLight ? 'bg-white border border-green-200' : 'bg-gray-800 border border-green-800'}`}>
+                                            <p className={`text-xs font-medium mb-1 ${isLight ? 'text-green-700' : 'text-green-300'}`}>
+                                                {lang === 'th' ? 'รูปแบบ CSV:' : 'CSV Format:'}
                                             </p>
-                                            <code className={`text-xs ${isLight ? 'text-green-600' : 'text-green-400'}`}>
+                                            <code className={`text-[10px] ${isLight ? 'text-green-600' : 'text-green-400'}`}>
                                                 station_id, datetime, pm25, pm10, o3, co, no2, so2, temp, rh, ws, wd, bp, rain
                                             </code>
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* Unified Apply Button */}
+                                <Button
+                                    onClick={handleApplyAll}
+                                    disabled={loading || (!stationForm.station_id && !csvFile)}
+                                    variant="primary"
+                                    className="w-full py-3 text-base bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <Spinner size="sm" className="mr-2" />
+                                            {lang === 'th' ? 'กำลังประมวลผล...' : 'Processing...'}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Icon name="cloud_upload" size="sm" className="mr-2" />
+                                            {lang === 'th' ? 'นำเข้าทั้งหมด' : 'Apply All'}
+                                        </>
+                                    )}
+                                </Button>
                             </div>
                         )}
                     </Card>
@@ -631,7 +773,7 @@ ${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${statio
                         {previewData && (
                             <div className="space-y-4">
                                 {/* Summary */}
-                                <div className={`grid grid-cols-2 gap-4 p-4 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-gray-800'}`}>
+                                <div className={`grid grid-cols-3 gap-4 p-4 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-gray-800'}`}>
                                     <div>
                                         <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>
                                             {lang === 'th' ? 'จำนวนคอลัมน์' : 'Columns'}
@@ -648,6 +790,23 @@ ${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${statio
                                             {previewData.total_rows.toLocaleString()}
                                         </p>
                                     </div>
+                                    {csvType && (
+                                        <div>
+                                            <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                {lang === 'th' ? 'ประเภท' : 'Type'}
+                                            </p>
+                                            <Badge
+                                                variant={csvType === 'station' ? 'warning' : 'success'}
+                                                size="sm"
+                                                className="mt-1"
+                                            >
+                                                <Icon name={csvType === 'station' ? 'location_on' : 'air'} size="xs" className="mr-1" />
+                                                {csvType === 'station'
+                                                    ? (lang === 'th' ? 'Station' : 'Station')
+                                                    : (lang === 'th' ? 'AQI Data' : 'AQI Data')}
+                                            </Badge>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Columns */}
@@ -790,6 +949,6 @@ ${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${statio
                     </Card>
                 )}
             </main>
-        </div>
+        </div >
     )
 }
