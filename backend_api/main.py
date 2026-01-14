@@ -1577,6 +1577,35 @@ async def get_model_info(station_id: str):
     return info
 
 
+@app.get("/api/model/{station_id}/training-readiness", tags=["Model Training"])
+async def check_training_readiness(station_id: str):
+    """
+    Check if a station has enough data to train an LSTM model.
+
+    Returns:
+    - ready: Boolean indicating if model can be trained
+    - total_records: Number of valid PM2.5 records
+    - required_records: Minimum records needed for training
+    - contiguous_sequences: List of sequence lengths
+    - longest_sequence: Length of longest contiguous sequence
+    - potential_training_samples: Number of training samples that can be generated
+    - recommendation: Human-readable recommendation
+    - can_use_fallback: Whether fallback methods can be used
+    - fallback_methods: List of available fallback methods
+
+    Example usage:
+    - After uploading CSV for a new station, check if data is sufficient
+    - Before attempting model training, verify requirements are met
+    - Determine if fallback imputation methods should be used instead
+    """
+    try:
+        readiness = lstm_model_service.check_training_readiness(station_id)
+        return readiness
+    except Exception as e:
+        logger.error(f"Error checking training readiness for {station_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/models/status", tags=["Model Training"])
 async def get_all_models_status(
     db: Session = Depends(get_db),
@@ -1674,27 +1703,40 @@ async def trigger_imputation(
     request: ImputationRequest,
     background_tasks: BackgroundTasks
 ):
-    """Trigger LSTM-based imputation for a single station"""
+    """
+    Trigger imputation for a single station with method selection.
+
+    Methods:
+    - **auto**: Try LSTM first, fallback to linear interpolation if model unavailable (default)
+    - **lstm**: Use LSTM only (fails if model cannot be trained)
+    - **linear**: Use linear interpolation only
+    - **forward_fill**: Use forward-fill only
+
+    The "auto" method is recommended for new stations with insufficient data for LSTM training.
+    """
     background_tasks.add_task(
         _imputation_task,
         request.station_id,
         request.start_datetime,
-        request.end_datetime
+        request.end_datetime,
+        request.method
     )
     return {
         "message": "Imputation started",
-        "station_id": request.station_id
+        "station_id": request.station_id,
+        "method": request.method
     }
 
 
 def _imputation_task(
     station_id: str,
     start_datetime: Optional[datetime],
-    end_datetime: Optional[datetime]
+    end_datetime: Optional[datetime],
+    method: str = "auto"
 ):
     """Background task for imputation"""
     imputation_service.impute_station_gaps(
-        station_id, start_datetime, end_datetime)
+        station_id, start_datetime, end_datetime, method)
 
 
 @app.post("/api/impute/all", tags=["🚀 Quick Start", "Imputation"])
@@ -2090,6 +2132,352 @@ async def preview_api_data(request: ApiUrlRequest):
         }
     except Exception as e:
         logger.error(f"Error previewing API data: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/prepare-csv", tags=["Data Upload"])
+async def prepare_csv_data(file: UploadFile = File(...)):
+    """
+    Prepare raw monitoring station CSV data for upload.
+
+    This endpoint cleans raw CSV exports from air quality monitoring stations:
+    - Removes header/footer rows (station info, units, statistics)
+    - Extracts station ID from header
+    - Converts date format (DD/MM/YYYY HH:MM → YYYY-MM-DD HH:MM:SS)
+    - Replaces invalid values (Calib, <Samp, N/A) with empty strings
+    - Renames columns to system format
+
+    Returns the cleaned CSV as a downloadable file.
+    """
+    import csv
+    import re
+    import io
+    from datetime import datetime as dt
+    from fastapi.responses import StreamingResponse
+
+    def extract_station_id(header_line: str) -> str:
+        match = re.search(r'Station:\s*(\w+)', header_line)
+        return match.group(1) if match else 'UNKNOWN'
+
+    def parse_datetime(date_str: str) -> str:
+        try:
+            parsed = dt.strptime(date_str, '%d/%m/%Y %H:%M')
+            return parsed.strftime('%Y-%m-%d %H:%M:%S')
+        except:
+            return None
+
+    def clean_value(value: str) -> str:
+        if not value or value.strip() == '':
+            return ''
+        value = value.strip()
+        if value in ['Calib', '<Samp', 'N/A', '-']:
+            return ''
+        try:
+            float(value)
+            return value
+        except:
+            return ''
+
+    try:
+        content = await file.read()
+        # Try different encodings
+        for encoding in ['utf-8-sig', 'utf-8', 'cp1252', 'iso-8859-1']:
+            try:
+                text_content = content.decode(encoding)
+                break
+            except:
+                continue
+        else:
+            raise HTTPException(status_code=400, detail="Could not decode file. Please use UTF-8 encoding.")
+
+        lines = text_content.splitlines()
+
+        if len(lines) < 5:
+            raise HTTPException(status_code=400, detail="File too short. Expected monitoring station CSV format.")
+
+        # Extract station ID from first line
+        station_id = extract_station_id(lines[0])
+
+        # Find header row (contains "Date & Time")
+        header_row_idx = None
+        for i, line in enumerate(lines):
+            if 'Date & Time' in line or 'DateTime' in line:
+                header_row_idx = i
+                break
+
+        if header_row_idx is None:
+            raise HTTPException(status_code=400, detail="Could not find header row. Expected 'Date & Time' column.")
+
+        # Column mapping
+        column_map = {
+            'Date & Time': 'datetime',
+            'PM10': 'pm10',
+            'PM2.5': 'pm25',
+            'CO': 'co',
+            'NO': 'no',
+            'NO2': 'no2',
+            'NOX': 'nox',
+            'SO2': 'so2',
+            'O3': 'o3',
+            'WS': 'ws',
+            'WD': 'wd',
+            'Temp': 'temp',
+            'RH': 'rh',
+            'BP': 'bp',
+            'RAIN': 'rain'
+        }
+
+        output_columns = ['station_id', 'datetime', 'pm10', 'pm25', 'co', 'no', 'no2',
+                          'o3', 'so2', 'ws', 'wd', 'temp', 'rh', 'bp', 'rain']
+
+        # Parse header
+        header_line = lines[header_row_idx]
+        reader = csv.reader([header_line])
+        header_cols = next(reader)
+
+        # Skip units row (next line after header)
+        data_start_idx = header_row_idx + 2
+
+        output_data = []
+        valid_count = 0
+        skipped_count = 0
+        issues = []
+
+        for line_idx in range(data_start_idx, len(lines)):
+            line = lines[line_idx].strip()
+
+            if not line:
+                continue
+
+            # Stop at footer
+            if any(x in line for x in ['Minimum', 'Maximum', 'Avg,', 'Num,', 'Data[%]', 'STD,']):
+                break
+
+            try:
+                reader = csv.reader([line])
+                values = next(reader)
+            except:
+                skipped_count += 1
+                continue
+
+            if not values or len(values) < 1:
+                skipped_count += 1
+                continue
+
+            # Parse datetime
+            datetime_str = parse_datetime(values[0])
+            if not datetime_str:
+                skipped_count += 1
+                if len(issues) < 5:
+                    issues.append(f"Invalid date format at row {line_idx + 1}: {values[0][:30]}")
+                continue
+
+            row = {
+                'station_id': station_id,
+                'datetime': datetime_str
+            }
+
+            # Map columns
+            for i, col_name in enumerate(header_cols):
+                col_name = col_name.strip()
+                if col_name in column_map:
+                    mapped_name = column_map[col_name]
+                    if mapped_name != 'datetime':
+                        value = clean_value(values[i]) if i < len(values) else ''
+                        row[mapped_name] = value
+
+            output_data.append(row)
+            valid_count += 1
+
+        if valid_count == 0:
+            raise HTTPException(status_code=400, detail="No valid records found in file.")
+
+        # Generate output CSV
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=output_columns)
+        writer.writeheader()
+        writer.writerows(output_data)
+
+        csv_content = output.getvalue()
+        output.close()
+
+        # Return as downloadable file with processing stats in headers
+        filename = f"{station_id}_prepared.csv"
+
+        response = StreamingResponse(
+            iter([csv_content]),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "X-Station-Id": station_id,
+                "X-Valid-Records": str(valid_count),
+                "X-Skipped-Records": str(skipped_count),
+                "X-Issues": "; ".join(issues) if issues else "None"
+            }
+        )
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error preparing CSV data: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/prepare-csv/preview", tags=["Data Upload"])
+async def preview_prepared_csv(file: UploadFile = File(...)):
+    """
+    Preview raw CSV preparation without downloading.
+    Returns processing statistics and sample of cleaned data.
+    """
+    import csv
+    import re
+    from datetime import datetime as dt
+
+    def extract_station_id(header_line: str) -> str:
+        match = re.search(r'Station:\s*(\w+)', header_line)
+        return match.group(1) if match else 'UNKNOWN'
+
+    def parse_datetime(date_str: str) -> str:
+        try:
+            parsed = dt.strptime(date_str, '%d/%m/%Y %H:%M')
+            return parsed.strftime('%Y-%m-%d %H:%M:%S')
+        except:
+            return None
+
+    def clean_value(value: str) -> str:
+        if not value or value.strip() == '':
+            return ''
+        value = value.strip()
+        if value in ['Calib', '<Samp', 'N/A', '-']:
+            return ''
+        try:
+            float(value)
+            return value
+        except:
+            return ''
+
+    try:
+        content = await file.read()
+        for encoding in ['utf-8-sig', 'utf-8', 'cp1252', 'iso-8859-1']:
+            try:
+                text_content = content.decode(encoding)
+                break
+            except:
+                continue
+        else:
+            raise HTTPException(status_code=400, detail="Could not decode file.")
+
+        lines = text_content.splitlines()
+
+        if len(lines) < 5:
+            raise HTTPException(status_code=400, detail="File too short.")
+
+        station_id = extract_station_id(lines[0])
+
+        header_row_idx = None
+        for i, line in enumerate(lines):
+            if 'Date & Time' in line or 'DateTime' in line:
+                header_row_idx = i
+                break
+
+        if header_row_idx is None:
+            raise HTTPException(status_code=400, detail="Could not find header row.")
+
+        column_map = {
+            'Date & Time': 'datetime', 'PM10': 'pm10', 'PM2.5': 'pm25',
+            'CO': 'co', 'NO': 'no', 'NO2': 'no2', 'NOX': 'nox',
+            'SO2': 'so2', 'O3': 'o3', 'WS': 'ws', 'WD': 'wd',
+            'Temp': 'temp', 'RH': 'rh', 'BP': 'bp', 'RAIN': 'rain'
+        }
+
+        header_line = lines[header_row_idx]
+        reader = csv.reader([header_line])
+        header_cols = next(reader)
+
+        data_start_idx = header_row_idx + 2
+
+        output_data = []
+        valid_count = 0
+        skipped_count = 0
+        issues = []
+        calib_count = 0
+        samp_count = 0
+
+        for line_idx in range(data_start_idx, len(lines)):
+            line = lines[line_idx].strip()
+
+            if not line:
+                continue
+
+            if any(x in line for x in ['Minimum', 'Maximum', 'Avg,', 'Num,', 'Data[%]', 'STD,']):
+                break
+
+            # Count special values
+            if 'Calib' in line:
+                calib_count += line.count('Calib')
+            if '<Samp' in line:
+                samp_count += line.count('<Samp')
+
+            try:
+                reader = csv.reader([line])
+                values = next(reader)
+            except:
+                skipped_count += 1
+                continue
+
+            if not values or len(values) < 1:
+                skipped_count += 1
+                continue
+
+            datetime_str = parse_datetime(values[0])
+            if not datetime_str:
+                skipped_count += 1
+                if len(issues) < 5:
+                    issues.append(f"Invalid date: {values[0][:20]}")
+                continue
+
+            row = {'station_id': station_id, 'datetime': datetime_str}
+
+            for i, col_name in enumerate(header_cols):
+                col_name = col_name.strip()
+                if col_name in column_map:
+                    mapped_name = column_map[col_name]
+                    if mapped_name != 'datetime':
+                        value = clean_value(values[i]) if i < len(values) else ''
+                        row[mapped_name] = value
+
+            output_data.append(row)
+            valid_count += 1
+
+        # Get date range
+        first_date = output_data[0]['datetime'] if output_data else None
+        last_date = output_data[-1]['datetime'] if output_data else None
+
+        return {
+            "success": valid_count > 0,
+            "station_id": station_id,
+            "statistics": {
+                "valid_records": valid_count,
+                "skipped_records": skipped_count,
+                "calib_values_replaced": calib_count,
+                "samp_values_replaced": samp_count,
+                "total_special_values_cleaned": calib_count + samp_count
+            },
+            "date_range": {
+                "start": first_date,
+                "end": last_date
+            },
+            "sample_data": output_data[:5],
+            "issues": issues,
+            "columns": ['station_id', 'datetime', 'pm10', 'pm25', 'co', 'no', 'no2',
+                       'o3', 'so2', 'ws', 'wd', 'temp', 'rh', 'bp', 'rain']
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error previewing CSV preparation: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 

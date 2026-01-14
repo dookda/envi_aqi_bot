@@ -58,6 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
         labelEn: 'Settings',
         labelTh: 'ตั้งค่า',
         items: [
+            { id: 'prepare', path: '/prepare-data', icon: 'edit_note', labelEn: 'Data Preparation', labelTh: 'เตรียมข้อมูล' },
             { id: 'upload', path: '/upload', icon: 'cloud_upload', labelEn: 'Data Upload', labelTh: 'อัปโหลดข้อมูล' },
             { id: 'stations', path: '/stations', icon: 'location_on', labelEn: 'Stations', labelTh: 'จัดการสถานี' },
             { id: 'admin', path: '/admin', icon: 'admin_panel_settings', labelEn: 'Admin', labelTh: 'ผู้ดูแล' },

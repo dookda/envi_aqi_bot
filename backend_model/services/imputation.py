@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 
 import numpy as np
+import pandas as pd
+from scipy import interpolate
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -28,6 +30,9 @@ class ImputationService:
         self.sequence_length = settings.sequence_length
         self.max_gap_hours = settings.max_gap_hours
         self.min_context_hours = settings.min_context_hours
+        self.fallback_method = settings.fallback_imputation_method
+        self.short_gap_threshold = settings.short_gap_threshold
+        self.medium_gap_threshold = settings.medium_gap_threshold
     
     def find_missing_timestamps(
         self,
@@ -140,14 +145,133 @@ class ImputationService:
     def should_impute(self, gap_hours: int) -> bool:
         """
         Determine if a gap should be imputed
-        
+
         According to spec:
         - Short gaps (1-3 hours): impute
         - Medium gaps (4-24 hours): impute
         - Long gaps (>24 hours): flag only, no imputation
         """
         return gap_hours <= self.max_gap_hours
-    
+
+    def linear_interpolation_single(
+        self,
+        db: Session,
+        station_id: str,
+        target_datetime: datetime
+    ) -> Optional[float]:
+        """
+        Perform linear interpolation for a single missing value
+
+        Args:
+            db: Database session
+            station_id: Station identifier
+            target_datetime: Target datetime to impute
+
+        Returns:
+            Interpolated value or None if insufficient data
+        """
+        # Get values before and after target
+        result_before = db.execute(
+            text("""
+                SELECT datetime, pm25 FROM aqi_hourly
+                WHERE station_id = :station_id
+                AND datetime < :target
+                AND pm25 IS NOT NULL
+                ORDER BY datetime DESC
+                LIMIT 10
+            """),
+            {"station_id": station_id, "target": target_datetime}
+        )
+
+        result_after = db.execute(
+            text("""
+                SELECT datetime, pm25 FROM aqi_hourly
+                WHERE station_id = :station_id
+                AND datetime > :target
+                AND pm25 IS NOT NULL
+                ORDER BY datetime ASC
+                LIMIT 10
+            """),
+            {"station_id": station_id, "target": target_datetime}
+        )
+
+        before_data = list(result_before)
+        after_data = list(result_after)
+
+        if not before_data or not after_data:
+            logger.debug(f"Insufficient data for linear interpolation at {target_datetime}")
+            return None
+
+        # Get closest points before and after
+        time_before, value_before = before_data[0]
+        time_after, value_after = after_data[0]
+
+        # Calculate time differences in hours
+        hours_from_before = (target_datetime - time_before).total_seconds() / 3600
+        hours_to_after = (time_after - target_datetime).total_seconds() / 3600
+        total_hours = hours_from_before + hours_to_after
+
+        # Linear interpolation
+        weight_before = hours_to_after / total_hours
+        weight_after = hours_from_before / total_hours
+
+        interpolated_value = (value_before * weight_before + value_after * weight_after)
+
+        return max(0.0, interpolated_value)  # Ensure non-negative PM2.5
+
+    def forward_fill_single(
+        self,
+        db: Session,
+        station_id: str,
+        target_datetime: datetime
+    ) -> Optional[float]:
+        """
+        Perform forward-fill for a single missing value
+
+        Args:
+            db: Database session
+            station_id: Station identifier
+            target_datetime: Target datetime to impute
+
+        Returns:
+            Forward-filled value or None if no previous data
+        """
+        # Get last known value before target
+        result = db.execute(
+            text("""
+                SELECT pm25 FROM aqi_hourly
+                WHERE station_id = :station_id
+                AND datetime < :target
+                AND pm25 IS NOT NULL
+                ORDER BY datetime DESC
+                LIMIT 1
+            """),
+            {"station_id": station_id, "target": target_datetime}
+        )
+
+        data = list(result)
+
+        if not data:
+            # No previous value, try next value
+            result = db.execute(
+                text("""
+                    SELECT pm25 FROM aqi_hourly
+                    WHERE station_id = :station_id
+                    AND datetime > :target
+                    AND pm25 IS NOT NULL
+                    ORDER BY datetime ASC
+                    LIMIT 1
+                """),
+                {"station_id": station_id, "target": target_datetime}
+            )
+            data = list(result)
+
+        if not data:
+            logger.debug(f"No surrounding data for forward fill at {target_datetime}")
+            return None
+
+        return max(0.0, float(data[0][0]))  # Ensure non-negative PM2.5
+
     def impute_single_value(
         self,
         db: Session,
@@ -250,32 +374,54 @@ class ImputationService:
         self,
         station_id: str,
         start_datetime: Optional[datetime] = None,
-        end_datetime: Optional[datetime] = None
+        end_datetime: Optional[datetime] = None,
+        method: str = "auto"
     ) -> Dict[str, Any]:
         """
         Impute all missing values for a station within range
-        
+
         Args:
             station_id: Station identifier
             start_datetime: Optional start of range
             end_datetime: Optional end of range
-            
+            method: Imputation method - "auto", "lstm", "linear", or "forward_fill"
+                   "auto" tries LSTM first, falls back to linear if model unavailable
+
         Returns:
             Summary of imputation results
         """
-        # Ensure model exists
-        if not lstm_model_service.model_exists(station_id):
-            # Train model first
-            logger.info(f"Training model for {station_id} before imputation")
-            train_result = lstm_model_service.train_model(station_id)
-            
-            if train_result.get("status") == "failed":
-                return {
-                    "station_id": station_id,
-                    "status": "failed",
-                    "reason": "model_training_failed",
-                    "imputed_count": 0
-                }
+        # Determine if LSTM is available
+        use_lstm = False
+        fallback_reason = None
+
+        if method in ["auto", "lstm"]:
+            if not lstm_model_service.model_exists(station_id):
+                # Train model first
+                logger.info(f"Training model for {station_id} before imputation")
+                train_result = lstm_model_service.train_model(station_id)
+
+                if train_result.get("status") == "failed":
+                    fallback_reason = train_result.get("reason", "model_training_failed")
+
+                    if method == "lstm":
+                        # LSTM requested but not available - fail
+                        return {
+                            "station_id": station_id,
+                            "status": "failed",
+                            "reason": f"model_training_failed: {fallback_reason}",
+                            "imputed_count": 0
+                        }
+                    else:
+                        # auto mode - fallback to configured method
+                        logger.warning(
+                            f"LSTM training failed for {station_id} ({fallback_reason}), "
+                            f"falling back to {self.fallback_method} method"
+                        )
+                        method = self.fallback_method
+                else:
+                    use_lstm = True
+            else:
+                use_lstm = True
         
         results = []
         
@@ -309,34 +455,105 @@ class ImputationService:
                     logger.debug(f"Skipping long gap ({gap_hours}h) for {station_id}")
                     skipped += gap_hours
                     continue
-                
+
                 # Impute each hour in the gap
                 current = gap_start
                 while current <= gap_end:
                     if current in missing:
-                        result = self.impute_single_value(db, station_id, current)
-                        if result and result.get("status") == "success":
-                            imputed += 1
-                            results.append(result)
-                        else:
-                            failed += 1
-                            if result:
-                                logger.debug(f"Failed to impute {station_id} at {current}: {result.get('error', 'insufficient context')}")
+                        # Determine which method to use for this gap
+                        imputed_value = None
+                        imputation_method = method
+
+                        # Auto-select method based on gap size if using fallback
+                        if method in ["linear", "forward_fill"] and gap_hours <= self.short_gap_threshold:
+                            imputation_method = "forward_fill"
+                        elif method == "linear" and gap_hours <= self.medium_gap_threshold:
+                            imputation_method = "linear"
+
+                        # Perform imputation based on selected method
+                        if use_lstm or imputation_method == "lstm":
+                            result = self.impute_single_value(db, station_id, current)
+                            if result and result.get("status") == "success":
+                                imputed += 1
+                                results.append(result)
                             else:
-                                logger.debug(f"Failed to impute {station_id} at {current}: insufficient context")
+                                failed += 1
+                                if result:
+                                    logger.debug(f"Failed to impute {station_id} at {current}: {result.get('error', 'insufficient context')}")
+                                else:
+                                    logger.debug(f"Failed to impute {station_id} at {current}: insufficient context")
+                        elif imputation_method == "linear":
+                            imputed_value = self.linear_interpolation_single(db, station_id, current)
+                        elif imputation_method == "forward_fill":
+                            imputed_value = self.forward_fill_single(db, station_id, current)
+
+                        # If using fallback method, update database directly
+                        if imputed_value is not None and imputation_method in ["linear", "forward_fill"]:
+                            try:
+                                model_version = f"{imputation_method}_v1.0"
+                                db.execute(
+                                    text("""
+                                        UPDATE aqi_hourly
+                                        SET pm25 = :pm25, is_imputed = TRUE, model_version = :model_version
+                                        WHERE station_id = :station_id AND datetime = :datetime
+                                    """),
+                                    {
+                                        "pm25": imputed_value,
+                                        "station_id": station_id,
+                                        "datetime": current,
+                                        "model_version": model_version
+                                    }
+                                )
+
+                                # Log imputation
+                                imputation_log = ImputationLog(
+                                    station_id=station_id,
+                                    datetime=current,
+                                    imputed_value=imputed_value,
+                                    input_window_start=current - timedelta(hours=1),
+                                    input_window_end=current + timedelta(hours=1),
+                                    model_version=model_version
+                                )
+                                db.add(imputation_log)
+
+                                imputed += 1
+                                results.append({
+                                    "station_id": station_id,
+                                    "datetime": current,
+                                    "imputed_value": imputed_value,
+                                    "method": imputation_method,
+                                    "status": "success"
+                                })
+                                logger.bind(context="imputation").info(
+                                    f"Imputed {station_id} at {current}: {imputed_value:.2f} using {imputation_method}"
+                                )
+                            except Exception as e:
+                                logger.error(f"Fallback imputation failed for {station_id} at {current}: {e}")
+                                failed += 1
+                        elif imputed_value is None and imputation_method in ["linear", "forward_fill"]:
+                            failed += 1
+                            logger.debug(f"Failed to impute {station_id} at {current} using {imputation_method}: insufficient data")
+
                     current += timedelta(hours=1)
             
             db.commit()
-            
-            return {
+
+            result_dict = {
                 "station_id": station_id,
                 "status": "completed",
+                "method_used": "lstm" if use_lstm else method,
                 "total_missing": len(missing),
                 "imputed_count": imputed,
                 "skipped_count": skipped,
                 "failed_count": failed,
                 "results": results
             }
+
+            if fallback_reason:
+                result_dict["fallback_reason"] = fallback_reason
+                result_dict["note"] = f"LSTM training failed, used {method} as fallback"
+
+            return result_dict
     
     def _identify_gaps(
         self,

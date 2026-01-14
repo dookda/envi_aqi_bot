@@ -74,6 +74,10 @@ class ImputationRequest(BaseModel):
     station_id: str
     start_datetime: Optional[datetime] = None
     end_datetime: Optional[datetime] = None
+    method: str = Field(
+        default="auto",
+        description="Imputation method: 'auto' (LSTM with fallback), 'lstm', 'linear', or 'forward_fill'"
+    )
 
 
 class ImputationLogResponse(BaseModel):

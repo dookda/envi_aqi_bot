@@ -546,6 +546,104 @@ class LSTMModelService:
             "training_info": training_info
         }
 
+    def check_training_readiness(self, station_id: str) -> Dict[str, Any]:
+        """
+        Check if a station has enough data to train an LSTM model
+
+        Args:
+            station_id: Station identifier
+
+        Returns:
+            Dictionary with readiness status and details
+        """
+        with get_db_context() as db:
+            # Get all non-null PM2.5 values
+            result = db.execute(
+                text("""
+                    SELECT datetime, pm25 FROM aqi_hourly
+                    WHERE station_id = :station_id
+                    AND pm25 IS NOT NULL
+                    ORDER BY datetime
+                """),
+                {"station_id": station_id}
+            )
+
+            data = list(result)
+
+            if not data:
+                return {
+                    "ready": False,
+                    "station_id": station_id,
+                    "total_records": 0,
+                    "required_records": settings.min_training_records,
+                    "contiguous_sequences": [],
+                    "longest_sequence": 0,
+                    "recommendation": "No valid PM2.5 data found. Upload data first.",
+                    "can_use_fallback": False
+                }
+
+            total_records = len(data)
+
+            # Convert to DataFrame for sequence analysis
+            df = pd.DataFrame(data, columns=['datetime', 'pm25'])
+            df['datetime'] = pd.to_datetime(df['datetime'])
+            df = df.sort_values('datetime').reset_index(drop=True)
+
+            # Find contiguous sequences (no gaps > 1 hour)
+            sequences = self._find_contiguous_sequences(df, max_gap_hours=1)
+
+            sequence_lengths = [len(seq) for seq in sequences]
+            longest_sequence = max(sequence_lengths) if sequence_lengths else 0
+
+            # Check minimum requirements
+            min_required = settings.min_training_records
+            has_enough_records = total_records >= min_required
+            has_long_enough_sequence = longest_sequence >= (self.sequence_length + 1)
+
+            # Calculate if can generate enough training samples
+            total_samples = 0
+            for seq in sequences:
+                if len(seq) >= (self.sequence_length + 1):
+                    total_samples += len(seq) - self.sequence_length
+
+            train_samples = int(total_samples * 0.8)
+            val_samples = total_samples - train_samples
+            has_enough_samples = train_samples >= 10 and val_samples >= 2
+
+            ready = has_enough_records and has_long_enough_sequence and has_enough_samples
+
+            # Determine recommendation
+            if ready:
+                recommendation = f"Ready to train! {total_samples} training samples available."
+            elif not has_enough_records:
+                needed = min_required - total_records
+                recommendation = f"Need {needed} more records (minimum {min_required} required)."
+            elif not has_long_enough_sequence:
+                needed = (self.sequence_length + 1) - longest_sequence
+                recommendation = f"Need {needed} more contiguous hours (minimum {self.sequence_length + 1} required)."
+            elif not has_enough_samples:
+                recommendation = f"Insufficient contiguous sequences. Need at least 12 hours in a row without gaps."
+            else:
+                recommendation = "Data requirements not met."
+
+            # Check if can use fallback methods
+            can_use_fallback = total_records >= 2  # Need at least 2 points for interpolation
+
+            result = {
+                "ready": ready,
+                "station_id": station_id,
+                "total_records": total_records,
+                "required_records": min_required,
+                "contiguous_sequences": sequence_lengths,
+                "longest_sequence": longest_sequence,
+                "potential_training_samples": total_samples,
+                "recommendation": recommendation,
+                "can_use_fallback": can_use_fallback,
+                "fallback_methods": ["linear", "forward_fill"] if can_use_fallback else []
+            }
+
+            return result
+
 
 # Singleton instance
 lstm_model_service = LSTMModelService()

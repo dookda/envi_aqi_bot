@@ -136,6 +136,10 @@ class Settings(BaseSettings):
     # Imputation Configuration
     max_gap_hours: int = 168  # Maximum gap to impute (1 week)
     min_context_hours: int = 24  # Minimum historical context required
+    fallback_imputation_method: str = "linear"  # Fallback when LSTM unavailable: "linear", "forward_fill", or "none"
+    min_training_records: int = 168  # Minimum records required to train LSTM model (1 week)
+    short_gap_threshold: int = 3  # Hours - gaps <= this use forward fill
+    medium_gap_threshold: int = 6  # Hours - gaps <= this use linear interpolation
 
     # AI Chatbot Configuration (Local LLM)
     ollama_url: str = "http://ollama:11434"
