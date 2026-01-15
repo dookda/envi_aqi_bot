@@ -39,6 +39,80 @@ class AirQualityChatbotService:
     def __init__(self):
         self.llm_adapter = get_ollama_adapter()
         self.orchestrator = get_api_orchestrator()
+        
+        # Response cache for faster repeated queries
+        self._cache = {}
+        self._cache_ttl = 300  # 5 minutes
+        
+        # Fast patterns that bypass LLM
+        self._fast_patterns = [
+            # (regex_pattern, intent_template)
+            (r"(?:pm2\.?5|ค่าฝุ่น)\s+(.+?)\s+(?:วันนี้|today)", self._make_today_intent),
+            (r"(?:ค้นหา|หา|search|find)\s*(?:สถานี)?\s*(.+)", self._make_search_intent),
+        ]
+
+    def _make_today_intent(self, match) -> Dict[str, Any]:
+        """Create intent for 'PM2.5 [location] today' queries"""
+        from datetime import datetime, timedelta
+        location = match.group(1).strip()
+        today = datetime.now()
+        return {
+            "intent_type": "get_data",
+            "station_id": location,
+            "pollutant": "pm25",
+            "start_date": today.replace(hour=0, minute=0).isoformat(),
+            "end_date": today.isoformat(),
+            "interval": "hour",
+            "output_type": "chart"
+        }
+
+    def _make_search_intent(self, match) -> Dict[str, Any]:
+        """Create intent for search queries"""
+        location = match.group(1).strip()
+        return {
+            "intent_type": "search_stations",
+            "search_query": location,
+            "output_type": "text"
+        }
+
+    def _get_cache_key(self, query: str) -> str:
+        """Generate cache key from query"""
+        import hashlib
+        return hashlib.md5(query.lower().strip().encode()).hexdigest()
+
+    def _get_cached(self, query: str) -> Optional[Dict[str, Any]]:
+        """Get cached response if valid"""
+        import time
+        key = self._get_cache_key(query)
+        if key in self._cache:
+            cached = self._cache[key]
+            if time.time() - cached["time"] < self._cache_ttl:
+                logger.info(f"Cache hit for query: {query[:50]}")
+                return cached["response"]
+        return None
+
+    def _set_cache(self, query: str, response: Dict[str, Any]):
+        """Cache a response"""
+        import time
+        key = self._get_cache_key(query)
+        self._cache[key] = {"response": response, "time": time.time()}
+        
+        # Cleanup old entries (keep max 100)
+        if len(self._cache) > 100:
+            sorted_keys = sorted(self._cache.keys(), key=lambda k: self._cache[k]["time"])
+            for k in sorted_keys[:20]:
+                del self._cache[k]
+
+    def _try_fast_pattern(self, query: str) -> Optional[Dict[str, Any]]:
+        """Try to match query against fast patterns (bypass LLM)"""
+        import re
+        query_lower = query.lower()
+        for pattern, intent_builder in self._fast_patterns:
+            match = re.search(pattern, query_lower)
+            if match:
+                logger.info(f"Fast pattern match: {pattern}")
+                return intent_builder(match)
+        return None
 
     def _detect_language(self, text: str) -> str:
         """Detect if text is primarily Thai or English"""
@@ -72,6 +146,11 @@ class AirQualityChatbotService:
         language = self._detect_language(user_query)
         logger.info(f"Detected language: {language}")
 
+        # === CHECK CACHE FIRST (FAST PATH) ===
+        cached_response = self._get_cached(user_query)
+        if cached_response:
+            return cached_response
+
         # === LAYER 1: KEYWORD FILTER (PRE-LLM) ===
         keyword_result = keyword_filter(user_query)
         if not keyword_result["passed"]:
@@ -85,57 +164,70 @@ class AirQualityChatbotService:
                 "output_type": None
             }
 
-        # === LAYER 2: LLM INTENT PARSING ===
-        current_datetime = datetime.now().isoformat()
-        system_prompt = get_system_prompt(current_datetime)
+        # === TRY FAST PATTERN MATCHING (BYPASS LLM) ===
+        fast_intent = self._try_fast_pattern(user_query)
+        if fast_intent:
+            logger.info("Using fast pattern match - skipping LLM")
+            intent = fast_intent
+        else:
+            # === LAYER 2: LLM INTENT PARSING ===
+            current_datetime = datetime.now().isoformat()
+            system_prompt = get_system_prompt(current_datetime)
 
-        llm_output = await self.llm_adapter.generate(
-            prompt=user_query,
-            system_prompt=system_prompt,
-            temperature=0.1  # Low temperature for deterministic JSON
-        )
-
-        if llm_output is None:
-            logger.error("LLM failed to generate output")
-            error_response = compose_error_response("service_error", language=language)
-            return {
-                "status": "error",
-                "message": error_response["message"],
-                "intent": None,
-                "data": None,
-                "summary": None,
-                "output_type": None
-            }
-
-        # === LAYER 3: INTENT VALIDATION (POST-LLM) ===
-        validation_result = validate_intent(llm_output)
-        if not validation_result["valid"]:
-            error_response = compose_error_response(
-                validation_result["status"],
-                details=validation_result.get("message", ""),
-                language=language
+            llm_output = await self.llm_adapter.generate(
+                prompt=user_query,
+                system_prompt=system_prompt,
+                temperature=0.1  # Low temperature for deterministic JSON
             )
-            return {
-                "status": validation_result["status"],
-                "message": error_response["message"],
-                "intent": None,
-                "data": None,
-                "summary": None,
-                "output_type": None
-            }
 
-        intent = validation_result["intent"]
-        logger.info(f"Validated intent: {intent}")
+            if llm_output is None:
+                logger.error("LLM failed to generate output")
+                error_response = compose_error_response("service_error", language=language)
+                return {
+                    "status": "error",
+                    "message": error_response["message"],
+                    "intent": None,
+                    "data": None,
+                    "summary": None,
+                    "output_type": None
+                }
+
+            # === LAYER 3: INTENT VALIDATION (POST-LLM) ===
+            validation_result = validate_intent(llm_output)
+            if not validation_result["valid"]:
+                error_response = compose_error_response(
+                    validation_result["status"],
+                    details=validation_result.get("message", ""),
+                    language=language
+                )
+                return {
+                    "status": validation_result["status"],
+                    "message": error_response["message"],
+                    "intent": None,
+                    "data": None,
+                    "summary": None,
+                    "output_type": None
+                }
+
+            intent = validation_result["intent"]
+            logger.info(f"Validated intent: {intent}")
 
         # === ROUTE BASED ON INTENT TYPE ===
         intent_type = intent.get("intent_type", "get_data")
+
         
         if intent_type == "needs_clarification":
-            return await self._handle_needs_clarification(intent, language)
+            response = await self._handle_needs_clarification(intent, language)
         elif intent_type == "search_stations":
-            return await self._handle_search_stations(intent, language)
+            response = await self._handle_search_stations(intent, language)
         else:
-            return await self._handle_get_data(intent, language)
+            response = await self._handle_get_data(intent, language)
+        
+        # Cache successful responses
+        if response.get("status") in ["success", "no_results"]:
+            self._set_cache(user_query, response)
+        
+        return response
 
     async def _handle_needs_clarification(
         self,

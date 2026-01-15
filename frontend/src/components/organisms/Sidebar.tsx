@@ -189,8 +189,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             `}>
                 {/* Logo / Brand */}
                 <div className={`h-16 flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-3 px-5'} border-b ${isLight ? 'border-gray-200' : 'border-dark-700'}`}>
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br from-primary-500 to-primary-600 flex-shrink-0`}>
-                        <Icon name="air" size="sm" className="text-white" />
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-primary-500 to-primary-600 flex-shrink-0 p-1.5`}>
+                        <img
+                            src="/ebot/logo.svg"
+                            alt="AQI Bot Logo"
+                            className="w-full h-full"
+                            style={{ filter: 'brightness(0) invert(1)' }}
+                        />
                     </div>
                     {!isCollapsed && (
                         <div className="flex-1 min-w-0">

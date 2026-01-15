@@ -73,14 +73,15 @@ PARAMETER_THRESHOLDS = {
 }
 
 
-# AQI Level Definitions with Health Advice
+# AQI Level Definitions with Health Advice (Thailand PCD Standard Colors)
 AQI_LEVELS = {
     "excellent": {
         "range": (0, 25),
         "label_en": "Excellent",
         "label_th": "ดีมาก",
-        "color": "green",
-        "emoji": "🟢",
+        "color": "#00BFFF",  # Blue - Thailand PCD
+        "hex": "#00BFFF",
+        "emoji": "🔵",
         "advice_en": "Air quality is ideal for all activities. Enjoy the outdoors!",
         "advice_th": "คุณภาพอากาศดีเยี่ยม เหมาะสำหรับกิจกรรมกลางแจ้งทุกประเภท",
         "sensitive_advice_en": "No precautions needed.",
@@ -90,8 +91,9 @@ AQI_LEVELS = {
         "range": (26, 50),
         "label_en": "Good",
         "label_th": "ดี",
-        "color": "lime",
-        "emoji": "🟡",
+        "color": "#00E400",  # Green - Thailand PCD
+        "hex": "#00E400",
+        "emoji": "🟢",
         "advice_en": "Air quality is satisfactory. Safe for outdoor activities.",
         "advice_th": "คุณภาพอากาศดี ปลอดภัยสำหรับกิจกรรมกลางแจ้ง",
         "sensitive_advice_en": "Unusually sensitive people should consider reducing prolonged outdoor exertion.",
@@ -101,8 +103,9 @@ AQI_LEVELS = {
         "range": (51, 100),
         "label_en": "Moderate",
         "label_th": "ปานกลาง",
-        "color": "yellow",
-        "emoji": "🟠",
+        "color": "#FFFF00",  # Yellow - Thailand PCD
+        "hex": "#FFFF00",
+        "emoji": "🟡",
         "advice_en": "Some pollutants may pose a moderate health concern. Consider limiting prolonged outdoor exertion.",
         "advice_th": "มลพิษบางส่วนอาจส่งผลต่อสุขภาพเล็กน้อย ควรพิจารณาจำกัดกิจกรรมกลางแจ้งที่ใช้เวลานาน",
         "sensitive_advice_en": "Sensitive groups should limit prolonged outdoor exertion. Consider wearing a mask.",
@@ -111,9 +114,10 @@ AQI_LEVELS = {
     "unhealthy_sensitive": {
         "range": (101, 200),
         "label_en": "Unhealthy for Sensitive Groups",
-        "label_th": "มีผลต่อสุขภาพกลุ่มเสี่ยง",
-        "color": "orange",
-        "emoji": "🔴",
+        "label_th": "เริ่มมีผลกระทบต่อสุขภาพ",
+        "color": "#FF7E00",  # Orange - Thailand PCD
+        "hex": "#FF7E00",
+        "emoji": "🟠",
         "advice_en": "General public may begin to experience health effects. Reduce prolonged outdoor exertion.",
         "advice_th": "ประชาชนทั่วไปอาจเริ่มได้รับผลกระทบต่อสุขภาพ ควรลดกิจกรรมกลางแจ้ง",
         "sensitive_advice_en": "Children, elderly, and people with respiratory conditions should avoid outdoor activities. Wear N95 mask if going outside.",
@@ -122,9 +126,10 @@ AQI_LEVELS = {
     "unhealthy": {
         "range": (201, 300),
         "label_en": "Unhealthy",
-        "label_th": "มีผลต่อสุขภาพ",
-        "color": "red",
-        "emoji": "🟣",
+        "label_th": "มีผลกระทบต่อสุขภาพ",
+        "color": "#FF0000",  # Red - Thailand PCD
+        "hex": "#FF0000",
+        "emoji": "🔴",
         "advice_en": "Everyone may experience health effects. Limit all outdoor activities.",
         "advice_th": "ทุกคนอาจได้รับผลกระทบต่อสุขภาพ ควรจำกัดกิจกรรมกลางแจ้งทั้งหมด",
         "sensitive_advice_en": "Everyone should avoid outdoor activities. Stay indoors with air purifier.",
@@ -134,7 +139,8 @@ AQI_LEVELS = {
         "range": (301, 999),
         "label_en": "Hazardous",
         "label_th": "อันตราย",
-        "color": "purple",
+        "color": "#7E0023",  # Dark Red/Maroon - Severe
+        "hex": "#7E0023",
         "emoji": "⚫",
         "advice_en": "Health emergency! Everyone should avoid all outdoor activities.",
         "advice_th": "ฉุกเฉินด้านสุขภาพ! ทุกคนควรหลีกเลี่ยงกิจกรรมกลางแจ้งทั้งหมด",
@@ -142,6 +148,7 @@ AQI_LEVELS = {
         "sensitive_advice_th": "อยู่ในอาคาร ปิดหน้าต่าง ใช้เครื่องฟอกอากาศ พบแพทย์หากมีอาการผิดปกติ",
     },
 }
+
 
 
 def get_aqi_level_from_pm25(pm25_value: float) -> str:
@@ -453,7 +460,11 @@ def compose_data_response(
     policy_recs_th = ""
     policy_recs_en = ""
     
-    if is_report or check["is_critical"] or check["exceeds_standard"]:
+    # Check if policy recommendations should be shown
+    is_critical = aqi_level in ["unhealthy", "hazardous", "unhealthy_sensitive"]
+    exceeds_standard = avg_pm25 is not None and avg_pm25 > 50  # Thailand standard
+    
+    if is_report or is_critical or exceeds_standard:
         if aqi_level in ["unhealthy", "hazardous", "unhealthy_sensitive"]:
             policy_recs_th = (
                 "\n📋 **ข้อเสนอแนะเชิงนโยบาย (Policy Recommendations):**\n"
@@ -496,7 +507,7 @@ def compose_data_response(
             f"• แนวโน้ม: {trend_desc}\n\n"
             f"🏥 **คำแนะนำสุขภาพ:**\n{level_config.get('advice_th', 'ไม่มีข้อมูล')}\n\n"
             f"😷 **สำหรับกลุ่มเสี่ยง:**\n{level_config.get('sensitive_advice_th', 'ไม่มีข้อมูล')}"
-            f"{policy_recs_th if is_report or check['exceeds_standard'] else ''}"
+            f"{policy_recs_th if is_report or exceeds_standard else ''}"
         )
     else:
         message_title = f"📑 **Executive Summary: Station {station_id}**" if is_report else f"📊 **PM2.5 Data for {station_id}**"
@@ -512,7 +523,7 @@ def compose_data_response(
             f"• Trend: {trend_desc}\n\n"
             f"🏥 **Health Advice:**\n{level_config.get('advice_en', 'N/A')}\n\n"
             f"😷 **For Sensitive Groups:**\n{level_config.get('sensitive_advice_en', 'N/A')}"
-            f"{policy_recs_en if is_report or check['exceeds_standard'] else ''}"
+            f"{policy_recs_en if is_report or exceeds_standard else ''}"
         )
     
     # Enhance summary with AQI level

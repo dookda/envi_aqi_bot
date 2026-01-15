@@ -29,10 +29,10 @@ interface AQILevelConfig {
 
 const AQI_LEVELS: Record<string, AQILevelConfig> = {
     excellent: {
-        color: 'text-green-500',
-        bgColor: 'bg-green-500',
-        bgLight: 'bg-green-100',
-        borderColor: 'border-green-500',
+        color: 'text-sky-500',  // Blue - Thailand PCD (0-25)
+        bgColor: 'bg-sky-500',
+        bgLight: 'bg-sky-100',
+        borderColor: 'border-sky-500',
         label: { en: 'Excellent', th: 'ดีมาก' },
         icon: 'sentiment_very_satisfied',
         advice: {
@@ -41,10 +41,10 @@ const AQI_LEVELS: Record<string, AQILevelConfig> = {
         }
     },
     good: {
-        color: 'text-emerald-500',
-        bgColor: 'bg-emerald-500',
-        bgLight: 'bg-emerald-100',
-        borderColor: 'border-emerald-500',
+        color: 'text-green-500',  // Green - Thailand PCD (26-50)
+        bgColor: 'bg-green-500',
+        bgLight: 'bg-green-100',
+        borderColor: 'border-green-500',
         label: { en: 'Good', th: 'ดี' },
         icon: 'sentiment_satisfied',
         advice: {
@@ -53,7 +53,7 @@ const AQI_LEVELS: Record<string, AQILevelConfig> = {
         }
     },
     moderate: {
-        color: 'text-yellow-500',
+        color: 'text-yellow-500',  // Yellow - Thailand PCD (51-100)
         bgColor: 'bg-yellow-500',
         bgLight: 'bg-yellow-100',
         borderColor: 'border-yellow-500',
@@ -65,11 +65,11 @@ const AQI_LEVELS: Record<string, AQILevelConfig> = {
         }
     },
     unhealthy_sensitive: {
-        color: 'text-orange-500',
+        color: 'text-orange-500',  // Orange - Thailand PCD (101-200)
         bgColor: 'bg-orange-500',
         bgLight: 'bg-orange-100',
         borderColor: 'border-orange-500',
-        label: { en: 'Unhealthy (Sensitive)', th: 'มีผลต่อสุขภาพ (กลุ่มเสี่ยง)' },
+        label: { en: 'Unhealthy (Sensitive)', th: 'เริ่มมีผลกระทบต่อสุขภาพ' },
         icon: 'sentiment_dissatisfied',
         advice: {
             en: 'Sensitive groups should avoid outdoor activities. Others should limit prolonged exertion.',
@@ -77,11 +77,11 @@ const AQI_LEVELS: Record<string, AQILevelConfig> = {
         }
     },
     unhealthy: {
-        color: 'text-red-500',
+        color: 'text-red-500',  // Red - Thailand PCD (201+)
         bgColor: 'bg-red-500',
         bgLight: 'bg-red-100',
         borderColor: 'border-red-500',
-        label: { en: 'Unhealthy', th: 'มีผลต่อสุขภาพ' },
+        label: { en: 'Unhealthy', th: 'มีผลกระทบต่อสุขภาพ' },
         icon: 'sentiment_very_dissatisfied',
         advice: {
             en: 'Everyone should limit outdoor activities. Wear N95 masks if going outside.',
@@ -89,10 +89,10 @@ const AQI_LEVELS: Record<string, AQILevelConfig> = {
         }
     },
     hazardous: {
-        color: 'text-purple-500',
-        bgColor: 'bg-purple-500',
-        bgLight: 'bg-purple-100',
-        borderColor: 'border-purple-500',
+        color: 'text-rose-700',  // Dark Red - Severe (301+)
+        bgColor: 'bg-rose-700',
+        bgLight: 'bg-rose-100',
+        borderColor: 'border-rose-700',
         label: { en: 'Hazardous', th: 'อันตราย' },
         icon: 'warning',
         advice: {

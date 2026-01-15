@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <style>
+      .mask-stroke {
+        fill: none;
+        stroke: #555555;
+        stroke-width: 14;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+    </style>
+  </defs>
+  
+  <!-- Main mask body - asymmetric curved shape like original -->
+  <path class="mask-stroke" d="
+    M 130 220
+    C 90 280, 90 360, 150 410
+    C 220 460, 340 460, 400 400
+    C 460 340, 470 250, 420 190
+    C 390 160, 340 155, 280 165
+    C 200 180, 150 190, 130 220
+    Z
+  "/>
+  
+  <!-- Left ear loop - elongated oval on left side -->
+  <path class="mask-stroke" d="
+    M 145 215
+    C 120 190, 95 175, 85 190
+    C 75 210, 90 245, 120 260
+    C 140 270, 155 255, 155 235
+  "/>
+  
+  <!-- Right ear loop - curved strap going up -->
+  <path class="mask-stroke" d="
+    M 395 175
+    C 410 150, 435 125, 455 115
+    C 470 108, 480 115, 478 135
+    C 476 155, 458 175, 430 195
+  "/>
+  
+  <!-- Inner fold line near bottom of mask -->
+  <path class="mask-stroke" d="
+    M 190 375
+    Q 280 345, 370 365
+  "/>
+</svg>

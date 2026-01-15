@@ -49,35 +49,35 @@ const getAqiStatus = (value: number, isLight: boolean): AQIStatus => {
     if (value <= 25) return {
         level: 'Excellent',
         levelTh: 'ดีมาก',
-        color: 'text-green-600',
-        bgColor: isLight ? 'bg-green-50 border-green-200' : 'bg-green-900/20 border-green-800',
+        color: 'text-sky-500',  // Blue - Thailand PCD
+        bgColor: isLight ? 'bg-sky-50 border-sky-200' : 'bg-sky-900/20 border-sky-800',
         icon: 'sentiment_very_satisfied'
     }
     if (value <= 50) return {
         level: 'Good',
         levelTh: 'ดี',
-        color: 'text-green-500',
+        color: 'text-green-500',  // Green - Thailand PCD
         bgColor: isLight ? 'bg-green-50 border-green-200' : 'bg-green-900/20 border-green-800',
         icon: 'sentiment_satisfied'
     }
     if (value <= 100) return {
         level: 'Moderate',
         levelTh: 'ปานกลาง',
-        color: 'text-yellow-600',
+        color: 'text-yellow-500',  // Yellow - Thailand PCD
         bgColor: isLight ? 'bg-yellow-50 border-yellow-200' : 'bg-yellow-900/20 border-yellow-800',
         icon: 'sentiment_neutral'
     }
     if (value <= 200) return {
         level: 'Unhealthy',
-        levelTh: 'มีผลต่อสุขภาพ',
-        color: 'text-orange-600',
+        levelTh: 'เริ่มมีผลกระทบต่อสุขภาพ',
+        color: 'text-orange-500',  // Orange - Thailand PCD
         bgColor: isLight ? 'bg-orange-50 border-orange-200' : 'bg-orange-900/20 border-orange-800',
         icon: 'sentiment_dissatisfied'
     }
     return {
         level: 'Very Unhealthy',
-        levelTh: 'อันตราย',
-        color: 'text-red-600',
+        levelTh: 'มีผลกระทบต่อสุขภาพ',
+        color: 'text-red-500',  // Red - Thailand PCD
         bgColor: isLight ? 'bg-red-50 border-red-200' : 'bg-red-900/20 border-red-800',
         icon: 'sentiment_very_dissatisfied'
     }
@@ -164,11 +164,11 @@ const StatusBar: React.FC<StatusBarProps> = ({
     const getWidth = (count: number) => `${(count / total) * 100}%`
 
     const segments = [
-        { count: excellent, color: 'bg-green-500', label: lang === 'th' ? 'ดีมาก' : 'Excellent' },
-        { count: good, color: 'bg-green-400', label: lang === 'th' ? 'ดี' : 'Good' },
-        { count: moderate, color: 'bg-yellow-400', label: lang === 'th' ? 'ปานกลาง' : 'Moderate' },
-        { count: unhealthy, color: 'bg-orange-500', label: lang === 'th' ? 'มีผลต่อสุขภาพ' : 'Unhealthy' },
-        { count: veryUnhealthy, color: 'bg-red-500', label: lang === 'th' ? 'อันตราย' : 'Very Unhealthy' },
+        { count: excellent, color: 'bg-sky-500', label: lang === 'th' ? 'ดีมาก' : 'Excellent' },      // Blue
+        { count: good, color: 'bg-green-500', label: lang === 'th' ? 'ดี' : 'Good' },                // Green
+        { count: moderate, color: 'bg-yellow-400', label: lang === 'th' ? 'ปานกลาง' : 'Moderate' }, // Yellow
+        { count: unhealthy, color: 'bg-orange-500', label: lang === 'th' ? 'เริ่มมีผลกระทบต่อสุขภาพ' : 'Unhealthy' }, // Orange
+        { count: veryUnhealthy, color: 'bg-red-500', label: lang === 'th' ? 'มีผลกระทบต่อสุขภาพ' : 'Very Unhealthy' }, // Red
     ]
 
     return (
