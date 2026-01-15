@@ -568,7 +568,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                         </div>
                         <div>
                             <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                {lang === 'th' ? 'ความผิดปกติ' : 'Anomalies'}
+                                {lang === 'th' ? 'Spikes' : 'Spikes'}
                             </p>
                             <p className={`text-xl font-bold ${chartData.stats.anomalyCount > 0 ? 'text-red-500' : isLight ? 'text-gray-400' : 'text-dark-500'}`}>
                                 {chartData.stats.anomalyCount}

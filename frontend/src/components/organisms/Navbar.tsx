@@ -2,8 +2,9 @@
  * Navbar Component with Language and Theme toggles
  * A shared navbar component for all pages
  */
+import { Link } from 'react-router-dom'
 import { Icon } from '../atoms'
-import { useLanguage, useTheme } from '../../contexts'
+import { useLanguage, useTheme, useAuth } from '../../contexts'
 
 interface NavbarProps {
   title: string
@@ -14,6 +15,7 @@ interface NavbarProps {
 const Navbar: React.FC<NavbarProps> = ({ title, subtitle, children }) => {
   const { language, toggleLanguage, t } = useLanguage()
   const { toggleTheme, isLight } = useTheme()
+  const { user } = useAuth()
 
   return (
     <header className={`glass border-b sticky top-0 z-50 transition-all duration-300 ${isLight
@@ -38,6 +40,31 @@ const Navbar: React.FC<NavbarProps> = ({ title, subtitle, children }) => {
           <div className="flex items-center gap-4 flex-wrap">
             {/* Custom children (additional nav items) */}
             {children}
+
+            {/* Auth Buttons */}
+            {user ? (
+              <Link
+                to="/profile"
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 ${isLight
+                    ? 'hover:bg-gray-100 text-gray-700'
+                    : 'hover:bg-dark-700 text-gray-200'
+                  }`}
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${isLight ? 'bg-primary-100 text-primary-600' : 'bg-primary-900/30 text-primary-400'
+                  }`}>
+                  {user.username.charAt(0).toUpperCase()}
+                </div>
+                <span className="hidden sm:inline font-medium">{user.username}</span>
+              </Link>
+            ) : (
+              <Link
+                to="/login"
+                className={`px-4 py-2 rounded-lg font-medium text-white shadow-lg shadow-primary-500/20 transition-all ${'bg-gradient-to-r from-primary-500 to-secondary-500 hover:shadow-primary-500/40'
+                  }`}
+              >
+                Login
+              </Link>
+            )}
 
             {/* Language Toggle */}
             <button

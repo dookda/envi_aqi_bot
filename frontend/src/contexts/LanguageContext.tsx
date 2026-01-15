@@ -143,7 +143,7 @@ const translations: Record<Language, Record<string, string>> = {
     'stats.averagePM25': 'ค่าเฉลี่ย PM2.5',
     'stats.imputedPoints': 'จุดที่เติม',
     'stats.missingPoints': 'จุดที่หายไป',
-    'stats.anomalies': 'ความผิดปกติ',
+    'stats.anomalies': 'Spikes',
 
     // Info Panel
     'info.title': 'ทำความเข้าใจข้อมูล',

@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from fastapi import FastAPI, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, Query, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -26,7 +26,7 @@ from backend_api import __version__
 from backend_model.config import settings
 from backend_model.logger import logger
 from backend_model.database import get_db, check_database_connection
-from backend_model.models import Station, AQIHourly, IngestionLog, ImputationLog, ModelTrainingLog
+from backend_model.models import Station, AQIHourly, IngestionLog, ImputationLog, ModelTrainingLog, User
 from backend_api.schemas import (
     StationResponse, StationWithStats, AQIHourlyResponse,
     IngestionRequest, IngestionLogResponse,
@@ -35,156 +35,61 @@ from backend_api.schemas import (
     MissingDataAnalysis, MissingDataGap,
     ValidationResult, HealthResponse,
     AQIHistoryDataPoint, AQIHistoryRequest,
-    ChatQueryRequest, ChatResponse
+    ChatQueryRequest, ChatResponse,
+    UserCreate, UserResponse, Token
 )
-from backend_api.services.ingestion import ingestion_service
-from backend_model.services.imputation import imputation_service
-from backend_model.services.lstm_model import lstm_model_service
-from backend_model.services.validation import validation_service
-from backend_api.services.scheduler import scheduler_service
-from backend_model.services.anomaly import anomaly_service
-from backend_api.services.ai.chatbot import chatbot_service
+from fastapi.security import OAuth2PasswordRequestForm
+from backend_api.auth import (
+    create_access_token, get_current_active_user,
+    verify_password, get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES
+)
+from backend_model.database import Base, engine
+from backend_api.services.upload import DataUploadService
+from backend_model.services.imputation import ImputationService
+from backend_api.services.scheduler import SchedulerService
 
+# Initialize services
+upload_service = DataUploadService()
+imputation_service = ImputationService()
+scheduler_service = SchedulerService()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan management"""
-    logger.info(f"Starting AQI Pipeline API v{__version__}")
-
-    # Check database connection
-    if not check_database_connection():
-        logger.error("Database connection failed on startup")
-
-    # Start scheduler for automated data collection
-    try:
-        scheduler_service.start()
-        logger.info("Scheduler started for automated hourly data collection")
-    except Exception as e:
-        logger.error(f"Failed to start scheduler: {e}")
-
+    # Startup
+    logger.info("Starting up AQI Pipeline API...")
+    
+    # Create tables if not exist
+    Base.metadata.create_all(bind=engine)
+    
+    # Start scheduler
+    scheduler_service.start()
+    
     yield
+    
+    # Shutdown
+    logger.info("Shutting down AQI Pipeline API...")
+    scheduler_service.stop()
 
-    # Cleanup resources on shutdown
-    try:
-        # Stop scheduler gracefully
-        scheduler_service.stop()
-        logger.info("Scheduler stopped")
-
-        # Close HTTP client connections
-        from backend_api.services.ai.llm_adapter import get_ollama_adapter
-        await get_ollama_adapter().close()
-        logger.info("HTTP client connections closed")
-    except Exception as e:
-        logger.error(f"Error during shutdown: {e}")
-
-    logger.info("Shutting down AQI Pipeline API")
-
-
-# API Tags for documentation organization
 tags_metadata = [
-    {
-        "name": "🚀 Quick Start",
-        "description": "**Key workflows to get started:**\n\n"
-                       "1. `POST /api/ingest/batch` - Initial 30-day data load\n"
-                       "2. `POST /api/model/train-all` - Train LSTM for all stations\n"
-                       "3. `POST /api/impute/all` - Impute missing values\n"
-                       "4. `POST /api/validate/{station_id}` - Validate model accuracy\n"
-                       "5. `POST /api/pipeline/run` - Full automated pipeline",
-    },
-    {
-        "name": "Health",
-        "description": "API health and status monitoring",
-    },
-    {
-        "name": "Stations",
-        "description": "Station metadata management and sync from Air4Thai",
-    },
-    {
-        "name": "AQI Data",
-        "description": "Hourly PM2.5 measurements and missing data analysis",
-    },
-    {
-        "name": "Ingestion",
-        "description": "Data ingestion from Air4Thai APIs (batch and hourly)",
-    },
-    {
-        "name": "Model Training",
-        "description": "LSTM model training and management",
-    },
-    {
-        "name": "Imputation",
-        "description": "LSTM-based missing value imputation",
-    },
-    {
-        "name": "Validation",
-        "description": "Model validation with RMSE/MAE metrics and baseline comparison",
-    },
-    {
-        "name": "Pipeline",
-        "description": "Full automated pipeline execution",
-    },
-    {
-        "name": "Scheduler",
-        "description": "Automated hourly data collection and gap filling scheduler",
-    },
-    {
-        "name": "AI Chat",
-        "description": "Natural language chatbot for air quality queries (Thai/English) with local LLM",
-    },
-    {
-        "name": "Data Upload",
-        "description": "Import AQI data from external API URLs or CSV files",
-    },
+    {"name": "Health", "description": "System health checks"},
+    {"name": "Authentication", "description": "User authentication and profile management"},
+    {"name": "Stations", "description": "Station management and metadata"},
+    {"name": "AQI Data", "description": "Historical and real-time AQI data access"},
+    {"name": "Data Ingestion", "description": "Manual and automated data ingestion"},
+    {"name": "Imputation", "description": "Data gap filling and imputation controls"},
+    {"name": "Model Training", "description": "LSTM model training operations"},
+    {"name": "AI Chat", "description": "AI-powered data queries (RAG)"},
 ]
 
-# Create FastAPI application
 app = FastAPI(
-    title="AQI Data Pipeline API",
-    description="""
-## 🌍 Hourly Air Quality Data Pipeline with LSTM-based Imputation
-
-This API provides a complete solution for:
-- **Data Ingestion**: Fetches PM2.5 data from Air4Thai APIs
-- **Storage**: PostgreSQL with TimescaleDB for time-series data
-- **LSTM Imputation**: Deep learning model for predicting missing values
-- **Automated Pipeline**: Scheduled hourly ingestion and imputation
-- **Validation**: RMSE/MAE metrics with baseline comparison
-
----
-
-### 🚀 Quick Start Workflow
-
-| Step | Endpoint | Description |
-|------|----------|-------------|
-| 1 | `POST /api/ingest/batch` | Initial 30-day data load from Air4Thai |
-| 2 | `POST /api/model/train-all` | Train LSTM models for all stations |
-| 3 | `POST /api/impute/all` | Impute missing PM2.5 values |
-| 4 | `POST /api/validate/{station_id}` | Validate model accuracy |
-| 5 | `POST /api/pipeline/run` | Run full automated pipeline |
-
----
-
-### 📊 LSTM Model Architecture
-
-```
-Input (24 hours) → LSTM(64) → Dropout(0.2) → LSTM(32) → Dropout(0.2) → Dense(1)
-```
-
-### 📈 Missing Data Classification
-
-| Gap Type | Duration | Action |
-|----------|----------|--------|
-| Short | 1-3 hours | Impute |
-| Medium | 4-24 hours | Impute |
-| Long | >24 hours | Flag only |
-    """,
+    title="AQI Pipeline API",
+    description="API for Envi AQI Bot Pipeline",
     version=__version__,
     lifespan=lifespan,
-    openapi_tags=tags_metadata,
-    root_path="/ebot",
+    openapi_tags=tags_metadata
 )
 
-# CORS middleware
+# CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -192,43 +97,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Mount static files
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-if os.path.exists(static_dir):
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-
-# ============== Visualization ==============
-
-@app.get("/chart", tags=["Health"], include_in_schema=False)
-async def chart_page():
-    """Serve the time series chart visualization page"""
-    chart_path = os.path.join(os.path.dirname(
-        __file__), "static", "chart.html")
-    if os.path.exists(chart_path):
-        return FileResponse(chart_path, media_type="text/html")
-    raise HTTPException(status_code=404, detail="Chart page not found")
-
-
-# ============== Health & Status ==============
-
-@app.get("/health", response_model=HealthResponse, tags=["Health"])
-async def health_check(db: Session = Depends(get_db)):
-    """Check API and database health status"""
-    try:
-        db.execute(text("SELECT 1"))
-        db_status = "connected"
-    except Exception as e:
-        db_status = f"error: {str(e)}"
-
-    return HealthResponse(
-        status="healthy" if db_status == "connected" else "degraded",
-        database=db_status,
-        version=__version__,
-        environment=settings.environment
-    )
-
+@app.get("/health", tags=["Health"])
+async def health_check():
+    """Health check endpoint for Docker"""
+    return {"status": "ok", "version": __version__}
 
 @app.get("/", tags=["Health"])
 async def root():
@@ -240,7 +112,60 @@ async def root():
     }
 
 
+# ============== Authentication ==============
+
+
+@app.post("/api/auth/register", response_model=UserResponse, tags=["Authentication"])
+async def register(user_in: UserCreate, db: Session = Depends(get_db)):
+    """Register a new user"""
+    # Check existing
+    user = db.query(User).filter(User.username == user_in.username).first()
+    if user:
+        raise HTTPException(status_code=400, detail="Username already exists")
+    user = db.query(User).filter(User.email == user_in.email).first()
+    if user:
+        raise HTTPException(status_code=400, detail="Email already exists")
+    
+    hashed_password = get_password_hash(user_in.password)
+    db_user = User(
+        email=user_in.email,
+        username=user_in.username,
+        full_name=user_in.full_name,
+        hashed_password=hashed_password
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+@app.post("/api/auth/login", response_model=Token, tags=["Authentication"])
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """Login to get access token"""
+    user = db.query(User).filter(User.username == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    # Update last login
+    user.last_login = datetime.now()
+    db.commit()
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/api/auth/me", response_model=UserResponse, tags=["Authentication"])
+async def read_users_me(current_user: User = Depends(get_current_active_user)):
+    """Get current user profile"""
+    return current_user
+
+
 # ============== Stations ==============
+
 
 @app.get("/api/stations", tags=["Stations"])
 async def list_stations(

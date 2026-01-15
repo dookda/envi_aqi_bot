@@ -1,0 +1,3 @@
+# This directory stores database backups
+# Run ./backup_database.sh to create a backup
+# The backup will be automatically restored on docker compose up
