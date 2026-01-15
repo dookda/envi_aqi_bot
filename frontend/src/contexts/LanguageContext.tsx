@@ -83,7 +83,7 @@ const translations: Record<Language, Record<string, string>> = {
     'models.noStations': 'No stations found matching the filter.',
 
     // Chat Page
-    'chat.title': 'AI Air Quality Assistant',
+    'chat.title': 'AI Chatbot',
     'chat.subtitle': 'Ask about air quality in Thai or English',
     'chat.dashboard': 'Dashboard',
     'chat.models': 'Models',
@@ -196,7 +196,7 @@ const translations: Record<Language, Record<string, string>> = {
     'models.noStations': 'ไม่พบสถานีที่ตรงกับตัวกรอง',
 
     // Chat Page
-    'chat.title': 'ผู้ช่วย AI ด้านคุณภาพอากาศ',
+    'chat.title': 'AI Chatbot',
     'chat.subtitle': 'ถามเกี่ยวกับคุณภาพอากาศได้ทั้งภาษาไทยและอังกฤษ',
     'chat.dashboard': 'แดชบอร์ด',
     'chat.models': 'โมเดล',

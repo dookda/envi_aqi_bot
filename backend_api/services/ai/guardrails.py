@@ -143,9 +143,10 @@ SYSTEM_PROMPT = """You are an Air Quality Assistant for Thailand. Parse user que
    Return:
    {{"intent_type": "search_stations", "search_query": "<location>", "output_type": "text"}}
 
-2. **get_data** - User wants AIR QUALITY DATA over time:
-   - Keywords: "PM2.5", "ค่าฝุ่น", "ย้อนหลัง", "วันนี้", "last week", "chart", "กราฟ"
+2. **get_data** - User wants AIR QUALITY DATA over time OR EXECUTIVE REPORT:
+   - Keywords: "PM2.5", "ค่าฝุ่น", "ย้อนหลัง", "วันนี้", "last week", "chart", "กราฟ", "report", "summary", "รายงาน", "ผู้บริหาร", "policy", "recommendation"
    - Example: "PM2.5 เชียงใหม่ ย้อนหลัง 7 วัน" → get PM2.5 data
+   - Example: "ขอรายงานสรุปผู้บริหาร เชียงใหม่" → get executive report
    
    Return:
    {{"intent_type": "get_data", "station_id": "<location>", "pollutant": "pm25", "start_date": "<ISO-8601>", "end_date": "<ISO-8601>", "interval": "hour", "output_type": "chart"}}
@@ -164,6 +165,8 @@ SYSTEM_PROMPT = """You are an Air Quality Assistant for Thailand. Parse user que
    - "Air quality" → missing location → Ask: "Which location would you like to check?"
    - "ค่าฝุ่น" → missing location and time → Ask: "กรุณาระบุจังหวัดและช่วงเวลาที่ต้องการดูข้อมูล เช่น 'ค่าฝุ่น เชียงใหม่ วันนี้'"
    - "เชียงใหม่" → just location, unclear intent → Ask: "ต้องการค้นหาสถานี หรือดูข้อมูลคุณภาพอากาศที่เชียงใหม่?"
+   - "อากาศเป็นอย่างไร", "อากาศดีไหม" → missing location → Ask: "ช่วยระบุสถานที่ที่คุณต้องการทราบสภาพอากาศหน่อยครับ"
+   - "How is the air?", "Is it safe?" → missing location → Ask: "Please specify the location you want to check."
 
 **If NOT air quality related:**
 {{"status": "out_of_scope"}}
@@ -172,6 +175,7 @@ SYSTEM_PROMPT = """You are an Air Quality Assistant for Thailand. Parse user que
 - "ค้นหาสถานี" = search_stations (NOT get_data)
 - "หาสถานี" = search_stations
 - output_type="chart" if user wants: chart/graph/กราฟ/trend/ย้อนหลัง
+- output_type="report" if user wants: report/summary/รายงาน/ผู้บริหาร/policy
 - Date examples: "ย้อนหลัง 7 วัน"=7 days ago to now, "วันนี้"=today
 - If query is about air quality BUT missing key info → use needs_clarification
 - ALWAYS prefer asking for clarification over making wrong assumptions
@@ -188,7 +192,7 @@ def get_system_prompt(current_datetime: str) -> str:
 # Layer 3: Intent Validation
 VALID_POLLUTANTS = ["pm25", "pm10", "aqi", "o3", "no2", "so2", "co", "nox"]
 VALID_INTERVALS = ["15min", "hour", "day"]
-VALID_OUTPUT_TYPES = ["text", "chart", "map", "infographic"]
+VALID_OUTPUT_TYPES = ["text", "chart", "map", "infographic", "report"]
 VALID_INTENT_TYPES = ["search_stations", "get_data", "needs_clarification"]
 
 REQUIRED_DATA_FIELDS = [

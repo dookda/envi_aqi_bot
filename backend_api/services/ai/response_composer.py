@@ -446,13 +446,48 @@ def compose_data_response(
             "stable": "➡️ Stable",
         }.get(trend, "❓ Insufficient data")
 
+    # Determine if this is an Executive Report request
+    is_report = intent.get("output_type") == "report" or "policy" in str(intent).lower()
+
+    # Policy Recommendations (TOR 16.7)
+    policy_recs_th = ""
+    policy_recs_en = ""
+    
+    if is_report or check["is_critical"] or check["exceeds_standard"]:
+        if aqi_level in ["unhealthy", "hazardous", "unhealthy_sensitive"]:
+            policy_recs_th = (
+                "\n📋 **ข้อเสนอแนะเชิงนโยบาย (Policy Recommendations):**\n"
+                "1. **มาตรการเร่งด่วน:** ประกาศงดกิจกรรมกลางแจ้งในโรงเรียนและศูนย์เด็กเล็ก\n"
+                "2. **การควบคุม:** เพิ่มความเข้มงวดในการตรวจสอบการเผาในที่โล่งและการจราจร\n"
+                "3. **สาธารณสุข:** แจกหน้ากาก N95 ให้กับประชาชนกลุ่มเปราะบาง"
+            )
+            policy_recs_en = (
+                "\n📋 **Policy Recommendations:**\n"
+                "1. **Urgent Measure:** Suspend outdoor activities in schools and daycare centers.\n"
+                "2. **Control:** Intensify inspections on open burning and traffic.\n"
+                "3. **Public Health:** Distribute N95 masks to vulnerable groups."
+            )
+        elif aqi_level in ["moderate", "good"]:
+            policy_recs_th = (
+                "\n📋 **ข้อเสนอแนะเชิงนโยบาย (Policy Recommendations):**\n"
+                "1. **การเฝ้าระวัง:** ติดตามสถานการณ์อย่างต่อเนื่องและแจ้งเตือนเมื่อค่าฝุ่นเริ่มสูงขึ้น\n"
+                "2. **การรณรงค์:** ประชาสัมพันธ์ให้ประชาชนบำรุงรักษายานพาหนะเพื่อลดมลพิษ"
+            )
+            policy_recs_en = (
+                "\n📋 **Policy Recommendations:**\n"
+                "1. **Surveillance:** Continuously monitor and alert when levels begin to rise.\n"
+                "2. **Campaign:** Encourage vehicle maintenance to reduce emissions."
+            )
+
     # Build response message
     warning_prefix = f"{threshold_warning}\n\n{'─' * 40}\n\n" if threshold_warning else ""
 
     if language == "th":
+        message_title = f"📑 **รายงานสรุปผู้บริหาร: สถานี {station_id}**" if is_report else f"📊 **ข้อมูล PM2.5 สถานี {station_id}**"
+        
         message = (
             f"{warning_prefix}"
-            f"📊 **ข้อมูล PM2.5 สถานี {station_id}**\n\n"
+            f"{message_title}\n\n"
             f"{level_config.get('emoji', '')} **ระดับคุณภาพอากาศ:** {level_config.get('label_th', 'ไม่ทราบ')}\n\n"
             f"📈 **สถิติช่วงเวลาที่เลือก:**\n"
             f"• ค่าเฉลี่ย: **{summary.get('mean', 'N/A')}** μg/m³\n"
@@ -461,11 +496,14 @@ def compose_data_response(
             f"• แนวโน้ม: {trend_desc}\n\n"
             f"🏥 **คำแนะนำสุขภาพ:**\n{level_config.get('advice_th', 'ไม่มีข้อมูล')}\n\n"
             f"😷 **สำหรับกลุ่มเสี่ยง:**\n{level_config.get('sensitive_advice_th', 'ไม่มีข้อมูล')}"
+            f"{policy_recs_th if is_report or check['exceeds_standard'] else ''}"
         )
     else:
+        message_title = f"📑 **Executive Summary: Station {station_id}**" if is_report else f"📊 **PM2.5 Data for {station_id}**"
+
         message = (
             f"{warning_prefix}"
-            f"📊 **PM2.5 Data for {station_id}**\n\n"
+            f"{message_title}\n\n"
             f"{level_config.get('emoji', '')} **Air Quality Level:** {level_config.get('label_en', 'Unknown')}\n\n"
             f"📈 **Statistics for Selected Period:**\n"
             f"• Average: **{summary.get('mean', 'N/A')}** μg/m³\n"
@@ -474,6 +512,7 @@ def compose_data_response(
             f"• Trend: {trend_desc}\n\n"
             f"🏥 **Health Advice:**\n{level_config.get('advice_en', 'N/A')}\n\n"
             f"😷 **For Sensitive Groups:**\n{level_config.get('sensitive_advice_en', 'N/A')}"
+            f"{policy_recs_en if is_report or check['exceeds_standard'] else ''}"
         )
     
     # Enhance summary with AQI level

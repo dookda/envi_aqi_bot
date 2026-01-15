@@ -189,7 +189,7 @@ export default function Chat(): React.ReactElement {
                                     </div>
                                     <div>
                                         <h3 className={`font-semibold ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                                            {language === 'th' ? 'ผู้ช่วย AI' : 'AI Assistant'}
+                                            {language === 'th' ? 'AI Chatbot' : 'AI Chatbot'}
                                         </h3>
                                         <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
                                             {language === 'th' ? 'พร้อมช่วยเหลือคุณ' : 'Ready to help you'}

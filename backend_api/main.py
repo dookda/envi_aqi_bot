@@ -46,11 +46,21 @@ from backend_api.auth import (
 from backend_model.database import Base, engine
 from backend_api.services.upload import DataUploadService
 from backend_model.services.imputation import ImputationService
+from backend_model.services.lstm_model import LSTMModelService
+from backend_model.services.anomaly import AnomalyDetectionService
+from backend_model.services.validation import ValidationService
+from backend_api.services.ingestion import IngestionService
+from backend_api.services.ai.chatbot import AirQualityChatbotService
 from backend_api.services.scheduler import SchedulerService
 
 # Initialize services
 upload_service = DataUploadService()
 imputation_service = ImputationService()
+lstm_model_service = LSTMModelService()
+anomaly_service = AnomalyDetectionService()
+validation_service = ValidationService()
+ingestion_service = IngestionService()
+chatbot_service = AirQualityChatbotService()
 scheduler_service = SchedulerService()
 
 @asynccontextmanager
@@ -97,6 +107,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include Routers
+from backend_api.routers import notifications
+app.include_router(notifications.router)
+
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Health check endpoint for Docker"""

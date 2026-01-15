@@ -23,6 +23,7 @@ const DETECTION_TYPES = {
     motorcycle: { label: 'Motorcycle', labelTh: 'มอเตอร์ไซค์', icon: 'two_wheeler', color: '#f59e0b', emoji: '🏍️' },
     bicycle: { label: 'Bicycle', labelTh: 'จักรยาน', icon: 'directions_bike', color: '#10b981', emoji: '🚲' },
     animal: { label: 'Animal', labelTh: 'สัตว์', icon: 'pets', color: '#8b5cf6', emoji: '🐕' },
+    fire: { label: 'Fire & Smoke', labelTh: 'เปลวไฟและควัน', icon: 'local_fire_department', color: '#ff4500', emoji: '🔥' },
 }
 
 interface DetectionStats {
@@ -31,6 +32,7 @@ interface DetectionStats {
     motorcycle: number
     bicycle: number
     animal: number
+    fire: number
     total: number
     timestamp: string
 }
@@ -57,6 +59,7 @@ export default function CCTVPage(): React.ReactElement {
         motorcycle: 0,
         bicycle: 0,
         animal: 0,
+        fire: 0,
         total: 0,
         timestamp: new Date().toISOString(),
     })
@@ -223,12 +226,13 @@ export default function CCTVPage(): React.ReactElement {
                             // Update statistics
                             const stats = result.statistics
                             setDetectionStats({
-                                human: stats.human,
-                                car: stats.car,
-                                motorcycle: stats.motorcycle,
-                                bicycle: stats.bicycle,
-                                animal: stats.animal,
-                                total: stats.total,
+                                human: stats.human || 0,
+                                car: stats.car || 0,
+                                motorcycle: stats.motorcycle || 0,
+                                bicycle: stats.bicycle || 0,
+                                animal: stats.animal || 0,
+                                fire: stats.fire || 0,
+                                total: stats.total || 0,
                                 timestamp: new Date().toISOString()
                             })
 
@@ -369,6 +373,7 @@ export default function CCTVPage(): React.ReactElement {
             motorcycle: 0,
             bicycle: 0,
             animal: 0,
+            fire: 0,
             total: 0,
             timestamp: new Date().toISOString(),
         })
@@ -669,73 +674,6 @@ export default function CCTVPage(): React.ReactElement {
                     </div>
                 </div>
 
-                {/* Implementation Guide */}
-                <section className="mt-6">
-                    <Card className={`p-6 ${isLight ? 'bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200' : 'bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-800/30'}`}>
-                        <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isLight ? 'text-purple-800' : 'text-purple-300'}`}>
-                            <Icon name="integration_instructions" />
-                            {lang === 'th' ? '🚀 คู่มือการติดตั้งระบบ' : '🚀 Implementation Guide'}
-                        </h3>
-
-                        <div className={`space-y-4 ${isLight ? 'text-purple-700' : 'text-purple-300/90'}`}>
-                            <div className={`p-3 rounded-lg mb-4 ${isLight ? 'bg-green-100 border border-green-300' : 'bg-green-900/30 border border-green-700/30'}`}>
-                                <p className="text-sm font-semibold mb-1">
-                                    ✅ {lang === 'th' ? 'Demo ใช้งานได้แล้ว!' : 'Demo Ready!'}
-                                </p>
-                                <p className="text-xs">
-                                    {lang === 'th'
-                                        ? 'ระบบนี้ใช้กล้องของคอมพิวเตอร์เพื่อสาธิตการทำงาน คลิก "เริ่มถ่ายทอด" เพื่อทดสอบ'
-                                        : 'This demo uses your computer camera. Click "Start Stream" to test the system'}
-                                </p>
-                            </div>
-
-                            <div>
-                                <h4 className="font-semibold mb-2">
-                                    {lang === 'th' ? '1. เชื่อมต่อกล้อง CCTV จริง' : '1. Connect Real CCTV Stream'}
-                                </h4>
-                                <ul className="text-sm space-y-1 ml-4">
-                                    <li>• {lang === 'th' ? 'รองรับ RTSP, HLS, WebRTC' : 'Support RTSP, HLS, WebRTC protocols'}</li>
-                                    <li>• {lang === 'th' ? 'ใช้ FFmpeg สำหรับ streaming' : 'Use FFmpeg for streaming'}</li>
-                                    <li>• {lang === 'th' ? 'ตั้งค่า CORS และ authentication' : 'Configure CORS and authentication'}</li>
-                                    <li>• {lang === 'th' ? 'เปลี่ยนจาก getUserMedia() เป็น stream URL' : 'Replace getUserMedia() with stream URL'}</li>
-                                </ul>
-                            </div>
-
-                            <div>
-                                <h4 className="font-semibold mb-2">
-                                    {lang === 'th' ? '2. รวมระบบ Object Detection' : '2. Integrate Object Detection'}
-                                </h4>
-                                <ul className="text-sm space-y-1 ml-4">
-                                    <li>• <strong>YOLO v8/v9:</strong> {lang === 'th' ? 'รวดเร็วและแม่นยำ' : 'Fast and accurate'}</li>
-                                    <li>• <strong>TensorFlow.js:</strong> {lang === 'th' ? 'รันบน browser' : 'Run in browser'}</li>
-                                    <li>• <strong>OpenCV:</strong> {lang === 'th' ? 'สำหรับ backend processing' : 'For backend processing'}</li>
-                                </ul>
-                            </div>
-
-                            <div>
-                                <h4 className="font-semibold mb-2">
-                                    {lang === 'th' ? '3. เพิ่ม Backend API' : '3. Add Backend API'}
-                                </h4>
-                                <ul className="text-sm space-y-1 ml-4">
-                                    <li>• <code className="bg-purple-200 dark:bg-purple-900/50 px-1 rounded">POST /api/cctv/stream</code> - {lang === 'th' ? 'เริ่ม stream' : 'Start stream'}</li>
-                                    <li>• <code className="bg-purple-200 dark:bg-purple-900/50 px-1 rounded">GET /api/cctv/detections</code> - {lang === 'th' ? 'ดึงข้อมูลการตรวจจับ' : 'Get detections'}</li>
-                                    <li>• <code className="bg-purple-200 dark:bg-purple-900/50 px-1 rounded">WebSocket</code> - {lang === 'th' ? 'อัพเดทแบบ real-time' : 'Real-time updates'}</li>
-                                </ul>
-                            </div>
-
-                            <div>
-                                <h4 className="font-semibold mb-2">
-                                    {lang === 'th' ? '4. บันทึกและวิเคราะห์' : '4. Storage & Analytics'}
-                                </h4>
-                                <ul className="text-sm space-y-1 ml-4">
-                                    <li>• {lang === 'th' ? 'เก็บข้อมูลการตรวจจับใน database' : 'Store detection data in database'}</li>
-                                    <li>• {lang === 'th' ? 'สร้างรายงานแนวโน้ม' : 'Generate trend reports'}</li>
-                                    <li>• {lang === 'th' ? 'วิเคราะห์ความสัมพันธ์กับคุณภาพอากาศ' : 'Analyze correlation with air quality'}</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </Card>
-                </section>
             </main>
         </div>
     )

@@ -11,6 +11,7 @@ import torch
 from typing import List, Dict, Any, Optional
 from backend_model.logger import logger
 import time
+from backend_api.services.notification import NotificationService
 
 # Fix for PyTorch 2.6+ weights_only default change
 # Ultralytics models require weights_only=False due to custom classes
@@ -38,7 +39,8 @@ class YOLODetectorService:
         "car": [2],  # car
         "motorcycle": [3],  # motorcycle
         "bicycle": [1],  # bicycle
-        "animal": [14, 15, 16, 17, 18, 19, 20, 21, 22, 23]  # Various animals from COCO
+        "animal": [14, 15, 16, 17, 18, 19, 20, 21, 22, 23],  # Various animals from COCO
+        "fire": []  # Fire/smoke detection (requires custom model training)
     }
 
     # COCO class names
@@ -59,6 +61,7 @@ class YOLODetectorService:
         self.model_name = model_name
         self.confidence_threshold = confidence_threshold
         self.model: Optional[YOLO] = None
+        self.last_notification_time = {}  # Cooldown tracker per category
         self._init_model()
 
     def _init_model(self):
@@ -116,7 +119,7 @@ class YOLODetectorService:
 
             # Process detections
             detections = []
-            stats = {"human": 0, "car": 0, "motorcycle": 0, "bicycle": 0, "animal": 0, "total": 0}
+            stats = {"human": 0, "car": 0, "motorcycle": 0, "bicycle": 0, "animal": 0, "fire": 0, "total": 0}
 
             for result in results:
                 boxes = result.boxes
@@ -150,6 +153,31 @@ class YOLODetectorService:
                         detections.append(detection)
                         stats[category] += 1
                         stats["total"] += 1
+
+            # === Notification Logic (TOR 16.5) ===
+            current_time = time.time()
+            
+            # Notify on Fire
+            if stats["fire"] > 0:
+                last_time = self.last_notification_time.get("fire", 0)
+                if current_time - last_time > 300:  # 5 minute cooldown
+                    NotificationService.create_notification(
+                        title="🔥 Fire Detected!",
+                        message=f"Warning: {stats['fire']} potential fire source(s) detected on CCTV.",
+                        type="critical"
+                    )
+                    self.last_notification_time["fire"] = current_time
+            
+            # Notify on Wild Animal
+            if stats["animal"] > 0:
+                last_time = self.last_notification_time.get("animal", 0)
+                if current_time - last_time > 600:  # 10 minute cooldown
+                    NotificationService.create_notification(
+                        title="🐾 Animal Detected",
+                        message=f"Detected {stats['animal']} animal(s) in the monitoring area.",
+                        type="info"
+                    )
+                    self.last_notification_time["animal"] = current_time
 
             processing_time = time.time() - start_time
 

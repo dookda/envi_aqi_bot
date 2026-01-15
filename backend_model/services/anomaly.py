@@ -348,6 +348,57 @@ class AnomalyDetectionService:
             "summary": anomaly_result["summary"]
         }
 
+    def analyze_and_flag_data(self, station_id: str, hours: int = 24) -> int:
+        """
+        Analyze recent data key, persist flags to DB, and send notifications.
+        (TOR 16.2 & 16.5)
+        """
+        end_time = datetime.now()
+        start_time = end_time - timedelta(hours=hours)
+        
+        # Detect anomalies using existing logic
+        result = self.detect_anomalies(station_id, start_time, end_time)
+        anomalies = result.get("anomalies", [])
+        
+        if not anomalies:
+            return 0
+            
+        updated_count = 0
+        
+        # Delayed import to avoid circular dependency
+        from backend_api.services.notification import NotificationService
+        from backend_model.models import AQIHourly
+        
+        with get_db_context() as db:
+            for anomaly in anomalies:
+                # 1. Update DB Flags (TOR 16.2)
+                timestamp = datetime.fromisoformat(anomaly["datetime"])
+                
+                record = db.query(AQIHourly).filter(
+                    AQIHourly.station_id == station_id,
+                    AQIHourly.datetime == timestamp
+                ).first()
+                
+                if record and not record.is_anomaly:
+                    record.is_anomaly = True
+                    record.anomaly_type = anomaly["type"]
+                    updated_count += 1
+                    
+                    # 2. Send Notification (TOR 16.5)
+                    # Only notify for severe anomalies to prevent spam
+                    if anomaly.get("severity") in ["high", "critical"]:
+                         NotificationService.create_notification(
+                             title=f"⚠️ {anomaly.get('severity').title()} Anomaly at {station_id}",
+                             message=f"Type: {anomaly['type']}. Value: {anomaly['value']}. {anomaly.get('details', {}).get('message', '')}",
+                             type="warning" if anomaly['severity'] == "high" else "critical",
+                             station_id=station_id
+                         )
+            
+            db.commit()
+            logger.info(f"Flagged {updated_count} anomalies for station {station_id}")
+            
+        return updated_count
+
 
 # Singleton instance
 anomaly_service = AnomalyDetectionService()

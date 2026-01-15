@@ -43,8 +43,8 @@ const NAV_GROUPS: NavGroup[] = [
     },
     {
         id: 'ai',
-        labelEn: 'AI Assistant',
-        labelTh: 'ผู้ช่วย AI',
+        labelEn: 'AI Chatbot',
+        labelTh: 'AI Chatbot',
         icon: 'smart_toy',
         defaultOpen: true,
         items: [

@@ -78,6 +78,10 @@ class AQIHourly(Base):
     bp_imputed = Column(Boolean, default=False)
     rain_imputed = Column(Boolean, default=False)
     
+    # === Anomaly Flagging (TOR 16.2) ===
+    is_anomaly = Column(Boolean, default=False)  # True if value is flagged as incorrect
+    anomaly_type = Column(String, nullable=True) # Type of anomaly (e.g., "manual_flag", "out_of_range", "spike")
+
     # === Metadata ===
     model_version = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
@@ -193,3 +197,18 @@ class User(Base):
 
     def __repr__(self):
         return f"<User(id={self.id}, username={self.username}, role={self.role})>"
+
+class Notification(Base):
+    """Notification for system alerts (TOR 16.5)"""
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+    type = Column(String, default="info")  # info, warning, error, critical
+    station_id = Column(String, nullable=True)
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=func.now())
+
+    def __repr__(self):
+        return f"<Notification(id={self.id}, title={self.title}, type={self.type})>"

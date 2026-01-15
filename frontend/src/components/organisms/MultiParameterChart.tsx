@@ -301,12 +301,15 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
         // Add spike/anomaly series
         if (showSpikes && chartData.spikeData.length > 0) {
             series.push({
-                name: lang === 'th' ? 'ค่าผิดปกติ' : 'Spike/Anomaly',
+                name: 'Spike',
                 type: 'scatter',
                 data: chartData.spikeData,
                 symbol: 'triangle',
                 symbolSize: 16,
                 z: 20,
+                itemStyle: {
+                    color: '#ef4444'
+                },
                 emphasis: {
                     scale: 1.5,
                     itemStyle: {
@@ -320,7 +323,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
         const legendData = [lang === 'th' ? 'ข้อมูลจริง' : 'Original Data']
         if (showGapFill) legendData.push('Gap-Fill (LSTM)')
         if (showSpikes && chartData.spikeData.length > 0) {
-            legendData.push(lang === 'th' ? 'ค่าผิดปกติ' : 'Spike/Anomaly')
+            legendData.push('Spike')
         }
 
         const textColor = isLight ? '#374151' : '#f1f5f9'
@@ -610,7 +613,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                     {showSpikes && chartData.spikeData.length > 0 && (
                         <div className="flex items-center gap-2">
                             <span style={{ color: '#ef4444' }}>▲</span>
-                            <span>{chartData.spikeData.length} {lang === 'th' ? 'ค่าผิดปกติ' : 'spikes detected'}</span>
+                            <span>{chartData.spikeData.length} Spikes</span>
                         </div>
                     )}
                     <div className="ml-auto">
