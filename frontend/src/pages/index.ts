@@ -9,4 +9,5 @@ export { default as DataPreparation } from './DataPreparationPage'
 export { default as CCTV } from './CCTVPage'
 export { default as Stations } from './StationsPage'
 export { default as Info } from './InfoPage'
+export { default as ExecutiveSummary } from './ExecutiveSummaryPage'
 

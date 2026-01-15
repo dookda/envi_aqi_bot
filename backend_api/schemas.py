@@ -205,7 +205,7 @@ class AQIHistoryDataPoint(BaseModel):
 class AQIHistoryRequest(BaseModel):
     """Request for AQI history data"""
     station_id: str
-    pollutant: str = Field(default="pm25", description="pm25 | pm10 | aqi | o3 | no2 | so2 | co")
+    pollutant: str = Field(default="pm25", description="pm25 | pm10 | aqi | o3 | no2 | so2 | co | nox")
     start_date: datetime
     end_date: datetime
     interval: str = Field(default="15min", description="15min | hour | day")
@@ -224,7 +224,7 @@ class ChatIntent(BaseModel):
     search_query: Optional[str] = Field(default=None, description="Location search query")
     # For get_data intent
     station_id: Optional[str] = Field(default=None, description="Station ID or name")
-    pollutant: Optional[str] = Field(default=None, description="pm25 | pm10 | aqi | o3 | no2 | so2 | co")
+    pollutant: Optional[str] = Field(default=None, description="pm25 | pm10 | aqi | o3 | no2 | so2 | co | nox")
     start_date: Optional[str] = Field(default=None, description="ISO-8601 datetime")
     end_date: Optional[str] = Field(default=None, description="ISO-8601 datetime")
     interval: Optional[str] = Field(default=None, description="15min | hour | day")

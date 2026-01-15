@@ -2227,7 +2227,7 @@ async def prepare_csv_data(file: UploadFile = File(...)):
             'RAIN': 'rain'
         }
 
-        output_columns = ['station_id', 'datetime', 'pm10', 'pm25', 'co', 'no', 'no2',
+        output_columns = ['station_id', 'datetime', 'pm10', 'pm25', 'co', 'no', 'no2', 'nox',
                           'o3', 'so2', 'ws', 'wd', 'temp', 'rh', 'bp', 'rain']
 
         # Parse header
@@ -2294,7 +2294,7 @@ async def prepare_csv_data(file: UploadFile = File(...)):
 
         # Generate output CSV
         output = io.StringIO()
-        writer = csv.DictWriter(output, fieldnames=output_columns)
+        writer = csv.DictWriter(output, fieldnames=output_columns, extrasaction='ignore')
         writer.writeheader()
         writer.writerows(output_data)
 
@@ -2470,7 +2470,7 @@ async def preview_prepared_csv(file: UploadFile = File(...)):
             },
             "sample_data": output_data[:5],
             "issues": issues,
-            "columns": ['station_id', 'datetime', 'pm10', 'pm25', 'co', 'no', 'no2',
+            "columns": ['station_id', 'datetime', 'pm10', 'pm25', 'co', 'no', 'no2', 'nox',
                        'o3', 'so2', 'ws', 'wd', 'temp', 'rh', 'bp', 'rain']
         }
 

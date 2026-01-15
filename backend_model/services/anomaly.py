@@ -122,6 +122,12 @@ class AnomalyDetectionService:
         if method in ("rate", "all"):
             rate_anomalies = self._detect_rate_anomalies(timestamps, values)
             anomalies.extend(rate_anomalies)
+
+        # 5x Spike anomalies (User defined: "spike is value that jumps 5 times")
+        if method in ("spike", "all"):
+            spike_anomalies = self._detect_spike_anomalies(timestamps, values)
+            anomalies.extend(spike_anomalies)
+
         
         # Deduplicate and sort
         seen = set()
@@ -266,6 +272,46 @@ class AnomalyDetectionService:
         
         return anomalies
     
+    
+    def _detect_spike_anomalies(
+        self,
+        timestamps: List[datetime],
+        values: np.ndarray
+    ) -> List[Dict[str, Any]]:
+        """
+        Detect anomalies based on "5x jump" rule
+        Definition: Current value is >= 5 times the previous value
+        """
+        anomalies = []
+        
+        if len(values) < 2:
+            return anomalies
+        
+        for i in range(1, len(values)):
+            prev_val = values[i-1]
+            curr_val = values[i]
+            
+            # Avoid division by zero or trivial jumps from very low values
+            # We use a minimum base of 1.0 to check for 5x meaningful jump
+            # e.g. 0.1 -> 0.6 is 6x but essentially noise. 10 -> 50 is real.
+            base_val = max(float(prev_val), 1.0)
+            
+            if curr_val >= base_val * 5:
+                ratio = curr_val / base_val
+                anomalies.append({
+                    "datetime": timestamps[i].isoformat(),
+                    "value": round(float(curr_val), 2),
+                    "type": "spike_5x",
+                    "severity": "critical",
+                    "details": {
+                        "ratio": round(float(ratio), 1),
+                        "previous_value": round(float(prev_val), 2),
+                        "message": "Value jumped >= 5 times (User Rule)"
+                    }
+                })
+        
+        return anomalies
+
     def get_chart_data_with_anomalies(
         self,
         station_id: str,

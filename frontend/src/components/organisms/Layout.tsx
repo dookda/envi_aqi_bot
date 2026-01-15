@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react'
 import { Icon } from '../atoms'
-import { Sidebar } from './'
+import Sidebar from './Sidebar'
 import { useLanguage, useTheme } from '../../contexts'
 
 interface LayoutProps {

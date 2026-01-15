@@ -62,7 +62,7 @@ export default function DataUpload(): React.ReactElement {
     const { toast } = useToast()
 
     // Sample API URL template
-    const sampleApiUrl = 'http://air4thai.com/forweb/getHistoryData.php?stationID=35t&param=PM25,PM10,O3,CO,NO2,SO2,WS,WD,TEMP,RH,BP,RAIN&type=hr&sdate=2026-01-01&edate=2026-01-10&stime=00&etime=23'
+    const sampleApiUrl = 'http://air4thai.com/forweb/getHistoryData.php?stationID=35t&param=PM25,PM10,O3,CO,NO2,SO2,NOX,WS,WD,TEMP,RH,BP,RAIN&type=hr&sdate=2026-01-01&edate=2026-01-10&stime=00&etime=23'
 
     // Handle API URL fetch and preview
     const handleFetchApi = async () => {
@@ -127,7 +127,7 @@ export default function DataUpload(): React.ReactElement {
             // Auto-detect CSV type based on columns
             const columns = data.preview.columns.map((c: string) => c.toLowerCase())
             const stationColumns = ['lat', 'lon', 'name_en', 'name_th', 'station_type']
-            const aqiColumns = ['datetime', 'pm25', 'pm10', 'o3', 'co', 'no2', 'so2']
+            const aqiColumns = ['datetime', 'pm25', 'pm10', 'o3', 'co', 'no2', 'so2', 'nox']
 
             const hasStationCols = stationColumns.some(col => columns.includes(col))
             const hasAqiCols = aqiColumns.some(col => columns.includes(col))
@@ -714,7 +714,7 @@ ${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${statio
                                                 {lang === 'th' ? 'รูปแบบ CSV:' : 'CSV Format:'}
                                             </p>
                                             <code className={`text-[10px] ${isLight ? 'text-green-600' : 'text-green-400'}`}>
-                                                station_id, datetime, pm25, pm10, o3, co, no2, so2, temp, rh, ws, wd, bp, rain
+                                                station_id, datetime, pm25, pm10, o3, co, no2, so2, nox, temp, rh, ws, wd, bp, rain
                                             </code>
                                         </div>
                                     </div>

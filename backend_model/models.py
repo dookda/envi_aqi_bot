@@ -52,6 +52,7 @@ class AQIHourly(Base):
     co = Column(Float, nullable=True)        # Carbon Monoxide (ppm)
     no2 = Column(Float, nullable=True)       # Nitrogen Dioxide (ppb)
     so2 = Column(Float, nullable=True)       # Sulfur Dioxide (ppb)
+    nox = Column(Float, nullable=True)       # Nitrogen Oxides (ppb)
     
     # === Weather/Meteorological Data ===
     ws = Column(Float, nullable=True)        # Wind Speed (m/s)
@@ -69,6 +70,7 @@ class AQIHourly(Base):
     co_imputed = Column(Boolean, default=False)
     no2_imputed = Column(Boolean, default=False)
     so2_imputed = Column(Boolean, default=False)
+    nox_imputed = Column(Boolean, default=False)
     ws_imputed = Column(Boolean, default=False)
     wd_imputed = Column(Boolean, default=False)
     temp_imputed = Column(Boolean, default=False)

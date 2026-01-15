@@ -28,6 +28,7 @@ class DataUploadService:
         'CO': 'co',
         'NO2': 'no2',
         'SO2': 'so2',
+        'NOX': 'nox',
         'WS': 'ws',
         'WD': 'wd',
         'TEMP': 'temp',
@@ -43,6 +44,7 @@ class DataUploadService:
         'co': 'co',
         'no2': 'no2',
         'so2': 'so2',
+        'nox': 'nox',
         'ws': 'ws',
         'wd': 'wd',
         'temp': 'temp',
@@ -108,7 +110,7 @@ class DataUploadService:
 
     # Numeric columns
     NUMERIC_COLUMNS = ['pm25', 'pm10', 'o3', 'co', 'no2',
-                       'so2', 'ws', 'wd', 'temp', 'rh', 'bp', 'rain']
+                       'so2', 'nox', 'ws', 'wd', 'temp', 'rh', 'bp', 'rain']
 
     # Station required columns
     STATION_REQUIRED_COLUMNS = ['station_id', 'name_en', 'lat', 'lon']
@@ -353,14 +355,16 @@ class DataUploadService:
             # Build SQL for upsert
             insert_sql = text("""
                 INSERT INTO aqi_hourly (
-                    station_id, datetime, pm25, pm10, o3, co, no2, so2,
+                    station_id, datetime, pm25, pm10, o3, co, no2, so2, nox,
                     ws, wd, temp, rh, bp, rain,
-                    pm25_imputed, pm10_imputed, o3_imputed, co_imputed, no2_imputed, so2_imputed,
+                    is_imputed,
+                    pm25_imputed, pm10_imputed, o3_imputed, co_imputed, no2_imputed, so2_imputed, nox_imputed,
                     ws_imputed, wd_imputed, temp_imputed, rh_imputed, bp_imputed, rain_imputed
                 ) VALUES (
-                    :station_id, :datetime, :pm25, :pm10, :o3, :co, :no2, :so2,
+                    :station_id, :datetime, :pm25, :pm10, :o3, :co, :no2, :so2, :nox,
                     :ws, :wd, :temp, :rh, :bp, :rain,
-                    false, false, false, false, false, false,
+                    false,
+                    false, false, false, false, false, false, false,
                     false, false, false, false, false, false
                 )
                 ON CONFLICT (station_id, datetime)
@@ -371,12 +375,27 @@ class DataUploadService:
                     co = COALESCE(EXCLUDED.co, aqi_hourly.co),
                     no2 = COALESCE(EXCLUDED.no2, aqi_hourly.no2),
                     so2 = COALESCE(EXCLUDED.so2, aqi_hourly.so2),
+                    nox = COALESCE(EXCLUDED.nox, aqi_hourly.nox),
                     ws = COALESCE(EXCLUDED.ws, aqi_hourly.ws),
                     wd = COALESCE(EXCLUDED.wd, aqi_hourly.wd),
                     temp = COALESCE(EXCLUDED.temp, aqi_hourly.temp),
                     rh = COALESCE(EXCLUDED.rh, aqi_hourly.rh),
                     bp = COALESCE(EXCLUDED.bp, aqi_hourly.bp),
-                    rain = COALESCE(EXCLUDED.rain, aqi_hourly.rain)
+                    rain = COALESCE(EXCLUDED.rain, aqi_hourly.rain),
+                    is_imputed = false,
+                    pm25_imputed = false,
+                    pm10_imputed = false,
+                    o3_imputed = false,
+                    co_imputed = false,
+                    no2_imputed = false,
+                    so2_imputed = false,
+                    nox_imputed = false,
+                    ws_imputed = false,
+                    wd_imputed = false,
+                    temp_imputed = false,
+                    rh_imputed = false,
+                    bp_imputed = false,
+                    rain_imputed = false
             """)
 
             # Process records with savepoints for better error handling
@@ -402,6 +421,7 @@ class DataUploadService:
                         'co': record.get('co'),
                         'no2': record.get('no2'),
                         'so2': record.get('so2'),
+                        'nox': record.get('nox'),
                         'ws': record.get('ws'),
                         'wd': record.get('wd'),
                         'temp': record.get('temp'),
@@ -436,6 +456,38 @@ class DataUploadService:
 
             # Commit the main transaction
             db.commit()
+
+
+
+        # --- AUTO LEARN & FILL GAPS ---
+        # Trigger imputation for all affected stations
+        if unique_station_ids:
+            try:
+                # Import here to avoid potential circular imports
+                from backend_model.services.imputation import ImputationService
+                imputation_service = ImputationService()
+                
+                logger.info(f"Starting auto-imputation for {len(unique_station_ids)} uploaded station(s)...")
+                for station_id in unique_station_ids:
+                    # Use batch mode for performance
+                    # This handles "auto learn" (training if needed) and "fill gap" (imputation)
+                    result = imputation_service.impute_station_gaps_batch(
+                        station_id=station_id
+                    )
+                    logger.info(f"Auto-imputation result for {station_id}: {result}")
+                    
+                    if result.get("imputed_count", 0) > 0:
+                        msg = f"Auto-filled {result['imputed_count']} missing values for station {station_id}"
+                        errors.append(msg)
+                    elif result.get("status") == "failed":
+                        msg = f"Auto-imputation warning for {station_id}: {result.get('reason', 'unknown error')}"
+                        errors.append(msg)
+                        
+            except Exception as e:
+                logger.error(f"Auto-imputation failed: {e}")
+                # Don't fail the upload if imputation fails, just warn
+                errors.append(f"Warning: Auto-imputation failed: {str(e)}")
+        # ------------------------------
 
         # Note: With ON CONFLICT, we can't easily distinguish insert vs update
         # So we'll report all successful as "inserted"

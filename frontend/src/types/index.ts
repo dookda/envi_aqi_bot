@@ -34,6 +34,7 @@ export interface AQIHourlyData {
   co?: number
   no2?: number
   so2?: number
+  nox?: number
   // Weather/Meteorological Data
   ws?: number
   wd?: number
@@ -49,6 +50,7 @@ export interface AQIHourlyData {
   co_imputed?: boolean
   no2_imputed?: boolean
   so2_imputed?: boolean
+  nox_imputed?: boolean
   ws_imputed?: boolean
   wd_imputed?: boolean
   temp_imputed?: boolean
@@ -296,6 +298,7 @@ export type ParameterKey =
   | 'co'
   | 'no2'
   | 'so2'
+  | 'nox'
   | 'temp'
   | 'rh'
   | 'ws'

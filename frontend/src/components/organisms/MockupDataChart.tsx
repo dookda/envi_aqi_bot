@@ -25,6 +25,7 @@ const PARAMETER_CONFIG: Record<string, ParameterConfigItem> = {
     co: { label: 'CO', unit: 'ppm', color: '#f59e0b', group: 'pollutant' },
     no2: { label: 'NO₂', unit: 'ppb', color: '#ef4444', group: 'pollutant' },
     so2: { label: 'SO₂', unit: 'ppb', color: '#ec4899', group: 'pollutant' },
+    nox: { label: 'NOₓ', unit: 'ppb', color: '#f97316', group: 'pollutant' },
     // Meteorological
     ws: { label: 'Wind Speed', unit: 'm/s', color: '#06b6d4', group: 'meteorological' },
     wd: { label: 'Wind Direction', unit: '°', color: '#14b8a6', group: 'meteorological' },

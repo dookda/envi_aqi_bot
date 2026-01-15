@@ -23,6 +23,7 @@ AIR_QUALITY_KEYWORDS = [
     "ozone", "o3",
     "no2", "nitrogen dioxide", "nitrogen",
     "so2", "sulfur dioxide", "sulfur",
+    "nox", "nitrogen oxides",
     "co", "carbon monoxide", "carbon",
     "dust", "particulate", "particle", "particles",
     "smog", "haze", "smoke",
@@ -185,7 +186,7 @@ def get_system_prompt(current_datetime: str) -> str:
 
 
 # Layer 3: Intent Validation
-VALID_POLLUTANTS = ["pm25", "pm10", "aqi", "o3", "no2", "so2", "co"]
+VALID_POLLUTANTS = ["pm25", "pm10", "aqi", "o3", "no2", "so2", "co", "nox"]
 VALID_INTERVALS = ["15min", "hour", "day"]
 VALID_OUTPUT_TYPES = ["text", "chart", "map", "infographic"]
 VALID_INTENT_TYPES = ["search_stations", "get_data", "needs_clarification"]

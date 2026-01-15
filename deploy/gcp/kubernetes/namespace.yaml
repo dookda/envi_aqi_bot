@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: aqi-app
-  labels:
-    app: aqi-monitoring
-    environment: production

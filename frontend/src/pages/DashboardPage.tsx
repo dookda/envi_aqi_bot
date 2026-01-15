@@ -108,6 +108,7 @@ const POLLUTANT_CONFIG: Record<string, PollutantConfigItem> = {
     co: { label: 'CO', unit: 'ppm', icon: 'local_fire_department', color: '#f59e0b', gradient: 'from-amber-500 to-amber-600' },
     no2: { label: 'NO₂', unit: 'ppb', icon: 'factory', color: '#ef4444', gradient: 'from-red-500 to-red-600' },
     so2: { label: 'SO₂', unit: 'ppb', icon: 'volcano', color: '#ec4899', gradient: 'from-pink-500 to-pink-600' },
+    nox: { label: 'NOₓ', unit: 'ppb', icon: 'air_purifier', color: '#f97316', gradient: 'from-orange-500 to-orange-600' },
 }
 
 const WEATHER_CONFIG: Record<string, WeatherConfigItem> = {
@@ -128,6 +129,7 @@ const TIME_PERIODS: TimePeriodOption[] = [
     { value: 7, label: '7d' },
     { value: 14, label: '14d' },
     { value: 30, label: '30d' },
+    { value: 365, label: '1y' }, // Add 1 year option
 ]
 
 // ============== Components ==============
@@ -368,6 +370,7 @@ const DataTableView: React.FC<DataTableViewProps> = ({
                                     <option value="co">CO</option>
                                     <option value="no2">NO2</option>
                                     <option value="so2">SO2</option>
+                                    <option value="nox">NOx</option>
                                     <option value="temp">Temperature</option>
                                     <option value="rh">Humidity</option>
                                     <option value="ws">Wind Speed</option>
@@ -502,12 +505,31 @@ export default function Dashboard(): React.ReactElement {
         try {
             const endDate = new Date().toISOString()
             const startDate = new Date(Date.now() - timePeriod * 24 * 60 * 60 * 1000).toISOString()
+            const limit = timePeriod * 24
+
             const response = await fetch(
-                `${API_BASE}/aqi/full/${selectedStation}?start=${startDate}&end=${endDate}&limit=720`
+                `${API_BASE}/aqi/full/${selectedStation}?start=${startDate}&end=${endDate}&limit=${limit}`
             )
+
             if (response.ok) {
                 const data: FullDataResponse = await response.json()
                 setFullData(data)
+
+                // If no data found for this period, check if there is ANY data for this station
+                if ((!data.data || data.data.length === 0) && timePeriod <= 30) {
+                    try {
+                        const latestResp = await fetch(`${API_BASE}/aqi/${selectedStation}/latest`)
+                        if (latestResp.ok) {
+                            const latest = await latestResp.json()
+                            const latestDate = new Date(latest.datetime)
+                            console.log("No data in range, but found latest data at:", latestDate)
+                            // We could optionally auto-switch or notify here. 
+                            // For now, let's just log it. The 1y option will help find it.
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+                }
             }
         } catch (err) {
             console.error('Failed to fetch full data:', err)
@@ -909,6 +931,21 @@ export default function Dashboard(): React.ReactElement {
                                         { max: 700, color: '#ff0000', label: 'Hazardous' },
                                     ]}
                                     maxScale={700}
+                                    isLight={isLight}
+                                />
+                                <CompactGauge
+                                    label="NOₓ"
+                                    value={latestData.nox}
+                                    unit="ppb"
+                                    icon="air_purifier"
+                                    thresholds={[
+                                        { max: 50, color: '#009966', label: 'Excellent' },
+                                        { max: 100, color: '#00e400', label: 'Good' },
+                                        { max: 200, color: '#ffff00', label: 'Moderate' },
+                                        { max: 400, color: '#ff7e00', label: 'Unhealthy' },
+                                        { max: 600, color: '#ff0000', label: 'Hazardous' },
+                                    ]}
+                                    maxScale={600}
                                     isLight={isLight}
                                 />
                             </div>

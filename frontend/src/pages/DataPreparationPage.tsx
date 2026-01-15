@@ -169,6 +169,7 @@ const DataPreparationPage: React.FC = () => {
         { from: 'CO', to: 'co', format: 'Numeric' },
         { from: 'NO', to: 'no', format: 'Numeric' },
         { from: 'NO2', to: 'no2', format: 'Numeric' },
+        { from: 'NOX', to: 'nox', format: 'Numeric' },
         { from: 'O3', to: 'o3', format: 'Numeric' },
         { from: 'SO2', to: 'so2', format: 'Numeric' },
         { from: 'WS', to: 'ws', format: 'Numeric' },
