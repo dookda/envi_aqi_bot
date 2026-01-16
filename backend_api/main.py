@@ -2869,3 +2869,157 @@ async def get_detection_model_info():
     except Exception as e:
         logger.error(f"Error getting model info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class CCTVNotificationRequest(BaseModel):
+    """Request body for CCTV detection notification"""
+    station_id: str
+    station_name: Optional[str] = None
+    detections: dict  # e.g., {"human": 2, "car": 1, "fire": 0, ...}
+    detection_details: Optional[list] = None  # List of individual detections
+    timestamp: Optional[str] = None
+    language: str = "th"
+
+
+@app.post("/api/cctv/notify", tags=["CCTV Detection"])
+async def send_cctv_detection_notification(request: CCTVNotificationRequest):
+    """
+    Send LINE push notification for CCTV object detection.
+    
+    Called when the frontend detects objects in the camera feed.
+    Sends a one-time notification to all registered users with notifications enabled.
+    
+    **Request Body:**
+    - station_id: Camera/station identifier
+    - station_name: Display name for the station
+    - detections: Dict of detection counts by type {"human": 2, "fire": 1, ...}
+    - detection_details: Optional list of detection details
+    - timestamp: Optional ISO timestamp
+    - language: 'th' or 'en' (default: 'th')
+    
+    **Returns:**
+    - success: Boolean
+    - message: Status message
+    - recipients: Number of users notified
+    """
+    from backend_api.services.line_notification import line_notification_service
+    from datetime import datetime
+    
+    try:
+        if not line_notification_service.enabled:
+            return {
+                "success": False,
+                "message": "LINE notifications not configured",
+                "recipients": 0
+            }
+        
+        recipients = line_notification_service.admin_user_ids
+        if not recipients:
+            return {
+                "success": False, 
+                "message": "No notification recipients registered",
+                "recipients": 0
+            }
+        
+        # Build notification message
+        timestamp = request.timestamp or datetime.now().isoformat()
+        display_name = request.station_name or request.station_id
+        
+        # Detection type emojis and labels
+        detection_info = {
+            "human": {"emoji": "👤", "th": "คน", "en": "Human"},
+            "car": {"emoji": "🚗", "th": "รถยนต์", "en": "Vehicle"},
+            "motorcycle": {"emoji": "🏍️", "th": "มอเตอร์ไซค์", "en": "Motorcycle"},
+            "bicycle": {"emoji": "🚲", "th": "จักรยาน", "en": "Bicycle"},
+            "animal": {"emoji": "🐕", "th": "สัตว์", "en": "Animal"},
+            "fire": {"emoji": "🔥", "th": "เปลวไฟ/ควัน", "en": "Fire/Smoke"},
+        }
+        
+        # Check for critical detections (fire is priority)
+        has_fire = request.detections.get("fire", 0) > 0
+        total_count = sum(request.detections.values())
+        
+        if total_count == 0:
+            return {
+                "success": True,
+                "message": "No detections to notify",
+                "recipients": 0
+            }
+        
+        # Build message based on language
+        if request.language == "th":
+            if has_fire:
+                title = "🚨 แจ้งเตือน: ตรวจพบเปลวไฟ/ควัน!"
+            else:
+                title = "📹 แจ้งเตือนการตรวจจับ CCTV"
+            
+            lines = [
+                title,
+                "",
+                f"📍 สถานี: {display_name}",
+                f"🕐 เวลา: {timestamp[:19].replace('T', ' ')}",
+                "",
+                "📊 สรุปการตรวจจับ:"
+            ]
+            
+            for det_type, count in request.detections.items():
+                if count > 0:
+                    info = detection_info.get(det_type, {"emoji": "❓", "th": det_type})
+                    lines.append(f"  {info['emoji']} {info['th']}: {count}")
+            
+            lines.append("")
+            lines.append(f"🔢 รวมทั้งหมด: {total_count} รายการ")
+            
+            if has_fire:
+                lines.append("")
+                lines.append("⚠️ กรุณาตรวจสอบพื้นที่โดยเร็ว!")
+        else:
+            if has_fire:
+                title = "🚨 ALERT: Fire/Smoke Detected!"
+            else:
+                title = "📹 CCTV Detection Alert"
+            
+            lines = [
+                title,
+                "",
+                f"📍 Station: {display_name}",
+                f"🕐 Time: {timestamp[:19].replace('T', ' ')}",
+                "",
+                "📊 Detection Summary:"
+            ]
+            
+            for det_type, count in request.detections.items():
+                if count > 0:
+                    info = detection_info.get(det_type, {"emoji": "❓", "en": det_type})
+                    lines.append(f"  {info['emoji']} {info['en']}: {count}")
+            
+            lines.append("")
+            lines.append(f"🔢 Total: {total_count} objects")
+            
+            if has_fire:
+                lines.append("")
+                lines.append("⚠️ Please check the area immediately!")
+        
+        message = "\n".join(lines)
+        
+        # Send to all recipients
+        success_count = 0
+        for user_id in recipients:
+            try:
+                line_notification_service._send_push_message(user_id, message)
+                success_count += 1
+                logger.info(f"Sent CCTV alert to {user_id[:8]}...")
+            except Exception as e:
+                logger.error(f"Failed to send CCTV alert to {user_id}: {e}")
+        
+        return {
+            "success": success_count > 0,
+            "message": f"Notification sent to {success_count}/{len(recipients)} users",
+            "recipients": success_count
+        }
+        
+    except Exception as e:
+        logger.error(f"Error sending CCTV notification: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

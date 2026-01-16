@@ -92,6 +92,70 @@ async def line_callback(request: Request, x_line_signature: str = Header(None)):
     return "OK"
 
 
+async def auto_register_line_user(user_id: str, display_name: str = None):
+    """
+    Auto-register LINE user in database for notifications
+    Creates a new user or updates existing one with LINE binding
+    """
+    from backend_model.database import get_db_context
+    from sqlalchemy import text
+    
+    try:
+        with get_db_context() as db:
+            # Check if user already exists with this LINE ID
+            existing = db.execute(
+                text("SELECT id FROM users WHERE line_user_id = :line_id"),
+                {"line_id": user_id}
+            ).fetchone()
+            
+            if existing:
+                logger.debug(f"LINE user {user_id[:10]}... already registered")
+                return
+            
+            # Create new user with notifications enabled by default
+            username = f"line_{user_id[-8:]}"
+            email = f"{user_id[-8:]}@line.auto"
+            name = display_name or f"LINE User {user_id[-6:]}"
+            
+            # Check for username/email collision
+            collision = db.execute(
+                text("SELECT COUNT(*) FROM users WHERE username = :username OR email = :email"),
+                {"username": username, "email": email}
+            ).scalar()
+            
+            if collision > 0:
+                import time
+                suffix = str(int(time.time()))[-4:]
+                username = f"line_{user_id[-8:]}_{suffix}"
+                email = f"{user_id[-8:]}_{suffix}@line.auto"
+            
+            db.execute(
+                text("""
+                    INSERT INTO users (
+                        email, username, hashed_password, full_name, role,
+                        is_active, line_user_id, receive_notifications
+                    )
+                    VALUES (
+                        :email, :username, :password, :name, 'user',
+                        true, :line_id, true
+                    )
+                """),
+                {
+                    "email": email,
+                    "username": username,
+                    "password": "line_auto_registered",
+                    "name": name,
+                    "line_id": user_id
+                }
+            )
+            db.commit()
+            
+            logger.info(f"Auto-registered LINE user: {user_id[:10]}... for notifications")
+            
+    except Exception as e:
+        logger.error(f"Error auto-registering LINE user: {e}")
+
+
 async def handle_message(event: MessageEvent):
     """
     Process user message and reply via AI with chart support
@@ -100,6 +164,9 @@ async def handle_message(event: MessageEvent):
     user_id = event.source.user_id
     
     logger.info(f"Received LINE message from {user_id}: {user_message}")
+    
+    # Auto-register user for notifications
+    await auto_register_line_user(user_id)
     
     try:
         # 1. Call existing AI Service

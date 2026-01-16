@@ -66,6 +66,24 @@ export default function CCTVPage(): React.ReactElement {
     const [recentDetections, setRecentDetections] = useState<DetectionEvent[]>([])
     const [viewMode, setViewMode] = useState<'single' | 'grid'>('single')
 
+    // LINE Notification state - enabled by default to send notification when objects detected
+    const [notifyEnabled, setNotifyEnabled] = useState<boolean>(true)
+    const [hasNotified, setHasNotified] = useState<boolean>(false)
+    const [notifyMessage, setNotifyMessage] = useState<string | null>(null)
+
+    // Refs to track notification state inside useEffect (avoid stale closures)
+    const notifyEnabledRef = useRef(true)  // Initialize with true since notification is enabled by default
+    const hasNotifiedRef = useRef(hasNotified)
+
+    // Keep refs in sync with state
+    useEffect(() => {
+        notifyEnabledRef.current = notifyEnabled
+    }, [notifyEnabled])
+
+    useEffect(() => {
+        hasNotifiedRef.current = hasNotified
+    }, [hasNotified])
+
     const videoRef = useRef<HTMLVideoElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const streamRef = useRef<MediaStream | null>(null)
@@ -250,6 +268,13 @@ export default function CCTVPage(): React.ReactElement {
 
                             if (newDetections.length > 0) {
                                 setRecentDetections(prev => [...newDetections, ...prev].slice(0, 10))
+
+                                // Send LINE notification once if enabled and not yet notified
+                                // Use refs to get current values (avoid stale closures)
+                                if (notifyEnabledRef.current && !hasNotifiedRef.current && stats.total > 0) {
+                                    console.log('📱 Sending LINE notification for detection...')
+                                    sendLineNotification(stats)
+                                }
                             }
 
                             console.log(`🎯 Detected ${stats.total} objects in ${result.processing_time_ms}ms`)
@@ -366,6 +391,64 @@ export default function CCTVPage(): React.ReactElement {
         setIsStreaming(false)
     }
 
+    // Send LINE notification
+    const sendLineNotification = async (stats: DetectionStats) => {
+        console.log('📱 sendLineNotification called with stats:', stats)
+
+        // Mark as notified immediately to prevent duplicate calls
+        setHasNotified(true)
+        hasNotifiedRef.current = true
+
+        try {
+            const currentStation = stations.find(s => s.station_id === selectedStation)
+            const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+
+            console.log('📱 Calling API:', `${apiBaseUrl}/api/cctv/notify`)
+
+            const response = await fetch(`${apiBaseUrl}/api/cctv/notify`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    station_id: selectedStation,
+                    station_name: currentStation?.name_th || currentStation?.name_en || selectedStation,
+                    detections: {
+                        human: stats.human,
+                        car: stats.car,
+                        motorcycle: stats.motorcycle,
+                        bicycle: stats.bicycle,
+                        animal: stats.animal,
+                        fire: stats.fire
+                    },
+                    timestamp: new Date().toISOString(),
+                    language: lang
+                })
+            })
+
+            const result = await response.json()
+
+            if (result.success) {
+                setNotifyMessage(lang === 'th'
+                    ? `✅ ส่งแจ้งเตือน LINE แล้ว (${result.recipients} คน)`
+                    : `✅ LINE notification sent (${result.recipients} users)`)
+                console.log('📱 LINE notification sent successfully:', result)
+            } else {
+                setNotifyMessage(lang === 'th'
+                    ? `⚠️ ${result.message}`
+                    : `⚠️ ${result.message}`)
+            }
+
+            // Clear message after 5 seconds
+            setTimeout(() => setNotifyMessage(null), 5000)
+
+        } catch (error) {
+            console.error('Error sending LINE notification:', error)
+            setNotifyMessage(lang === 'th'
+                ? '❌ ส่งแจ้งเตือนไม่สำเร็จ'
+                : '❌ Failed to send notification')
+            setTimeout(() => setNotifyMessage(null), 5000)
+        }
+    }
+
     const resetStats = () => {
         setDetectionStats({
             human: 0,
@@ -378,6 +461,10 @@ export default function CCTVPage(): React.ReactElement {
             timestamp: new Date().toISOString(),
         })
         setRecentDetections([])
+        // Reset notification state when stats are reset
+        setHasNotified(false)
+        hasNotifiedRef.current = false  // Also reset the ref
+        setNotifyMessage(null)
     }
 
     const currentStation = stations.find(s => s.station_id === selectedStation)
@@ -484,6 +571,50 @@ export default function CCTVPage(): React.ReactElement {
                                 {detectionEnabled ? (lang === 'th' ? 'ปิด' : 'Disable') : (lang === 'th' ? 'เปิด' : 'Enable')}
                             </Button>
                         </div>
+
+                        {/* LINE Notification Toggle */}
+                        <div className="mt-3 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Icon name="notifications" className="text-green-500" />
+                                <span className={`text-sm font-medium ${isLight ? 'text-gray-700' : 'text-dark-200'}`}>
+                                    {lang === 'th' ? 'แจ้งเตือน LINE (ครั้งเดียว)' : 'LINE Notification (Once)'}
+                                </span>
+                                <Badge variant={notifyEnabled ? 'success' : 'default'} size="sm">
+                                    {notifyEnabled ? (lang === 'th' ? 'เปิด' : 'ON') : (lang === 'th' ? 'ปิด' : 'OFF')}
+                                </Badge>
+                                {hasNotified && (
+                                    <Badge variant="info" size="sm">
+                                        {lang === 'th' ? 'ส่งแล้ว ✓' : 'Sent ✓'}
+                                    </Badge>
+                                )}
+                            </div>
+                            <Button
+                                variant={notifyEnabled ? 'primary' : 'ghost'}
+                                size="sm"
+                                onClick={() => {
+                                    setNotifyEnabled(!notifyEnabled)
+                                    if (!notifyEnabled) {
+                                        setHasNotified(false) // Reset when enabling
+                                        hasNotifiedRef.current = false  // Also reset the ref
+                                    }
+                                }}
+                            >
+                                <Icon name={notifyEnabled ? 'notifications_active' : 'notifications_off'} size="sm" />
+                                {notifyEnabled ? (lang === 'th' ? 'ปิด' : 'Disable') : (lang === 'th' ? 'เปิด' : 'Enable')}
+                            </Button>
+                        </div>
+
+                        {/* Notification Status Message */}
+                        {notifyMessage && (
+                            <div className={`mt-3 p-3 rounded-lg text-sm ${notifyMessage.includes('✅')
+                                ? (isLight ? 'bg-green-100 text-green-700' : 'bg-green-900/30 text-green-300')
+                                : notifyMessage.includes('❌')
+                                    ? (isLight ? 'bg-red-100 text-red-700' : 'bg-red-900/30 text-red-300')
+                                    : (isLight ? 'bg-yellow-100 text-yellow-700' : 'bg-yellow-900/30 text-yellow-300')
+                                }`}>
+                                {notifyMessage}
+                            </div>
+                        )}
                     </Card>
                 </section>
 
@@ -540,22 +671,7 @@ export default function CCTVPage(): React.ReactElement {
                                 )}
                             </div>
 
-                            {/* Info message */}
-                            {isStreaming && (
-                                <div className={`p-4 ${isLight ? 'bg-green-50 border-t border-green-200' : 'bg-green-900/20 border-t border-green-800/30'}`}>
-                                    <div className="flex items-start gap-2">
-                                        <Icon name="info" size="sm" className="text-green-500 mt-0.5" />
-                                        <div>
-                                            <p className={`text-sm ${isLight ? 'text-green-800' : 'text-green-300'}`}>
-                                                <strong>{lang === 'th' ? '🎯 YOLO Detection Active:' : '🎯 YOLO Detection Active:'}</strong>{' '}
-                                                {lang === 'th'
-                                                    ? 'กำลังใช้ YOLOv8 ตรวจจับวัตถุแบบเรียลไทม์ ระบบจะจับภาพจากกล้องทุก 2 วินาทีและวิเคราะห์หาคน ยานพาหนะ และสัตว์ พร้อมแสดงกรอบสีและความแม่นยำ'
-                                                    : 'YOLOv8 real-time object detection is running. The system captures frames every 2 seconds and detects humans, vehicles, and animals with bounding boxes and confidence scores.'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+
                             {!isStreaming && (
                                 <div className={`p-4 ${isLight ? 'bg-blue-50 border-t border-blue-200' : 'bg-blue-900/20 border-t border-blue-800/30'}`}>
                                     <div className="flex items-start gap-2">

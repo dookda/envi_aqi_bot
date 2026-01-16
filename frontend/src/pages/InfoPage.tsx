@@ -547,6 +547,68 @@ export default function InfoPage(): React.ReactElement {
                     </div>
                 </Card>
 
+                {/* LINE OA QR Code */}
+                <Card className="p-6 mb-8">
+                    <h2 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isLight ? 'text-gray-900' : 'text-white'}`}>
+                        <Icon name="qr_code_2" size="sm" className="text-green-500" />
+                        {lang === 'th' ? 'เพิ่มเพื่อน LINE Official Account' : 'Add LINE Official Account'}
+                    </h2>
+
+                    <div className={`rounded-xl p-6 ${isLight ? 'bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200' : 'bg-gradient-to-br from-green-900/30 to-emerald-900/20 border border-green-800'}`}>
+                        <div className="flex flex-col md:flex-row items-center gap-6">
+                            {/* QR Code */}
+                            <div className="flex-shrink-0">
+                                <div className={`p-4 rounded-2xl ${isLight ? 'bg-white shadow-lg' : 'bg-gray-800 shadow-xl'}`}>
+                                    <img
+                                        src="https://qr-official.line.me/sid/L/786fusre.png"
+                                        alt="LINE OA QR Code"
+                                        className="w-48 h-48 object-contain"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Description */}
+                            <div className="flex-1 text-center md:text-left">
+                                <h3 className={`text-xl font-bold mb-2 ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                    🌍 AQI Bot
+                                </h3>
+                                <p className={`mb-4 ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
+                                    {lang === 'th'
+                                        ? 'สแกน QR Code เพื่อเพิ่มเพื่อน และรับการแจ้งเตือนคุณภาพอากาศผ่าน LINE'
+                                        : 'Scan QR Code to add as friend and receive air quality notifications via LINE'}
+                                </p>
+
+                                <div className={`space-y-2 text-sm ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    <div className="flex items-center gap-2 justify-center md:justify-start">
+                                        <span className="text-green-500">✓</span>
+                                        <span>{lang === 'th' ? 'แจ้งเตือนเมื่อพบค่าผิดปกติ (Spike)' : 'Alert when anomaly spikes detected'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 justify-center md:justify-start">
+                                        <span className="text-green-500">✓</span>
+                                        <span>{lang === 'th' ? 'แจ้งเตือนเมื่อพบข้อมูลขาดหาย (Gap)' : 'Alert when data gaps found'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 justify-center md:justify-start">
+                                        <span className="text-green-500">✓</span>
+                                        <span>{lang === 'th' ? 'สรุปคุณภาพข้อมูลหลังอัปโหลด' : 'Data quality summary after upload'}</span>
+                                    </div>
+                                </div>
+
+                                <a
+                                    href="https://line.me/R/ti/p/@786fusre"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`inline-flex items-center gap-2 mt-4 px-6 py-3 rounded-full font-semibold transition-all ${isLight
+                                        ? 'bg-green-500 hover:bg-green-600 text-white shadow-lg hover:shadow-xl'
+                                        : 'bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-xl'}`}
+                                >
+                                    <Icon name="add" size="sm" />
+                                    {lang === 'th' ? 'เพิ่มเพื่อน' : 'Add Friend'}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+
                 {/* Technical Stack */}
                 <Card className="p-6">
                     <h2 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isLight ? 'text-gray-900' : 'text-white'}`}>

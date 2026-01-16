@@ -18,6 +18,8 @@ from linebot.v3.messaging import (
 )
 
 from backend_model.logger import logger
+from backend_model.database import get_db_context
+from sqlalchemy import text
 
 
 class LineNotificationService:
@@ -25,18 +27,15 @@ class LineNotificationService:
 
     def __init__(self):
         self.channel_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
-        self.admin_user_ids = self._parse_admin_ids()
-        self.enabled = bool(self.channel_access_token and self.admin_user_ids)
+        self.env_admin_user_ids = self._parse_admin_ids()
+        self.enabled = bool(self.channel_access_token)
         
         if self.enabled:
             self.configuration = Configuration(access_token=self.channel_access_token)
-            logger.info(f"LINE Notification Service initialized with {len(self.admin_user_ids)} admin(s)")
+            logger.info(f"LINE Notification Service initialized (env admins: {len(self.env_admin_user_ids)})")
         else:
             self.configuration = None
-            if not self.channel_access_token:
-                logger.warning("LINE Notification Service disabled: No LINE_CHANNEL_ACCESS_TOKEN")
-            if not self.admin_user_ids:
-                logger.warning("LINE Notification Service disabled: No LINE_ADMIN_USER_IDS configured")
+            logger.warning("LINE Notification Service disabled: No LINE_CHANNEL_ACCESS_TOKEN")
 
     def _parse_admin_ids(self) -> List[str]:
         """Parse admin user IDs from environment variable (comma-separated)"""
@@ -44,6 +43,32 @@ class LineNotificationService:
         if not admin_ids_str:
             return []
         return [uid.strip() for uid in admin_ids_str.split(",") if uid.strip()]
+
+    def _get_db_notification_users(self) -> List[str]:
+        """Get LINE user IDs from database that have notifications enabled"""
+        try:
+            with get_db_context() as db:
+                result = db.execute(
+                    text("""
+                        SELECT line_user_id FROM users 
+                        WHERE line_user_id IS NOT NULL 
+                        AND receive_notifications = true
+                    """)
+                )
+                user_ids = [row[0] for row in result.fetchall() if row[0]]
+                logger.debug(f"Found {len(user_ids)} notification users in database")
+                return user_ids
+        except Exception as e:
+            logger.error(f"Error querying notification users: {e}")
+            return []
+
+    @property
+    def admin_user_ids(self) -> List[str]:
+        """Get all notification recipients (from env + database)"""
+        # Combine env admins with database users, remove duplicates
+        db_users = self._get_db_notification_users()
+        all_users = list(set(self.env_admin_user_ids + db_users))
+        return all_users
 
     def send_upload_quality_alert(
         self,
