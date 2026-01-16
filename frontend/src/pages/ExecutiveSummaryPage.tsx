@@ -46,11 +46,12 @@ const calculateAqiFromPm25 = (pm25: number | undefined): number => {
 }
 
 const getAqiStatus = (value: number, isLight: boolean): AQIStatus => {
+    // Thailand AQI Standard (ดัชนี AQI ประเทศไทย)
     if (value <= 25) return {
         level: 'Excellent',
         levelTh: 'ดีมาก',
-        color: 'text-sky-500',  // Blue - Thailand PCD
-        bgColor: isLight ? 'bg-sky-50 border-sky-200' : 'bg-sky-900/20 border-sky-800',
+        color: 'text-cyan-500',  // Cyan - Thailand PCD
+        bgColor: isLight ? 'bg-cyan-50 border-cyan-200' : 'bg-cyan-900/20 border-cyan-800',
         icon: 'sentiment_very_satisfied'
     }
     if (value <= 50) return {
@@ -69,14 +70,14 @@ const getAqiStatus = (value: number, isLight: boolean): AQIStatus => {
     }
     if (value <= 200) return {
         level: 'Unhealthy',
-        levelTh: 'เริ่มมีผลกระทบต่อสุขภาพ',
+        levelTh: 'เริ่มมีผลกระทบ',
         color: 'text-orange-500',  // Orange - Thailand PCD
         bgColor: isLight ? 'bg-orange-50 border-orange-200' : 'bg-orange-900/20 border-orange-800',
         icon: 'sentiment_dissatisfied'
     }
     return {
-        level: 'Very Unhealthy',
-        levelTh: 'มีผลกระทบต่อสุขภาพ',
+        level: 'Hazardous',
+        levelTh: 'มีผลกระทบ',
         color: 'text-red-500',  // Red - Thailand PCD
         bgColor: isLight ? 'bg-red-50 border-red-200' : 'bg-red-900/20 border-red-800',
         icon: 'sentiment_very_dissatisfied'
@@ -194,6 +195,322 @@ const StatusBar: React.FC<StatusBarProps> = ({
                 ))}
             </div>
         </div>
+    )
+}
+
+// AI Executive Summary Types
+interface ExecutiveSummaryInsight {
+    status: string
+    insight: string | null
+    highlights: string[] | null
+    executive_brief: string | null
+    action_items: string[] | null
+    error: string | null
+}
+
+interface AIExecutiveSummaryPanelProps {
+    summaryStats: SummaryStats | null
+    statusDistribution: {
+        excellent: number
+        good: number
+        moderate: number
+        unhealthy: number
+        veryUnhealthy: number
+    }
+    stationsWithData: StationWithLatest[]
+    isLight: boolean
+    lang: string
+}
+
+// AI Executive Summary Panel Component
+const AIExecutiveSummaryPanel: React.FC<AIExecutiveSummaryPanelProps> = ({
+    summaryStats,
+    statusDistribution,
+    stationsWithData,
+    isLight,
+    lang
+}) => {
+    const [insight, setInsight] = useState<ExecutiveSummaryInsight | null>(null)
+    const [loading, setLoading] = useState<boolean>(false)
+    const [isExpanded, setIsExpanded] = useState<boolean>(true)
+
+    const generateInsight = useCallback(() => {
+        if (!summaryStats) return
+
+        setLoading(true)
+
+        // Generate insights locally for fast performance
+        const insights: string[] = []
+        const highlights: string[] = []
+        const actionItems: string[] = []
+
+        const { avgAqi, maxAqi, minAqi, activeStations, totalStations, alertCount } = summaryStats
+        const { excellent, good, moderate, unhealthy, veryUnhealthy } = statusDistribution
+
+        // Date and time info
+        const currentDate = new Date()
+        const dateStr = currentDate.toLocaleDateString(lang === 'th' ? 'th-TH' : 'en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        })
+        const timeStr = currentDate.toLocaleTimeString(lang === 'th' ? 'th-TH' : 'en-US', {
+            hour: '2-digit',
+            minute: '2-digit'
+        })
+
+        if (lang === 'th') {
+            // Thai language insights
+            insights.push(`📅 **รายงานสรุปผู้บริหาร** ประจำวัน${dateStr} เวลา ${timeStr}`)
+
+            // Overall status
+            let statusText = ''
+            if (avgAqi <= 25) {
+                statusText = 'ดีมาก (Excellent)'
+                highlights.push('คุณภาพอากาศดีมาก เหมาะสำหรับกิจกรรมกลางแจ้งทุกประเภท')
+            } else if (avgAqi <= 50) {
+                statusText = 'ดี (Good)'
+                highlights.push('คุณภาพอากาศอยู่ในเกณฑ์ดี')
+            } else if (avgAqi <= 100) {
+                statusText = 'ปานกลาง (Moderate)'
+                highlights.push('คุณภาพอากาศปานกลาง กลุ่มเสี่ยงควรระวัง')
+            } else if (avgAqi <= 200) {
+                statusText = 'เริ่มมีผลกระทบต่อสุขภาพ'
+                highlights.push('⚠️ คุณภาพอากาศเริ่มส่งผลกระทบต่อสุขภาพ')
+            } else {
+                statusText = 'มีผลกระทบต่อสุขภาพ'
+                highlights.push('🚨 คุณภาพอากาศอยู่ในระดับวิกฤต')
+            }
+
+            insights.push(`🌍 **สถานะโดยรวม**: คุณภาพอากาศอยู่ในระดับ **${statusText}** โดยมีค่า AQI เฉลี่ย **${avgAqi}**`)
+
+            // Station coverage
+            insights.push(`📍 **การครอบคลุม**: มีสถานีที่ทำงานอยู่ **${activeStations}** จาก **${totalStations}** สถานี (${Math.round(activeStations / totalStations * 100)}%)`)
+            highlights.push(`${activeStations}/${totalStations} สถานีทำงาน`)
+
+            // AQI range
+            insights.push(`📊 **ช่วงค่า AQI**: ต่ำสุด **${minAqi}** - สูงสุด **${maxAqi}** (ช่วงความแตกต่าง ${maxAqi - minAqi})`)
+            highlights.push(`ค่า AQI: ${minAqi} - ${maxAqi}`)
+
+            // Distribution summary
+            const goodStations = excellent + good
+            const badStations = unhealthy + veryUnhealthy
+            if (goodStations > 0) {
+                insights.push(`✅ **สถานีที่มีคุณภาพอากาศดี**: ${goodStations} สถานี (${Math.round(goodStations / activeStations * 100)}%)`)
+            }
+            if (badStations > 0) {
+                insights.push(`⚠️ **สถานีที่ต้องเฝ้าระวัง**: ${badStations} สถานี มีคุณภาพอากาศเริ่มส่งผลกระทบต่อสุขภาพ`)
+                actionItems.push(`เฝ้าระวังพื้นที่ที่มี AQI สูงเกิน 100 จำนวน ${alertCount} สถานี`)
+            }
+
+            // Action items
+            if (alertCount > 0) {
+                actionItems.push(`แจ้งเตือนประชาชนในพื้นที่ที่มีค่า AQI สูง`)
+                actionItems.push(`พิจารณามาตรการลดมลพิษในพื้นที่วิกฤต`)
+            }
+            if (avgAqi > 50) {
+                actionItems.push(`ติดตามแนวโน้มคุณภาพอากาศอย่างใกล้ชิด`)
+            }
+            actionItems.push(`ตรวจสอบการทำงานของสถานีที่ไม่ออนไลน์ (${totalStations - activeStations} สถานี)`)
+
+        } else {
+            // English language insights
+            insights.push(`📅 **Executive Report** for ${dateStr} at ${timeStr}`)
+
+            // Overall status
+            let statusText = ''
+            if (avgAqi <= 25) {
+                statusText = 'Excellent'
+                highlights.push('Air quality is excellent for all outdoor activities')
+            } else if (avgAqi <= 50) {
+                statusText = 'Good'
+                highlights.push('Air quality is satisfactory')
+            } else if (avgAqi <= 100) {
+                statusText = 'Moderate'
+                highlights.push('Air quality is moderate, sensitive groups should be cautious')
+            } else if (avgAqi <= 200) {
+                statusText = 'Unhealthy for Sensitive Groups'
+                highlights.push('⚠️ Air quality affects health of sensitive groups')
+            } else {
+                statusText = 'Unhealthy'
+                highlights.push('🚨 Air quality is at critical level')
+            }
+
+            insights.push(`🌍 **Overall Status**: Air quality is **${statusText}** with average AQI of **${avgAqi}**`)
+
+            // Station coverage
+            insights.push(`📍 **Coverage**: **${activeStations}** of **${totalStations}** stations active (${Math.round(activeStations / totalStations * 100)}%)`)
+            highlights.push(`${activeStations}/${totalStations} stations active`)
+
+            // AQI range
+            insights.push(`📊 **AQI Range**: Lowest **${minAqi}** - Highest **${maxAqi}** (range: ${maxAqi - minAqi})`)
+            highlights.push(`AQI: ${minAqi} - ${maxAqi}`)
+
+            // Distribution summary
+            const goodStations = excellent + good
+            const badStations = unhealthy + veryUnhealthy
+            if (goodStations > 0) {
+                insights.push(`✅ **Good Air Quality**: ${goodStations} stations (${Math.round(goodStations / activeStations * 100)}%)`)
+            }
+            if (badStations > 0) {
+                insights.push(`⚠️ **Stations Requiring Attention**: ${badStations} stations with health-impacting AQI`)
+                actionItems.push(`Monitor ${alertCount} areas with AQI exceeding 100`)
+            }
+
+            // Action items
+            if (alertCount > 0) {
+                actionItems.push(`Issue public advisories for high-AQI areas`)
+                actionItems.push(`Consider pollution reduction measures in critical zones`)
+            }
+            if (avgAqi > 50) {
+                actionItems.push(`Closely monitor air quality trends`)
+            }
+            actionItems.push(`Check connectivity of offline stations (${totalStations - activeStations} stations)`)
+        }
+
+        // Simulate a brief loading delay for UX
+        setTimeout(() => {
+            setInsight({
+                status: 'success',
+                insight: insights.join('\n\n'),
+                highlights,
+                executive_brief: highlights[0] || null,
+                action_items: actionItems.length > 0 ? actionItems : null,
+                error: null
+            })
+            setLoading(false)
+        }, 300)
+
+    }, [summaryStats, statusDistribution, lang])
+
+    // Generate insight when data changes
+    useEffect(() => {
+        if (summaryStats && summaryStats.activeStations > 0) {
+            generateInsight()
+        }
+    }, [summaryStats, statusDistribution, generateInsight])
+
+    if (!summaryStats) return null
+
+    return (
+        <Card className="p-0 overflow-hidden">
+            {/* Header */}
+            <div
+                className={`px-5 py-4 flex items-center justify-between cursor-pointer border-b ${isLight ? 'border-gray-100 hover:bg-gray-50' : 'border-dark-700 hover:bg-dark-700/50'}`}
+                onClick={() => setIsExpanded(!isExpanded)}
+            >
+                <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                        <Icon name="auto_awesome" className="text-white" size="lg" />
+                    </div>
+                    <div>
+                        <h3 className={`text-lg font-semibold ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                            {lang === 'th' ? '🤖 AI สรุปสำหรับผู้บริหาร' : '🤖 AI Executive Brief'}
+                        </h3>
+                        {insight?.executive_brief && (
+                            <p className={`text-sm ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                {insight.executive_brief}
+                            </p>
+                        )}
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            generateInsight()
+                        }}
+                        disabled={loading}
+                        className={`p-2 rounded-lg transition-all ${isLight ? 'hover:bg-gray-100' : 'hover:bg-dark-600'}`}
+                    >
+                        <Icon
+                            name="refresh"
+                            size="sm"
+                            className={`${loading ? 'animate-spin' : ''} ${isLight ? 'text-gray-500' : 'text-dark-400'}`}
+                        />
+                    </button>
+                    <Icon
+                        name={isExpanded ? 'expand_less' : 'expand_more'}
+                        className={isLight ? 'text-gray-500' : 'text-dark-400'}
+                    />
+                </div>
+            </div>
+
+            {/* Content */}
+            {isExpanded && (
+                <div className="p-5">
+                    {loading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <Spinner size="md" />
+                            <span className={`ml-3 text-sm ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                {lang === 'th' ? 'กำลังวิเคราะห์ข้อมูล...' : 'Analyzing data...'}
+                            </span>
+                        </div>
+                    ) : insight?.status === 'success' && insight.insight ? (
+                        <div className="space-y-5">
+                            {/* Main Insight */}
+                            <div className={`prose prose-sm max-w-none ${isLight ? 'prose-gray' : 'prose-invert'}`}>
+                                {insight.insight.split('\n\n').map((paragraph, idx) => (
+                                    <p
+                                        key={idx}
+                                        className={`text-sm leading-relaxed mb-3 ${isLight ? 'text-gray-700' : 'text-dark-200'}`}
+                                        dangerouslySetInnerHTML={{
+                                            __html: paragraph
+                                                .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+                                                .replace(/\n/g, '<br/>')
+                                        }}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* Key Highlights */}
+                            {insight.highlights && insight.highlights.length > 0 && (
+                                <div className={`rounded-lg p-4 ${isLight ? 'bg-gradient-to-r from-blue-50 to-indigo-50' : 'bg-gradient-to-r from-blue-900/20 to-indigo-900/20'}`}>
+                                    <h4 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                        <Icon name="stars" size="sm" className="text-amber-500" />
+                                        {lang === 'th' ? 'จุดสำคัญ' : 'Key Highlights'}
+                                    </h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {insight.highlights.map((highlight, idx) => (
+                                            <span
+                                                key={idx}
+                                                className={`text-sm px-3 py-1.5 rounded-full ${isLight ? 'bg-white text-gray-700 border border-gray-200 shadow-sm' : 'bg-dark-600 text-dark-200'}`}
+                                            >
+                                                {highlight}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Action Items */}
+                            {insight.action_items && insight.action_items.length > 0 && (
+                                <div className={`rounded-lg p-4 border-l-4 border-amber-500 ${isLight ? 'bg-amber-50' : 'bg-amber-900/20'}`}>
+                                    <h4 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isLight ? 'text-amber-800' : 'text-amber-300'}`}>
+                                        <Icon name="checklist" size="sm" />
+                                        {lang === 'th' ? 'ข้อเสนอแนะสำหรับผู้บริหาร' : 'Executive Action Items'}
+                                    </h4>
+                                    <ul className="space-y-2">
+                                        {insight.action_items.map((item, idx) => (
+                                            <li key={idx} className={`text-sm flex items-start gap-2 ${isLight ? 'text-amber-700' : 'text-amber-200'}`}>
+                                                <Icon name="arrow_right" size="xs" className="mt-0.5 flex-shrink-0" />
+                                                <span>{item}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className={`text-center py-8 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                            <Icon name="insights" size="xl" className="mb-3" />
+                            <p className="text-sm">{lang === 'th' ? 'ไม่มีข้อมูลสำหรับการวิเคราะห์' : 'No data available for analysis'}</p>
+                        </div>
+                    )}
+                </div>
+            )}
+        </Card>
     )
 }
 
@@ -361,6 +678,15 @@ const ExecutiveSummaryPage: React.FC = () => {
                     </div>
                 </Card>
             )}
+
+            {/* AI Executive Summary Panel */}
+            <AIExecutiveSummaryPanel
+                summaryStats={summaryStats}
+                statusDistribution={statusDistribution}
+                stationsWithData={stationsWithData}
+                isLight={isLight}
+                lang={lang}
+            />
 
             {/* Key Metrics Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

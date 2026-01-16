@@ -82,13 +82,13 @@ type TabId = 'overview' | 'charts' | 'map'
 
 // ============== Constants ==============
 
-// AQI Level configuration
+// AQI Level configuration (Thailand Standard - ดัชนี AQI ประเทศไทย)
 const AQI_LEVELS: Record<AQILevelKey, AQILevelConfig> = {
-    excellent: { min: 0, max: 25, color: '#009966', label: 'Excellent', labelTh: 'ดีมาก', icon: 'sentiment_very_satisfied' },
-    good: { min: 26, max: 50, color: '#00e400', label: 'Good', labelTh: 'ดี', icon: 'sentiment_satisfied' },
-    moderate: { min: 51, max: 100, color: '#ffff00', label: 'Moderate', labelTh: 'ปานกลาง', icon: 'sentiment_neutral' },
-    unhealthySensitive: { min: 101, max: 200, color: '#ff7e00', label: 'Unhealthy (Sensitive)', labelTh: 'มีผลต่อสุขภาพ', icon: 'sentiment_dissatisfied' },
-    unhealthy: { min: 201, max: 300, color: '#ff0000', label: 'Unhealthy', labelTh: 'มีผลต่อสุขภาพมาก', icon: 'sentiment_very_dissatisfied' },
+    excellent: { min: 0, max: 25, color: '#00bcd4', label: 'Excellent', labelTh: 'ดีมาก', icon: 'sentiment_very_satisfied' },
+    good: { min: 26, max: 50, color: '#4caf50', label: 'Good', labelTh: 'ดี', icon: 'sentiment_satisfied' },
+    moderate: { min: 51, max: 100, color: '#ffeb3b', label: 'Moderate', labelTh: 'ปานกลาง', icon: 'sentiment_neutral' },
+    unhealthySensitive: { min: 101, max: 200, color: '#ff9800', label: 'Unhealthy', labelTh: 'เริ่มมีผลกระทบ', icon: 'sentiment_dissatisfied' },
+    unhealthy: { min: 201, max: 500, color: '#f44336', label: 'Hazardous', labelTh: 'มีผลกระทบ', icon: 'sentiment_very_dissatisfied' },
 }
 
 const getAqiLevel = (value: number | undefined): AQILevelKey | null => {
@@ -1037,7 +1037,7 @@ export default function Dashboard(): React.ReactElement {
                                                 {lang === 'th' ? level.labelTh : level.label}
                                             </p>
                                             <p className={`text-sm ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                                {level.min} - {level.max} µg/m³
+                                                AQI: {level.min} - {level.max}
                                             </p>
                                         </div>
                                     </div>

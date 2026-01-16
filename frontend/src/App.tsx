@@ -2,7 +2,7 @@
  * Main App Component with Routing
  */
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import { Dashboard, Models, Chat, Claude, Admin, DataUpload, DataPreparation, CCTV, Stations, Info, ExecutiveSummary, Login, Register, Profile } from './pages'
+import { Dashboard, Models, Chat, Claude, Admin, DataUpload, DataPreparation, CCTV, Stations, Info, ExecutiveSummary, Login, Register, Profile, Users, LiffProfile } from './pages'
 import { LanguageProvider, ThemeProvider, ToastProvider, AuthProvider } from './contexts'
 import { Layout } from './components/organisms'
 
@@ -18,6 +18,9 @@ const App: React.FC = () => {
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
 
+                {/* LINE LIFF Route (No Sidebar - opens in LINE app) */}
+                <Route path="/liff" element={<LiffProfile />} />
+
                 {/* Main App Routes (With Sidebar) */}
                 <Route path="*" element={
                   <Layout>
@@ -31,6 +34,7 @@ const App: React.FC = () => {
                       <Route path="/prepare-data" element={<DataPreparation />} />
                       <Route path="/upload" element={<DataUpload />} />
                       <Route path="/stations" element={<Stations />} />
+                      <Route path="/users" element={<Users />} />
                       <Route path="/cctv" element={<CCTV />} />
                       <Route path="/info" element={<Info />} />
                       <Route path="/profile" element={<Profile />} />

@@ -182,7 +182,7 @@ class IngestionLog(Base):
 
 
 class User(Base):
-    """User model for authentication"""
+    """User model for authentication and LINE notifications"""
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -192,6 +192,11 @@ class User(Base):
     full_name = Column(String, nullable=True)
     role = Column(String, default="user")  # user, admin
     is_active = Column(Boolean, default=True)
+    
+    # LINE Integration
+    line_user_id = Column(String, unique=True, nullable=True, index=True)  # LINE User ID (starts with 'U')
+    receive_notifications = Column(Boolean, default=True)  # Whether to receive LINE push notifications
+    
     created_at = Column(DateTime, default=func.now())
     last_login = Column(DateTime, nullable=True)
 

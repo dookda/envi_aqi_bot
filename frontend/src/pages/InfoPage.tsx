@@ -248,7 +248,7 @@ export default function InfoPage(): React.ReactElement {
                 <Card className="p-6 mb-8">
                     <h2 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isLight ? 'text-gray-900' : 'text-white'}`}>
                         <Icon name="palette" size="sm" className="text-green-500" />
-                        {lang === 'th' ? 'มาตราส่วน AQI ประเทศไทย' : 'Thailand AQI Scale'}
+                        {lang === 'th' ? 'ดัชนี AQI ประเทศไทย' : 'Thailand AQI Scale'}
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                         {[
@@ -300,6 +300,250 @@ export default function InfoPage(): React.ReactElement {
                                 )}
                             </div>
                         ))}
+                    </div>
+                </Card>
+
+                {/* LINE Notification Flow */}
+                <Card className="p-6 mb-8">
+                    <h2 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isLight ? 'text-gray-900' : 'text-white'}`}>
+                        <Icon name="notifications_active" size="sm" className="text-green-500" />
+                        {lang === 'th' ? 'ระบบแจ้งเตือน LINE' : 'LINE Notification System'}
+                    </h2>
+
+                    <p className={`text-sm mb-6 ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
+                        {lang === 'th'
+                            ? 'ระบบจะวิเคราะห์คุณภาพข้อมูลโดยอัตโนมัติเมื่อมีการอัปโหลด CSV และส่งการแจ้งเตือนผ่าน LINE เมื่อพบปัญหา'
+                            : 'The system automatically analyzes data quality when CSV is uploaded and sends LINE notifications when issues are detected'}
+                    </p>
+
+                    {/* Main Flow Diagram */}
+                    <div className={`rounded-xl p-6 mb-6 ${isLight ? 'bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200' : 'bg-gradient-to-r from-green-900/20 to-emerald-900/20 border border-green-800'}`}>
+                        {/* Step 1: CSV Upload */}
+                        <div className="flex flex-col items-center mb-6">
+                            <div className={`flex items-center gap-3 px-6 py-3 rounded-xl ${isLight ? 'bg-white shadow-md border border-gray-200' : 'bg-dark-800 border border-dark-600'}`}>
+                                <div className="p-2 rounded-lg bg-blue-500">
+                                    <Icon name="cloud_upload" className="text-white" />
+                                </div>
+                                <div>
+                                    <p className={`font-semibold ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                        {lang === 'th' ? 'อัปโหลด CSV' : 'CSV Upload'}
+                                    </p>
+                                    <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>
+                                        {lang === 'th' ? 'นำเข้าข้อมูลคุณภาพอากาศ' : 'Import air quality data'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Arrow Down */}
+                        <div className="flex justify-center mb-4">
+                            <Icon name="arrow_downward" className={isLight ? 'text-gray-400' : 'text-gray-600'} />
+                        </div>
+
+                        {/* Step 2: Data Analysis */}
+                        <div className="flex flex-col items-center mb-6">
+                            <div className={`flex items-center gap-3 px-6 py-3 rounded-xl ${isLight ? 'bg-white shadow-md border border-gray-200' : 'bg-dark-800 border border-dark-600'}`}>
+                                <div className="p-2 rounded-lg bg-purple-500">
+                                    <Icon name="analytics" className="text-white" />
+                                </div>
+                                <div>
+                                    <p className={`font-semibold ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                        {lang === 'th' ? 'วิเคราะห์ข้อมูล' : 'Data Analysis'}
+                                    </p>
+                                    <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>
+                                        {lang === 'th' ? 'ตรวจสอบคุณภาพข้อมูล' : 'Quality check & validation'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Arrow Down */}
+                        <div className="flex justify-center mb-4">
+                            <Icon name="arrow_downward" className={isLight ? 'text-gray-400' : 'text-gray-600'} />
+                        </div>
+
+                        {/* Step 3: Detection Split */}
+                        <div className="flex flex-col md:flex-row justify-center items-stretch gap-4 mb-6">
+                            {/* Spike Detection */}
+                            <div className={`flex-1 flex items-center gap-3 px-5 py-4 rounded-xl ${isLight ? 'bg-red-50 border-2 border-red-200' : 'bg-red-900/20 border-2 border-red-800'}`}>
+                                <div className="p-2 rounded-lg bg-red-500">
+                                    <Icon name="show_chart" className="text-white" />
+                                </div>
+                                <div>
+                                    <p className={`font-semibold ${isLight ? 'text-red-800' : 'text-red-300'}`}>
+                                        {lang === 'th' ? 'ตรวจจับ Spike' : 'Spike Detection'}
+                                    </p>
+                                    <p className={`text-xs ${isLight ? 'text-red-600' : 'text-red-400'}`}>
+                                        {lang === 'th' ? 'Z-Score > 3σ, 5x Jump Rule' : 'Z-Score > 3σ, 5x Jump Rule'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Missing Data Detection */}
+                            <div className={`flex-1 flex items-center gap-3 px-5 py-4 rounded-xl ${isLight ? 'bg-amber-50 border-2 border-amber-200' : 'bg-amber-900/20 border-2 border-amber-800'}`}>
+                                <div className="p-2 rounded-lg bg-amber-500">
+                                    <Icon name="data_alert" className="text-white" />
+                                </div>
+                                <div>
+                                    <p className={`font-semibold ${isLight ? 'text-amber-800' : 'text-amber-300'}`}>
+                                        {lang === 'th' ? 'ตรวจจับข้อมูลขาดหาย' : 'Missing Data Detection'}
+                                    </p>
+                                    <p className={`text-xs ${isLight ? 'text-amber-600' : 'text-amber-400'}`}>
+                                        {lang === 'th' ? 'ช่องว่างในข้อมูลรายชั่วโมง' : 'Gaps in hourly data'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Merge Arrow */}
+                        <div className="flex justify-center mb-4">
+                            <div className="flex items-center gap-2">
+                                <div className={`h-px w-16 md:w-24 ${isLight ? 'bg-gray-300' : 'bg-gray-600'}`} />
+                                <Icon name="merge" className={isLight ? 'text-gray-400' : 'text-gray-600'} />
+                                <div className={`h-px w-16 md:w-24 ${isLight ? 'bg-gray-300' : 'bg-gray-600'}`} />
+                            </div>
+                        </div>
+
+                        {/* Arrow Down */}
+                        <div className="flex justify-center mb-4">
+                            <Icon name="arrow_downward" className={isLight ? 'text-gray-400' : 'text-gray-600'} />
+                        </div>
+
+                        {/* Step 4: Alert Generation */}
+                        <div className="flex flex-col items-center mb-6">
+                            <div className={`flex items-center gap-3 px-6 py-3 rounded-xl ${isLight ? 'bg-white shadow-md border border-gray-200' : 'bg-dark-800 border border-dark-600'}`}>
+                                <div className="p-2 rounded-lg bg-orange-500">
+                                    <Icon name="warning" className="text-white" />
+                                </div>
+                                <div>
+                                    <p className={`font-semibold ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                        {lang === 'th' ? 'สร้างการแจ้งเตือน' : 'Alert Generation'}
+                                    </p>
+                                    <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>
+                                        {lang === 'th' ? 'รวบรวมปัญหาและสร้างข้อความ' : 'Compile issues & generate message'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Arrow Down */}
+                        <div className="flex justify-center mb-4">
+                            <Icon name="arrow_downward" className={isLight ? 'text-gray-400' : 'text-gray-600'} />
+                        </div>
+
+                        {/* Step 5: LINE Push */}
+                        <div className="flex flex-col items-center">
+                            <div className={`flex items-center gap-3 px-6 py-4 rounded-xl ${isLight ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 'bg-gradient-to-r from-green-600 to-emerald-600'} shadow-lg`}>
+                                <div className="p-2 rounded-lg bg-white/20">
+                                    <Icon name="send" className="text-white" />
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-white">
+                                        LINE Messaging API
+                                    </p>
+                                    <p className="text-xs text-white/80">
+                                        {lang === 'th' ? 'ส่ง Push Notification ถึงผู้ดูแล' : 'Push Notification to Admins'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Alert Types */}
+                    <h3 className={`font-semibold mb-3 ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                        {lang === 'th' ? '🔔 ประเภทการแจ้งเตือน' : '🔔 Alert Types'}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div className={`p-4 rounded-lg border-l-4 border-red-500 ${isLight ? 'bg-red-50' : 'bg-red-900/20'}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                                <Icon name="trending_up" className="text-red-500" size="sm" />
+                                <span className={`font-medium ${isLight ? 'text-red-800' : 'text-red-300'}`}>
+                                    {lang === 'th' ? 'Spike ผิดปกติ' : 'Anomaly Spikes'}
+                                </span>
+                            </div>
+                            <p className={`text-sm ${isLight ? 'text-red-600' : 'text-red-400'}`}>
+                                {lang === 'th'
+                                    ? 'ค่าที่สูงกว่าปกติ > 3 SD หรือเพิ่มขึ้น 5 เท่าจากค่าก่อนหน้า'
+                                    : 'Values > 3 SD from mean or 5x jump from previous'}
+                            </p>
+                        </div>
+
+                        <div className={`p-4 rounded-lg border-l-4 border-amber-500 ${isLight ? 'bg-amber-50' : 'bg-amber-900/20'}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                                <Icon name="hourglass_empty" className="text-amber-500" size="sm" />
+                                <span className={`font-medium ${isLight ? 'text-amber-800' : 'text-amber-300'}`}>
+                                    {lang === 'th' ? 'ข้อมูลขาดหาย' : 'Missing Data'}
+                                </span>
+                            </div>
+                            <p className={`text-sm ${isLight ? 'text-amber-600' : 'text-amber-400'}`}>
+                                {lang === 'th'
+                                    ? 'ช่องว่างในข้อมูลรายชั่วโมงที่ต้องเติมด้วย AI'
+                                    : 'Gaps in hourly data requiring AI imputation'}
+                            </p>
+                        </div>
+
+                        <div className={`p-4 rounded-lg border-l-4 border-gray-500 ${isLight ? 'bg-gray-50' : 'bg-gray-800/50'}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                                <Icon name="error_outline" className="text-gray-500" size="sm" />
+                                <span className={`font-medium ${isLight ? 'text-gray-800' : 'text-gray-300'}`}>
+                                    {lang === 'th' ? 'นำเข้าล้มเหลว' : 'Import Failures'}
+                                </span>
+                            </div>
+                            <p className={`text-sm ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
+                                {lang === 'th'
+                                    ? 'ข้อมูลที่ไม่สามารถนำเข้าได้เนื่องจากรูปแบบผิด'
+                                    : 'Records that failed to import due to format issues'}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Sample Message */}
+                    <h3 className={`font-semibold mb-3 ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                        {lang === 'th' ? '📱 ตัวอย่างข้อความแจ้งเตือน' : '📱 Sample Notification Message'}
+                    </h3>
+                    <div className={`p-4 rounded-xl font-mono text-sm ${isLight ? 'bg-gray-100 text-gray-700 border border-gray-200' : 'bg-dark-800 text-gray-300 border border-dark-600'}`}>
+                        <pre className="whitespace-pre-wrap">
+                            {`🚨 การแจ้งเตือนคุณภาพข้อมูล
+
+📍 สถานี: Thara Public Park (119t)
+📅 ช่วงเวลา: 2026-01-01 ถึง 2026-01-15
+
+📊 สรุปการอัปโหลด:
+• ข้อมูลทั้งหมด: 360 รายการ
+• นำเข้าสำเร็จ: 358 รายการ
+
+⚠️ พบปัญหาคุณภาพข้อมูล:
+• 🔺 ค่าผิดปกติ (Spike): 3 จุด
+   └─ 2026-01-05 14:00: PM2.5 = 285.3
+• ⏳ ข้อมูลขาดหาย: 12 ชั่วโมง
+• 📈 ความครอบคลุมข้อมูล: 96.7%
+
+🤖 ระบบเติมค่าอัตโนมัติ: 8 จุด
+
+📋 คำแนะนำ:
+• ตรวจสอบค่าที่ผิดปกติในระบบ
+• ตรวจสอบสาเหตุของข้อมูลขาดหาย`}
+                        </pre>
+                    </div>
+
+                    {/* Configuration Info */}
+                    <div className={`mt-6 p-4 rounded-lg ${isLight ? 'bg-blue-50 border border-blue-200' : 'bg-blue-900/20 border border-blue-800'}`}>
+                        <div className="flex items-start gap-3">
+                            <Icon name="settings" className="text-blue-500 mt-0.5" />
+                            <div>
+                                <p className={`font-medium mb-1 ${isLight ? 'text-blue-800' : 'text-blue-300'}`}>
+                                    {lang === 'th' ? 'การตั้งค่า' : 'Configuration'}
+                                </p>
+                                <p className={`text-sm ${isLight ? 'text-blue-600' : 'text-blue-400'}`}>
+                                    {lang === 'th'
+                                        ? 'เพิ่ม LINE_ADMIN_USER_IDS ใน .env เพื่อรับการแจ้งเตือน โดยใช้ User ID ที่ได้จากการส่งข้อความหา Bot'
+                                        : 'Add LINE_ADMIN_USER_IDS in .env to receive notifications. Get your User ID by sending a message to the bot.'}
+                                </p>
+                                <code className={`mt-2 inline-block px-3 py-1 rounded text-xs ${isLight ? 'bg-white text-blue-700 border border-blue-200' : 'bg-dark-700 text-blue-300'}`}>
+                                    LINE_ADMIN_USER_IDS=Uxxxxxxxx,Uyyyyyyyy
+                                </code>
+                            </div>
+                        </div>
                     </div>
                 </Card>
 

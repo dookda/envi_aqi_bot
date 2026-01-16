@@ -13,5 +13,8 @@ export { default as ExecutiveSummary } from './ExecutiveSummaryPage'
 export { default as Login } from './LoginPage'
 export { default as Register } from './RegisterPage'
 export { default as Profile } from './ProfilePage'
+export { default as Users } from './UsersPage'
+export { default as LiffProfile } from './LiffProfilePage'
+
 
 

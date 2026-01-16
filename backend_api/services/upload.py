@@ -461,6 +461,7 @@ class DataUploadService:
 
         # --- AUTO LEARN & FILL GAPS ---
         # Trigger imputation for all affected stations
+        imputation_results = {}
         if unique_station_ids:
             try:
                 # Import here to avoid potential circular imports
@@ -475,6 +476,7 @@ class DataUploadService:
                         station_id=station_id
                     )
                     logger.info(f"Auto-imputation result for {station_id}: {result}")
+                    imputation_results[station_id] = result
                     
                     if result.get("imputed_count", 0) > 0:
                         msg = f"Auto-filled {result['imputed_count']} missing values for station {station_id}"
@@ -489,10 +491,150 @@ class DataUploadService:
                 errors.append(f"Warning: Auto-imputation failed: {str(e)}")
         # ------------------------------
 
+        # --- QUALITY ANALYSIS & LINE NOTIFICATION ---
+        # Analyze data quality and send LINE alerts if issues found
+        try:
+            self.analyze_and_notify(
+                records=records,
+                station_ids=list(unique_station_ids),
+                inserted=inserted,
+                failed=failed,
+                imputation_results=imputation_results
+            )
+        except Exception as e:
+            logger.error(f"Quality analysis/notification failed: {e}")
+            # Don't fail upload if notification fails
+        # ------------------------------
+
         # Note: With ON CONFLICT, we can't easily distinguish insert vs update
         # So we'll report all successful as "inserted"
         return inserted, updated, failed, errors
 
+    def analyze_and_notify(
+        self,
+        records: List[Dict],
+        station_ids: List[str],
+        inserted: int,
+        failed: int,
+        imputation_results: Dict[str, Any]
+    ) -> None:
+        """
+        Analyze uploaded data quality and send LINE notifications if issues found
+        
+        Args:
+            records: Uploaded records
+            station_ids: List of affected station IDs
+            inserted: Number of inserted records
+            failed: Number of failed records
+            imputation_results: Results from auto-imputation
+        """
+        from backend_api.services.line_notification import line_notification_service
+        from backend_model.services.anomaly import anomaly_service
+        
+        if not line_notification_service.enabled:
+            logger.debug("LINE notifications disabled, skipping quality analysis")
+            return
+        
+        for station_id in station_ids:
+            try:
+                # Get station name
+                station_name = None
+                with get_db_context() as db:
+                    result = db.execute(
+                        text("SELECT name_en, name_th FROM stations WHERE station_id = :id"),
+                        {"id": station_id}
+                    ).fetchone()
+                    if result:
+                        station_name = result[0] or result[1]
+                
+                # Filter records for this station
+                station_records = [r for r in records if r.get("station_id") == station_id]
+                
+                if not station_records:
+                    continue
+                
+                # Get date range
+                datetimes = [r.get("datetime") for r in station_records if r.get("datetime")]
+                if datetimes:
+                    min_dt = min(datetimes)
+                    max_dt = max(datetimes)
+                    date_range = (
+                        min_dt.strftime("%Y-%m-%d") if hasattr(min_dt, 'strftime') else str(min_dt)[:10],
+                        max_dt.strftime("%Y-%m-%d") if hasattr(max_dt, 'strftime') else str(max_dt)[:10]
+                    )
+                else:
+                    date_range = (None, None)
+                
+                # Detect anomalies/spikes
+                spike_count = 0
+                anomaly_details = []
+                
+                try:
+                    # Analyze with anomaly service
+                    anomalies = anomaly_service.detect_anomalies(
+                        station_id=station_id,
+                        start_datetime=min_dt if datetimes else None,
+                        end_datetime=max_dt if datetimes else None,
+                        method="all"
+                    )
+                    
+                    if anomalies and isinstance(anomalies, dict):
+                        all_anomalies = anomalies.get("anomalies", [])
+                        spike_count = len(all_anomalies)
+                        
+                        # Get top anomalies for details
+                        for anomaly in all_anomalies[:5]:
+                            anomaly_details.append({
+                                "datetime": anomaly.get("timestamp", "").strftime("%Y-%m-%d %H:%M") 
+                                    if hasattr(anomaly.get("timestamp"), "strftime") 
+                                    else str(anomaly.get("timestamp", ""))[:16],
+                                "value": anomaly.get("value", 0),
+                                "parameter": "PM2.5",
+                                "type": anomaly.get("type", "unknown")
+                            })
+                except Exception as e:
+                    logger.warning(f"Anomaly detection failed for {station_id}: {e}")
+                
+                # Calculate missing data stats
+                imputation_result = imputation_results.get(station_id, {})
+                imputed_count = imputation_result.get("imputed_count", 0)
+                missing_gaps = imputation_result.get("gaps_found", 0)
+                missing_hours = imputation_result.get("missing_hours", 0)
+                
+                # Calculate coverage
+                total_records = len(station_records)
+                expected_records = total_records + missing_hours if missing_hours else total_records
+                coverage_percent = (total_records / expected_records * 100) if expected_records > 0 else 100
+                
+                # Build summary
+                upload_summary = {
+                    "total_records": total_records,
+                    "inserted": inserted,
+                    "failed": failed,
+                    "spike_count": spike_count,
+                    "missing_gaps": missing_gaps,
+                    "missing_hours": missing_hours,
+                    "imputed_count": imputed_count,
+                    "coverage_percent": coverage_percent,
+                    "date_range": date_range,
+                    "anomaly_details": anomaly_details
+                }
+                
+                # Send notification
+                line_notification_service.send_upload_quality_alert(
+                    station_id=station_id,
+                    station_name=station_name,
+                    upload_summary=upload_summary,
+                    language="th"  # Default to Thai
+                )
+                
+                logger.info(f"Quality analysis complete for {station_id}: "
+                           f"spikes={spike_count}, missing={missing_hours}h, imputed={imputed_count}")
+                
+            except Exception as e:
+                logger.error(f"Error analyzing station {station_id}: {e}")
+                import traceback
+                traceback.print_exc()
 
     def parse_station_csv(self, content: bytes) -> Tuple[List[Dict], List[str]]:
         """

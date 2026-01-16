@@ -72,6 +72,7 @@ const NAV_GROUPS: NavGroup[] = [
             { id: 'prepare', path: '/prepare-data', icon: 'edit_note', labelEn: 'Data Preparation', labelTh: 'เตรียมข้อมูล' },
             { id: 'upload', path: '/upload', icon: 'cloud_upload', labelEn: 'Data Upload', labelTh: 'อัปโหลดข้อมูล' },
             { id: 'stations', path: '/stations', icon: 'location_on', labelEn: 'Stations', labelTh: 'จัดการสถานี' },
+            { id: 'users', path: '/users', icon: 'group', labelEn: 'Users & LINE', labelTh: 'ผู้ใช้และ LINE' },
             { id: 'admin', path: '/admin', icon: 'admin_panel_settings', labelEn: 'Admin', labelTh: 'ผู้ดูแล' },
         ]
     },
@@ -182,6 +183,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 transform transition-all duration-300 ease-out
                 ${isOpen ? 'translate-x-0' : '-translate-x-full'}
                 lg:translate-x-0
+                flex flex-col
                 ${isLight
                     ? 'bg-white border-r border-gray-200'
                     : 'bg-dark-900 border-r border-dark-700'
@@ -218,8 +220,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                     )}
                 </div>
 
-                {/* Navigation */}
-                <nav className={`flex-1 overflow-y-auto py-4 ${isCollapsed ? 'px-2' : 'px-3'}`}>
+                {/* Navigation - Scrollable */}
+                <nav className={`
+                    flex-1 min-h-0 overflow-y-auto py-4 scrollbar-thin
+                    ${isCollapsed ? 'px-2' : 'px-3'}
+                `}>
                     {NAV_GROUPS.map((group) => {
                         const isExpanded = expandedGroups[group.id] ?? true
                         const groupActive = isGroupActive(group)

@@ -191,9 +191,166 @@ async def handle_message(event: MessageEvent):
 @router.get("/health")
 async def line_health():
     """Health check for LINE integration"""
+    from backend_api.services.line_notification import line_notification_service
+    
+    notification_health = line_notification_service.health_check()
+    
     return {
         "status": "ok",
         "channel_configured": bool(CHANNEL_ACCESS_TOKEN and CHANNEL_SECRET),
         "base_url_configured": bool(BASE_URL),
-        "cached_charts": len(_chart_cache)
+        "cached_charts": len(_chart_cache),
+        "push_notifications": notification_health
+    }
+
+
+@router.post("/test-notification")
+async def test_line_notification(
+    station_id: str = "test_station",
+    language: str = "th"
+):
+    """
+    Test LINE push notification (for debugging)
+    
+    Sends a sample quality alert notification to all configured admin users.
+    
+    **Parameters:**
+    - station_id: Station ID to use in the test message (default: test_station)
+    - language: Message language 'th' or 'en' (default: th)
+    
+    **Requires:** LINE_ADMIN_USER_IDS to be configured in .env
+    """
+    from backend_api.services.line_notification import line_notification_service
+    from datetime import datetime
+    
+    if not line_notification_service.enabled:
+        return {
+            "status": "error",
+            "message": "LINE notifications not configured. Please set LINE_ADMIN_USER_IDS in .env",
+            "help": "To get your LINE user ID: Send a message to the bot and check logs for 'Received LINE message from Uxxxxxx'"
+        }
+    
+    # Create sample test data
+    test_summary = {
+        "total_records": 168,
+        "inserted": 165,
+        "failed": 3,
+        "spike_count": 2,
+        "missing_gaps": 1,
+        "missing_hours": 5,
+        "imputed_count": 5,
+        "coverage_percent": 97.0,
+        "date_range": (
+            datetime.now().strftime("%Y-%m-%d"),
+            datetime.now().strftime("%Y-%m-%d")
+        ),
+        "anomaly_details": [
+            {
+                "datetime": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "value": 285.5,
+                "parameter": "PM2.5",
+                "type": "spike"
+            },
+            {
+                "datetime": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "value": 312.3,
+                "parameter": "PM2.5",
+                "type": "z_score"
+            }
+        ]
+    }
+    
+    try:
+        success = line_notification_service.send_upload_quality_alert(
+            station_id=station_id,
+            station_name=f"Test Station ({station_id})",
+            upload_summary=test_summary,
+            language=language
+        )
+        
+        if success:
+            return {
+                "status": "success",
+                "message": f"Test notification sent to {len(line_notification_service.admin_user_ids)} admin(s)",
+                "language": language,
+                "station_id": station_id
+            }
+        else:
+            return {
+                "status": "warning",
+                "message": "Notification may not have been sent to all admins",
+                "admin_count": len(line_notification_service.admin_user_ids)
+            }
+            
+    except Exception as e:
+        logger.error(f"Test notification failed: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+@router.post("/test-simple")
+async def test_simple_notification(
+    title: str = "🔔 ทดสอบการแจ้งเตือน",
+    message: str = "นี่คือข้อความทดสอบจากระบบ AQI Bot\n\nThis is a test message from AQI Bot system."
+):
+    """
+    Send a simple text notification (for debugging)
+    
+    **Parameters:**
+    - title: Notification title
+    - message: Notification message body
+    
+    **Requires:** LINE_ADMIN_USER_IDS to be configured in .env
+    """
+    from backend_api.services.line_notification import line_notification_service
+    
+    if not line_notification_service.enabled:
+        return {
+            "status": "error",
+            "message": "LINE notifications not configured. Please set LINE_ADMIN_USER_IDS in .env"
+        }
+    
+    try:
+        success = line_notification_service.send_simple_alert(
+            title=title,
+            message=message
+        )
+        
+        return {
+            "status": "success" if success else "warning",
+            "message": f"Sent to {len(line_notification_service.admin_user_ids)} admin(s)",
+            "title": title
+        }
+        
+    except Exception as e:
+        logger.error(f"Simple notification failed: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+@router.get("/my-user-id")
+async def get_my_user_id_instructions():
+    """
+    Instructions to get your LINE user ID
+    
+    Returns instructions on how to obtain your LINE user ID for receiving push notifications.
+    """
+    return {
+        "instructions": [
+            "1. Add the AQI Bot as a friend on LINE",
+            "2. Send any message to the bot (e.g., 'Hello')",
+            "3. Check the API logs for the message: 'Received LINE message from Uxxxxxxxx...'",
+            "4. Copy the user ID (starts with 'U') and add it to .env file",
+            "5. Update LINE_ADMIN_USER_IDS in .env (comma-separated for multiple users)",
+            "6. Restart the API container: docker restart aqi_api"
+        ],
+        "example_env": "LINE_ADMIN_USER_IDS=U1234567890abcdef1234567890abcdef",
+        "multiple_users_example": "LINE_ADMIN_USER_IDS=U111...,U222...,U333...",
+        "current_status": {
+            "channel_configured": bool(CHANNEL_ACCESS_TOKEN and CHANNEL_SECRET),
+        }
     }
