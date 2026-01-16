@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS aqi_hourly (
     rh_imputed BOOLEAN DEFAULT FALSE,
     bp_imputed BOOLEAN DEFAULT FALSE,
     rain_imputed BOOLEAN DEFAULT FALSE,
+    is_anomaly BOOLEAN DEFAULT FALSE,
+    anomaly_type TEXT,
     model_version TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     PRIMARY KEY (station_id, datetime)
