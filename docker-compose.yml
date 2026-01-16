@@ -8,6 +8,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-aqi_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aqi_password}
       POSTGRES_DB: ${POSTGRES_DB:-aqi_db}
+      TZ: Asia/Bangkok
     # Port not exposed externally - only accessible via internal Docker network
     ports:
       - "5433:5432"
@@ -33,6 +34,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-aqi_user}:${POSTGRES_PASSWORD:-aqi_password}@postgres:5432/${POSTGRES_DB:-aqi_db}
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - TZ=Asia/Bangkok
       - OLLAMA_MODEL=qwen2.5:1.5b
       - OLLAMA_TIMEOUT=60.0
       # Anthropic Claude AI configuration (for performance comparison)
@@ -99,6 +101,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-aqi_user}:${POSTGRES_PASSWORD:-aqi_password}@postgres:5432/${POSTGRES_DB:-aqi_db}
       - ENVIRONMENT=production
+      - TZ=Asia/Bangkok
     depends_on:
       postgres:
         condition: service_healthy
@@ -123,6 +126,7 @@ services:
     restart: unless-stopped
     environment:
       - OLLAMA_MODEL=qwen2.5:1.5b
+      - TZ=Asia/Bangkok
     # Port not exposed externally - only accessible via internal Docker network
     # ports:
     #   - "11434:11434"
@@ -147,6 +151,8 @@ services:
       dockerfile: Dockerfile
     container_name: aqi_data_prep
     restart: unless-stopped
+    environment:
+      - TZ=Asia/Bangkok
     # Port not exposed externally - accessed via frontend nginx proxy
     # ports:
     #   - "8001:8001"

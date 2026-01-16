@@ -205,6 +205,7 @@ interface ExecutiveSummaryInsight {
     highlights: string[] | null
     executive_brief: string | null
     action_items: string[] | null
+    policy_recommendations: string[] | null
     error: string | null
 }
 
@@ -243,6 +244,7 @@ const AIExecutiveSummaryPanel: React.FC<AIExecutiveSummaryPanelProps> = ({
         const insights: string[] = []
         const highlights: string[] = []
         const actionItems: string[] = []
+        const policyRecommendations: string[] = []
 
         const { avgAqi, maxAqi, minAqi, activeStations, totalStations, alertCount } = summaryStats
         const { excellent, good, moderate, unhealthy, veryUnhealthy } = statusDistribution
@@ -369,6 +371,43 @@ const AIExecutiveSummaryPanel: React.FC<AIExecutiveSummaryPanelProps> = ({
             actionItems.push(`Check connectivity of offline stations (${totalStations - activeStations} stations)`)
         }
 
+        // Generate Policy Recommendations based on air quality status
+        if (lang === 'th') {
+            // Thai policy recommendations
+            if (avgAqi > 100) {
+                policyRecommendations.push('พิจารณาประกาศเตือนภัยสุขภาพในพื้นที่ที่มีค่า AQI สูง')
+                policyRecommendations.push('ควรจัดตั้งศูนย์พักพิงชั่วคราวสำหรับกลุ่มเสี่ยง')
+                policyRecommendations.push('ประสานงานกับหน่วยงานที่เกี่ยวข้องเพื่อลดกิจกรรมที่ก่อมลพิษ')
+            }
+            if (avgAqi > 50) {
+                policyRecommendations.push('แนะนำให้โรงเรียนและสถานศึกษาพิจารณาลดกิจกรรมกลางแจ้ง')
+                policyRecommendations.push('ประชาสัมพันธ์ให้ประชาชนสวมหน้ากากอนามัยเมื่อออกนอกอาคาร')
+            }
+            if (alertCount >= 3) {
+                policyRecommendations.push('พิจารณามาตรการจำกัดการจราจรในพื้นที่วิกฤต')
+                policyRecommendations.push('เพิ่มความถี่ในการติดตามคุณภาพอากาศเป็นทุก 30 นาที')
+            }
+            policyRecommendations.push('ส่งเสริมการใช้ระบบขนส่งสาธารณะและลดการใช้รถยนต์ส่วนตัว')
+            policyRecommendations.push('สนับสนุนการปลูกต้นไม้และเพิ่มพื้นที่สีเขียวในเมือง')
+        } else {
+            // English policy recommendations
+            if (avgAqi > 100) {
+                policyRecommendations.push('Consider issuing health advisories for high-AQI areas')
+                policyRecommendations.push('Set up temporary shelters for vulnerable populations')
+                policyRecommendations.push('Coordinate with agencies to reduce pollution-causing activities')
+            }
+            if (avgAqi > 50) {
+                policyRecommendations.push('Advise schools to reduce outdoor activities')
+                policyRecommendations.push('Public awareness campaign for wearing masks outdoors')
+            }
+            if (alertCount >= 3) {
+                policyRecommendations.push('Consider traffic restrictions in critical areas')
+                policyRecommendations.push('Increase air quality monitoring frequency to every 30 minutes')
+            }
+            policyRecommendations.push('Promote public transportation and reduce private vehicle usage')
+            policyRecommendations.push('Support urban tree planting and green space expansion')
+        }
+
         // Simulate a brief loading delay for UX
         setTimeout(() => {
             setInsight({
@@ -377,6 +416,7 @@ const AIExecutiveSummaryPanel: React.FC<AIExecutiveSummaryPanelProps> = ({
                 highlights,
                 executive_brief: highlights[0] || null,
                 action_items: actionItems.length > 0 ? actionItems : null,
+                policy_recommendations: policyRecommendations.length > 0 ? policyRecommendations : null,
                 error: null
             })
             setLoading(false)
@@ -495,6 +535,24 @@ const AIExecutiveSummaryPanel: React.FC<AIExecutiveSummaryPanelProps> = ({
                                         {insight.action_items.map((item, idx) => (
                                             <li key={idx} className={`text-sm flex items-start gap-2 ${isLight ? 'text-amber-700' : 'text-amber-200'}`}>
                                                 <Icon name="arrow_right" size="xs" className="mt-0.5 flex-shrink-0" />
+                                                <span>{item}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            {/* Policy Recommendations */}
+                            {insight.policy_recommendations && insight.policy_recommendations.length > 0 && (
+                                <div className={`rounded-lg p-4 border-l-4 border-purple-500 ${isLight ? 'bg-purple-50' : 'bg-purple-900/20'}`}>
+                                    <h4 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isLight ? 'text-purple-800' : 'text-purple-300'}`}>
+                                        <Icon name="policy" size="sm" />
+                                        {lang === 'th' ? 'ข้อเสนอแนะเชิงนโยบาย' : 'Policy Recommendations'}
+                                    </h4>
+                                    <ul className="space-y-2">
+                                        {insight.policy_recommendations.map((item, idx) => (
+                                            <li key={idx} className={`text-sm flex items-start gap-2 ${isLight ? 'text-purple-700' : 'text-purple-200'}`}>
+                                                <Icon name="gavel" size="xs" className="mt-0.5 flex-shrink-0" />
                                                 <span>{item}</span>
                                             </li>
                                         ))}

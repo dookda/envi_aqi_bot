@@ -22,21 +22,7 @@ interface AQILevelConfig {
     icon: string
 }
 
-interface ThresholdConfig {
-    max: number
-    color: string
-    label: string
-}
 
-interface ParameterGaugeProps {
-    label: string
-    value: number | undefined
-    unit: string
-    icon: string
-    thresholds: ThresholdConfig[]
-    maxScale: number
-    isLight: boolean
-}
 
 interface PollutantConfigItem {
     label: string
@@ -100,9 +86,8 @@ const getAqiLevel = (value: number | undefined): AQILevelKey | null => {
     return 'unhealthy'
 }
 
-// Pollutant cards configuration
+// Pollutant cards configuration (PM2.5 excluded - shown in main AQI card)
 const POLLUTANT_CONFIG: Record<string, PollutantConfigItem> = {
-    pm25: { label: 'PM2.5', unit: 'µg/m³', icon: 'blur_on', color: '#3b82f6', gradient: 'from-blue-500 to-blue-600' },
     pm10: { label: 'PM10', unit: 'µg/m³', icon: 'grain', color: '#8b5cf6', gradient: 'from-purple-500 to-purple-600' },
     o3: { label: 'O₃', unit: 'ppb', icon: 'cloud', color: '#10b981', gradient: 'from-emerald-500 to-emerald-600' },
     co: { label: 'CO', unit: 'ppm', icon: 'local_fire_department', color: '#f59e0b', gradient: 'from-amber-500 to-amber-600' },
@@ -133,69 +118,6 @@ const TIME_PERIODS: TimePeriodOption[] = [
 ]
 
 // ============== Components ==============
-
-// Compact Parameter Gauge Component - Mini version for grid layout
-const CompactGauge: React.FC<ParameterGaugeProps> = ({
-    label,
-    value,
-    unit,
-    icon,
-    thresholds,
-    maxScale,
-    isLight
-}) => {
-    const percentage = value ? Math.min((value / maxScale) * 100, 100) : 0
-    const currentLevel = thresholds.find(t => value !== undefined && value <= t.max) || thresholds[thresholds.length - 1]
-
-    return (
-        <div className={`p-3 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-dark-700/50'}`}>
-            <div className="flex items-center gap-2 mb-2">
-                <div
-                    className="w-7 h-7 rounded-md flex items-center justify-center"
-                    style={{ backgroundColor: currentLevel?.color || '#64748b' }}
-                >
-                    <Icon name={icon} className="text-white" size="xs" />
-                </div>
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-1">
-                        <span className={`text-sm font-semibold ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                            {label}
-                        </span>
-                        <span className={`text-xs ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
-                            {unit}
-                        </span>
-                    </div>
-                </div>
-                <span className={`text-lg font-bold ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                    {value?.toFixed(1) || '—'}
-                </span>
-            </div>
-
-            {/* Compact progress bar */}
-            <div className="relative h-2 rounded-full overflow-hidden bg-gray-200 dark:bg-dark-600">
-                <div className="absolute inset-0 flex">
-                    {thresholds.map((threshold, idx) => {
-                        const prevMax = idx > 0 ? thresholds[idx - 1].max : 0
-                        const width = ((threshold.max - prevMax) / maxScale) * 100
-                        return (
-                            <div
-                                key={idx}
-                                style={{ width: `${width}%`, backgroundColor: `${threshold.color}30` }}
-                            />
-                        )
-                    })}
-                </div>
-                <div
-                    className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
-                    style={{
-                        width: `${percentage}%`,
-                        backgroundColor: currentLevel?.color
-                    }}
-                />
-            </div>
-        </div>
-    )
-}
 
 // AI Insights Panel Types
 interface ChartAIInsight {
@@ -720,7 +642,7 @@ export default function Dashboard(): React.ReactElement {
     const [showAnomalies, setShowAnomalies] = useState<boolean>(true)
     const [fullData, setFullData] = useState<FullDataResponse | null>(null)
     const [fullDataLoading, setFullDataLoading] = useState<boolean>(false)
-    const [activeTab, setActiveTab] = useState<TabId>('overview')
+    const [activeTab, setActiveTab] = useState<TabId>('charts')
     const [selectedParam, setSelectedParam] = useState<ParameterKey>('pm25')
 
     // Fetch full environmental data
@@ -832,7 +754,7 @@ export default function Dashboard(): React.ReactElement {
                                         style={{ backgroundColor: aqiConfig?.color || '#64748b' }}
                                     >
                                         <span className="text-4xl font-bold text-white">
-                                            {currentPm25?.toFixed(0) || '—'}
+                                            {currentPm25?.toFixed(2) || '—'}
                                         </span>
                                     </div>
                                     <div>
@@ -975,11 +897,55 @@ export default function Dashboard(): React.ReactElement {
                     </div>
                 </section>
 
-                {/* Tab Navigation */}
+                {/* Overview Section - Now always visible above tabs */}
+                <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-stretch">
+                    {/* Map */}
+                    <StationMap
+                        stations={stations}
+                        selectedStation={selectedStation}
+                        onStationSelect={setSelectedStation}
+                        loading={stationsLoading}
+                        height={400}
+                        showAnomalies={showAnomalies}
+                        onShowAnomaliesChange={setShowAnomalies}
+                    />
+
+                    {/* AQI Guide - Height matches map, no scroll */}
+                    <Card className="p-4 h-[400px] flex flex-col">
+                        <h3 className={`text-base font-semibold mb-2 ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                            <Icon name="info" className="mr-2" size="sm" />
+                            {lang === 'th' ? 'ระดับคุณภาพอากาศ' : 'AQI Levels'}
+                        </h3>
+                        <div className="flex-1 flex flex-col justify-between">
+                            {(Object.entries(AQI_LEVELS) as [AQILevelKey, AQILevelConfig][]).map(([key, level]) => (
+                                <div
+                                    key={key}
+                                    className={`flex items-center gap-2 p-2 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-dark-700/50'}`}
+                                >
+                                    <div
+                                        className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                                        style={{ backgroundColor: level.color }}
+                                    >
+                                        <Icon name={level.icon} className="text-white" size="sm" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className={`font-medium text-sm ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                            {lang === 'th' ? level.labelTh : level.label}
+                                        </p>
+                                        <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                            AQI: {level.min} - {level.max}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+                </section>
+
+                {/* Tab Navigation - Now only Charts and Data */}
                 <section className="mb-6">
                     <div className={`flex gap-2 p-1 rounded-xl ${isLight ? 'bg-gray-100' : 'bg-dark-800'}`}>
                         {([
-                            { id: 'overview' as TabId, label: lang === 'th' ? 'ภาพรวม' : 'Overview', icon: 'dashboard' },
                             { id: 'charts' as TabId, label: lang === 'th' ? 'กราฟ' : 'Charts', icon: 'show_chart' },
                             { id: 'map' as TabId, label: lang === 'th' ? 'ข้อมูล' : 'Data', icon: 'table_chart' },
                         ]).map(tab => (
@@ -1000,52 +966,7 @@ export default function Dashboard(): React.ReactElement {
                     </div>
                 </section>
 
-                {/* Tab Content */}
-                {activeTab === 'overview' && (
-                    <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-start">
-                        {/* Map */}
-                        <StationMap
-                            stations={stations}
-                            selectedStation={selectedStation}
-                            onStationSelect={setSelectedStation}
-                            loading={stationsLoading}
-                            height={400}
-                            showAnomalies={showAnomalies}
-                            onShowAnomaliesChange={setShowAnomalies}
-                        />
-
-                        {/* AQI Guide */}
-                        <Card className="p-6">
-                            <h3 className={`text-lg font-semibold mb-4 ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                                <Icon name="info" className="mr-2" />
-                                {lang === 'th' ? 'ระดับคุณภาพอากาศ' : 'AQI Levels'}
-                            </h3>
-                            <div className="space-y-3">
-                                {(Object.entries(AQI_LEVELS) as [AQILevelKey, AQILevelConfig][]).map(([key, level]) => (
-                                    <div
-                                        key={key}
-                                        className={`flex items-center gap-3 p-3 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-dark-700/50'}`}
-                                    >
-                                        <div
-                                            className="w-12 h-12 rounded-lg flex items-center justify-center"
-                                            style={{ backgroundColor: level.color }}
-                                        >
-                                            <Icon name={level.icon} className="text-white" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <p className={`font-medium ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                                                {lang === 'th' ? level.labelTh : level.label}
-                                            </p>
-                                            <p className={`text-sm ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                                AQI: {level.min} - {level.max}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </Card>
-                    </section>
-                )}
+                {/* Tab Content - Charts tab is now the default */}
 
                 {activeTab === 'charts' && (
                     <section className="space-y-6">
@@ -1072,121 +993,6 @@ export default function Dashboard(): React.ReactElement {
                             lang={lang}
                         />
 
-                        {/* Compact Pollutant Gauges - Grid Layout */}
-                        <Card className="p-4">
-                            <h3 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                                <Icon name="speed" size="sm" />
-                                {lang === 'th' ? 'ระดับมลพิษตามมาตรฐาน' : 'Pollutant Levels vs Standards'}
-                            </h3>
-
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                                <CompactGauge
-                                    label="PM2.5"
-                                    value={latestData.pm25}
-                                    unit="µg/m³"
-                                    icon="blur_on"
-                                    thresholds={[
-                                        { max: 25, color: '#009966', label: 'Excellent' },
-                                        { max: 50, color: '#00e400', label: 'Good' },
-                                        { max: 100, color: '#ffff00', label: 'Moderate' },
-                                        { max: 200, color: '#ff7e00', label: 'Unhealthy' },
-                                        { max: 300, color: '#ff0000', label: 'Hazardous' },
-                                    ]}
-                                    maxScale={300}
-                                    isLight={isLight}
-                                />
-                                <CompactGauge
-                                    label="PM10"
-                                    value={latestData.pm10}
-                                    unit="µg/m³"
-                                    icon="grain"
-                                    thresholds={[
-                                        { max: 50, color: '#009966', label: 'Excellent' },
-                                        { max: 80, color: '#00e400', label: 'Good' },
-                                        { max: 120, color: '#ffff00', label: 'Moderate' },
-                                        { max: 180, color: '#ff7e00', label: 'Unhealthy' },
-                                        { max: 250, color: '#ff0000', label: 'Hazardous' },
-                                    ]}
-                                    maxScale={250}
-                                    isLight={isLight}
-                                />
-                                <CompactGauge
-                                    label="O₃"
-                                    value={latestData.o3}
-                                    unit="ppb"
-                                    icon="cloud"
-                                    thresholds={[
-                                        { max: 35, color: '#009966', label: 'Excellent' },
-                                        { max: 70, color: '#00e400', label: 'Good' },
-                                        { max: 120, color: '#ffff00', label: 'Moderate' },
-                                        { max: 200, color: '#ff7e00', label: 'Unhealthy' },
-                                        { max: 300, color: '#ff0000', label: 'Hazardous' },
-                                    ]}
-                                    maxScale={300}
-                                    isLight={isLight}
-                                />
-                                <CompactGauge
-                                    label="CO"
-                                    value={latestData.co}
-                                    unit="ppm"
-                                    icon="local_fire_department"
-                                    thresholds={[
-                                        { max: 4.4, color: '#009966', label: 'Excellent' },
-                                        { max: 6.4, color: '#00e400', label: 'Good' },
-                                        { max: 9.0, color: '#ffff00', label: 'Moderate' },
-                                        { max: 15, color: '#ff7e00', label: 'Unhealthy' },
-                                        { max: 30, color: '#ff0000', label: 'Hazardous' },
-                                    ]}
-                                    maxScale={30}
-                                    isLight={isLight}
-                                />
-                                <CompactGauge
-                                    label="NO₂"
-                                    value={latestData.no2}
-                                    unit="ppb"
-                                    icon="factory"
-                                    thresholds={[
-                                        { max: 60, color: '#009966', label: 'Excellent' },
-                                        { max: 106, color: '#00e400', label: 'Good' },
-                                        { max: 170, color: '#ffff00', label: 'Moderate' },
-                                        { max: 340, color: '#ff7e00', label: 'Unhealthy' },
-                                        { max: 500, color: '#ff0000', label: 'Hazardous' },
-                                    ]}
-                                    maxScale={500}
-                                    isLight={isLight}
-                                />
-                                <CompactGauge
-                                    label="SO₂"
-                                    value={latestData.so2}
-                                    unit="ppb"
-                                    icon="volcano"
-                                    thresholds={[
-                                        { max: 100, color: '#009966', label: 'Excellent' },
-                                        { max: 200, color: '#00e400', label: 'Good' },
-                                        { max: 350, color: '#ffff00', label: 'Moderate' },
-                                        { max: 500, color: '#ff7e00', label: 'Unhealthy' },
-                                        { max: 700, color: '#ff0000', label: 'Hazardous' },
-                                    ]}
-                                    maxScale={700}
-                                    isLight={isLight}
-                                />
-                                <CompactGauge
-                                    label="NOₓ"
-                                    value={latestData.nox}
-                                    unit="ppb"
-                                    icon="air_purifier"
-                                    thresholds={[
-                                        { max: 50, color: '#009966', label: 'Excellent' },
-                                        { max: 100, color: '#00e400', label: 'Good' },
-                                        { max: 200, color: '#ffff00', label: 'Moderate' },
-                                        { max: 400, color: '#ff7e00', label: 'Unhealthy' },
-                                        { max: 600, color: '#ff0000', label: 'Hazardous' },
-                                    ]}
-                                    maxScale={600}
-                                    isLight={isLight}
-                                />
-                            </div>
-                        </Card>
                     </section>
                 )}
 
