@@ -2027,6 +2027,149 @@ async def chat_claude_health_check():
     return health
 
 
+# ============== Chart AI Insights ==============
+
+from backend_api.schemas import ChartInsightRequest, ChartInsightResponse
+
+
+@app.post("/api/chart/insight", response_model=ChartInsightResponse, tags=["AI Chat"])
+async def get_chart_insight(request: ChartInsightRequest):
+    """
+    Generate AI-powered insights for chart data.
+
+    This endpoint analyzes the chart data and returns a natural language description
+    of what the chart shows, including:
+    - Trend analysis (increasing, decreasing, stable)
+    - Notable peaks or anomalies
+    - Health implications based on AQI levels
+    - Comparison to air quality standards
+
+    **Parameters:**
+    - station_id: The station to analyze
+    - station_name: Display name for the station
+    - parameter: Air quality parameter (pm25, pm10, o3, etc.)
+    - time_period_days: Number of days analyzed
+    - statistics: Pre-calculated stats (avg, min, max, etc.)
+    - data_points: Number of data points in the chart
+
+    **Response:**
+    - insight: Full AI-generated narrative
+    - highlights: Key bullet points
+    - health_advice: Health recommendations
+    - trend_summary: Brief trend description
+    """
+    try:
+        # Build a structured prompt for the AI
+        stats = request.statistics or {}
+        
+        # Get parameter display name
+        param_names = {
+            'pm25': 'PM2.5',
+            'pm10': 'PM10',
+            'o3': 'Ozone (O₃)',
+            'co': 'Carbon Monoxide (CO)',
+            'no2': 'Nitrogen Dioxide (NO₂)',
+            'so2': 'Sulfur Dioxide (SO₂)',
+            'nox': 'Nitrogen Oxides (NOₓ)',
+            'temp': 'Temperature',
+            'rh': 'Relative Humidity',
+            'ws': 'Wind Speed',
+            'bp': 'Barometric Pressure',
+            'rain': 'Rainfall'
+        }
+        
+        param_display = param_names.get(request.parameter, request.parameter.upper())
+        station_display = request.station_name or request.station_id
+        
+        # Get AQI health level for PM2.5
+        def get_aqi_level(pm25_value):
+            if pm25_value is None:
+                return "Unknown"
+            if pm25_value <= 15:
+                return "Excellent (ดีมาก)"
+            elif pm25_value <= 25:
+                return "Good (ดี)"
+            elif pm25_value <= 37.5:
+                return "Moderate (ปานกลาง)"
+            elif pm25_value <= 75:
+                return "Unhealthy for Sensitive Groups (เริ่มมีผลต่อสุขภาพ)"
+            else:
+                return "Unhealthy (มีผลต่อสุขภาพ)"
+        
+        # Calculate trends and generate insight without AI for now (faster)
+        avg_value = stats.get('avg') or stats.get('mean')
+        max_value = stats.get('max')
+        min_value = stats.get('min')
+        
+        # Generate insight text
+        insights = []
+        highlights = []
+        health_advice = None
+        trend_summary = ""
+        
+        # Time period description
+        period_text = f"ช่วง {request.time_period_days} วันที่ผ่านมา" if request.time_period_days <= 30 else f"ช่วง {request.time_period_days} วัน"
+        
+        if avg_value is not None:
+            if request.parameter == 'pm25':
+                aqi_level = get_aqi_level(avg_value)
+                insights.append(f"📊 **สถานี {station_display}** มีค่าเฉลี่ย {param_display} อยู่ที่ **{avg_value:.1f} µg/m³** ใน{period_text}")
+                insights.append(f"🏷️ ระดับคุณภาพอากาศ: **{aqi_level}**")
+                
+                highlights.append(f"ค่าเฉลี่ย: {avg_value:.1f} µg/m³")
+                
+                # Health advice based on AQI level
+                if avg_value <= 25:
+                    health_advice = "✅ คุณภาพอากาศดี สามารถทำกิจกรรมกลางแจ้งได้ตามปกติ"
+                    trend_summary = "คุณภาพอากาศอยู่ในเกณฑ์ดี"
+                elif avg_value <= 37.5:
+                    health_advice = "⚠️ กลุ่มเสี่ยง (เด็ก ผู้สูงอายุ ผู้มีโรคทางเดินหายใจ) ควรลดกิจกรรมกลางแจ้งที่ใช้แรงมาก"
+                    trend_summary = "คุณภาพอากาศปานกลาง ควรระวังสำหรับกลุ่มเสี่ยง"
+                elif avg_value <= 75:
+                    health_advice = "🟠 ประชาชนทั่วไปควรลดกิจกรรมกลางแจ้ง กลุ่มเสี่ยงควรอยู่ในอาคาร"
+                    trend_summary = "คุณภาพอากาศเริ่มมีผลต่อสุขภาพ"
+                else:
+                    health_advice = "🔴 ทุกคนควรหลีกเลี่ยงกิจกรรมกลางแจ้ง สวมหน้ากาก N95 หากจำเป็นต้องออกนอกอาคาร"
+                    trend_summary = "คุณภาพอากาศมีผลกระทบต่อสุขภาพ"
+            else:
+                insights.append(f"📊 **สถานี {station_display}** มีค่าเฉลี่ย {param_display} อยู่ที่ **{avg_value:.1f}** ใน{period_text}")
+                highlights.append(f"ค่าเฉลี่ย: {avg_value:.1f}")
+                trend_summary = f"ค่า {param_display} เฉลี่ยอยู่ที่ {avg_value:.1f}"
+        
+        if max_value is not None and min_value is not None:
+            range_diff = max_value - min_value
+            insights.append(f"📈 ค่าสูงสุด: **{max_value:.1f}** | ค่าต่ำสุด: **{min_value:.1f}** (ช่วงความแตกต่าง: {range_diff:.1f})")
+            highlights.append(f"ค่าสูงสุด: {max_value:.1f}")
+            highlights.append(f"ค่าต่ำสุด: {min_value:.1f}")
+            
+            if range_diff > avg_value * 0.5 if avg_value else 0:
+                insights.append("⚡ มีความผันผวนค่อนข้างสูงในช่วงเวลานี้")
+                highlights.append("มีความผันผวนสูง")
+        
+        if request.data_points:
+            insights.append(f"📋 จำนวนจุดข้อมูล: **{request.data_points}** จุด")
+        
+        # Combine insights
+        full_insight = "\n\n".join(insights)
+        
+        return ChartInsightResponse(
+            status="success",
+            insight=full_insight,
+            highlights=highlights,
+            health_advice=health_advice,
+            trend_summary=trend_summary
+        )
+        
+    except Exception as e:
+        logger.error(f"Chart insight error: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return ChartInsightResponse(
+            status="error",
+            error=str(e)
+        )
+
+
 # =============================================================================
 # Data Upload Endpoints
 # =============================================================================

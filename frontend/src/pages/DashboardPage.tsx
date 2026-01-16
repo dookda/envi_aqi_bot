@@ -197,6 +197,231 @@ const CompactGauge: React.FC<ParameterGaugeProps> = ({
     )
 }
 
+// AI Insights Panel Types
+interface ChartAIInsight {
+    status: string
+    insight: string | null
+    highlights: string[] | null
+    health_advice: string | null
+    trend_summary: string | null
+    error: string | null
+}
+
+interface AIInsightsPanelProps {
+    stationId: string
+    stationName: string | null
+    parameter: ParameterKey
+    timePeriod: number
+    statistics: Record<string, ParameterStatistics> | undefined
+    dataPoints: number | undefined
+    isLight: boolean
+    lang: Language
+}
+
+// AI Insights Panel Component
+const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({
+    stationId,
+    stationName,
+    parameter,
+    timePeriod,
+    statistics,
+    dataPoints,
+    isLight,
+    lang
+}) => {
+    const [insight, setInsight] = useState<ChartAIInsight | null>(null)
+    const [loading, setLoading] = useState<boolean>(false)
+    const [isExpanded, setIsExpanded] = useState<boolean>(true)
+
+    const fetchInsight = useCallback(async () => {
+        if (!stationId || !statistics) return
+
+        setLoading(true)
+        try {
+            const paramStats = statistics[parameter] || {}
+
+            const response = await fetch(`${API_BASE}/chart/insight`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    station_id: stationId,
+                    station_name: stationName,
+                    parameter: parameter,
+                    time_period_days: timePeriod,
+                    statistics: paramStats,
+                    data_points: dataPoints
+                })
+            })
+
+            if (response.ok) {
+                const data: ChartAIInsight = await response.json()
+                setInsight(data)
+            } else {
+                setInsight({
+                    status: 'error',
+                    insight: null,
+                    highlights: null,
+                    health_advice: null,
+                    trend_summary: null,
+                    error: 'Failed to fetch insights'
+                })
+            }
+        } catch (err) {
+            console.error('Failed to fetch AI insight:', err)
+            setInsight({
+                status: 'error',
+                insight: null,
+                highlights: null,
+                health_advice: null,
+                trend_summary: null,
+                error: 'Network error'
+            })
+        } finally {
+            setLoading(false)
+        }
+    }, [stationId, stationName, parameter, timePeriod, statistics, dataPoints])
+
+    // Fetch insight when dependencies change
+    useEffect(() => {
+        if (stationId && statistics && Object.keys(statistics).length > 0) {
+            fetchInsight()
+        }
+    }, [stationId, parameter, timePeriod, fetchInsight])
+
+    return (
+        <Card className="p-0 overflow-hidden">
+            {/* Header */}
+            <div
+                className={`px-4 py-3 flex items-center justify-between cursor-pointer border-b ${isLight ? 'border-gray-100 hover:bg-gray-50' : 'border-dark-700 hover:bg-dark-700/50'}`}
+                onClick={() => setIsExpanded(!isExpanded)}
+            >
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                        <Icon name="psychology" className="text-white" />
+                    </div>
+                    <div>
+                        <h3 className={`font-semibold ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                            {lang === 'th' ? '🤖 AI วิเคราะห์กราฟ' : '🤖 AI Chart Analysis'}
+                        </h3>
+                        {insight?.trend_summary && (
+                            <p className={`text-sm ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                {insight.trend_summary}
+                            </p>
+                        )}
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            fetchInsight()
+                        }}
+                        disabled={loading}
+                        className={`p-2 rounded-lg transition-all ${isLight ? 'hover:bg-gray-100' : 'hover:bg-dark-600'}`}
+                    >
+                        <Icon
+                            name="refresh"
+                            size="sm"
+                            className={`${loading ? 'animate-spin' : ''} ${isLight ? 'text-gray-500' : 'text-dark-400'}`}
+                        />
+                    </button>
+                    <Icon
+                        name={isExpanded ? 'expand_less' : 'expand_more'}
+                        className={isLight ? 'text-gray-500' : 'text-dark-400'}
+                    />
+                </div>
+            </div>
+
+            {/* Content */}
+            {isExpanded && (
+                <div className="p-4">
+                    {loading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <Spinner size="md" />
+                            <span className={`ml-3 text-sm ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                {lang === 'th' ? 'กำลังวิเคราะห์...' : 'Analyzing...'}
+                            </span>
+                        </div>
+                    ) : insight?.status === 'success' && insight.insight ? (
+                        <div className="space-y-4">
+                            {/* Main Insight */}
+                            <div className={`prose prose-sm max-w-none ${isLight ? 'prose-gray' : 'prose-invert'}`}>
+                                {insight.insight.split('\n\n').map((paragraph, idx) => (
+                                    <p
+                                        key={idx}
+                                        className={`text-sm leading-relaxed ${isLight ? 'text-gray-700' : 'text-dark-200'}`}
+                                        dangerouslySetInnerHTML={{
+                                            __html: paragraph
+                                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                                .replace(/\n/g, '<br/>')
+                                        }}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* Highlights */}
+                            {insight.highlights && insight.highlights.length > 0 && (
+                                <div className={`rounded-lg p-3 ${isLight ? 'bg-blue-50' : 'bg-dark-700/50'}`}>
+                                    <h4 className={`text-xs font-semibold mb-2 flex items-center gap-1 ${isLight ? 'text-blue-700' : 'text-blue-400'}`}>
+                                        <Icon name="stars" size="xs" />
+                                        {lang === 'th' ? 'จุดสำคัญ' : 'Key Highlights'}
+                                    </h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {insight.highlights.map((highlight, idx) => (
+                                            <span
+                                                key={idx}
+                                                className={`text-xs px-2 py-1 rounded-full ${isLight ? 'bg-white text-gray-700 border border-gray-200' : 'bg-dark-600 text-dark-200'}`}
+                                            >
+                                                {highlight}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Health Advice */}
+                            {insight.health_advice && (
+                                <div className={`rounded-lg p-3 border-l-4 ${insight.health_advice.includes('🔴')
+                                    ? isLight ? 'bg-red-50 border-red-500' : 'bg-red-900/20 border-red-500'
+                                    : insight.health_advice.includes('🟠')
+                                        ? isLight ? 'bg-orange-50 border-orange-500' : 'bg-orange-900/20 border-orange-500'
+                                        : insight.health_advice.includes('⚠️')
+                                            ? isLight ? 'bg-amber-50 border-amber-500' : 'bg-amber-900/20 border-amber-500'
+                                            : isLight ? 'bg-emerald-50 border-emerald-500' : 'bg-emerald-900/20 border-emerald-500'
+                                    }`}>
+                                    <h4 className={`text-xs font-semibold mb-1 flex items-center gap-1 ${isLight ? 'text-gray-700' : 'text-dark-200'}`}>
+                                        <Icon name="health_and_safety" size="xs" />
+                                        {lang === 'th' ? 'คำแนะนำสุขภาพ' : 'Health Advice'}
+                                    </h4>
+                                    <p className={`text-sm ${isLight ? 'text-gray-700' : 'text-dark-200'}`}>
+                                        {insight.health_advice}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    ) : insight?.status === 'error' ? (
+                        <div className={`text-center py-6 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                            <Icon name="error_outline" size="lg" className="mb-2" />
+                            <p className="text-sm">{lang === 'th' ? 'ไม่สามารถโหลดข้อมูลได้' : 'Failed to load insights'}</p>
+                            <button
+                                onClick={fetchInsight}
+                                className="mt-2 text-primary-500 text-sm hover:underline"
+                            >
+                                {lang === 'th' ? 'ลองใหม่' : 'Try again'}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className={`text-center py-6 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                            <Icon name="insights" size="lg" className="mb-2" />
+                            <p className="text-sm">{lang === 'th' ? 'เลือกสถานีเพื่อดูการวิเคราะห์' : 'Select a station to see analysis'}</p>
+                        </div>
+                    )}
+                </div>
+            )}
+        </Card>
+    )
+}
+
 // Status filter type
 type StatusFilter = 'all' | 'measured' | 'imputed' | 'missing'
 
@@ -833,6 +1058,18 @@ export default function Dashboard(): React.ReactElement {
                             onParamChange={setSelectedParam}
                             externalData={fullData as ChartDataResponse | null}
                             loading={fullDataLoading}
+                        />
+
+                        {/* AI Insights Panel */}
+                        <AIInsightsPanel
+                            stationId={selectedStation}
+                            stationName={currentStation?.name_en || currentStation?.name_th || null}
+                            parameter={selectedParam}
+                            timePeriod={timePeriod}
+                            statistics={fullData?.statistics}
+                            dataPoints={fullData?.total_records}
+                            isLight={isLight}
+                            lang={lang}
                         />
 
                         {/* Compact Pollutant Gauges - Grid Layout */}

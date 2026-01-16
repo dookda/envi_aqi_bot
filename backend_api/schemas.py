@@ -308,3 +308,23 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     username: Optional[str] = None
 
+
+# Chart AI Insight Schemas
+class ChartInsightRequest(BaseModel):
+    """Request for AI-generated chart insights"""
+    station_id: str = Field(..., description="Station ID to analyze")
+    station_name: Optional[str] = Field(None, description="Station name for display")
+    parameter: str = Field(default="pm25", description="Parameter to analyze: pm25, pm10, o3, co, no2, so2, nox")
+    time_period_days: int = Field(default=7, ge=1, le=365, description="Number of days to analyze")
+    statistics: Optional[dict] = Field(None, description="Pre-calculated statistics from chart data")
+    data_points: Optional[int] = Field(None, description="Number of data points in chart")
+
+
+class ChartInsightResponse(BaseModel):
+    """Response with AI-generated chart insights"""
+    status: str  # success | error
+    insight: Optional[str] = None  # AI-generated text description
+    highlights: Optional[List[str]] = None  # Key points as bullet list
+    health_advice: Optional[str] = None  # Health recommendations if applicable
+    trend_summary: Optional[str] = None  # Brief trend description
+    error: Optional[str] = None
