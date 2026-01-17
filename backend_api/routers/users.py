@@ -72,9 +72,9 @@ class UserListResponse(BaseModel):
 # ============== Helper Functions ==============
 
 def hash_password(password: str) -> str:
-    """Simple password hashing (in production, use bcrypt)"""
-    import hashlib
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash password using bcrypt (consistent with auth.py)"""
+    from backend_api.auth import get_password_hash
+    return get_password_hash(password)
 
 
 # ============== Endpoints ==============

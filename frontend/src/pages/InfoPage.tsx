@@ -223,11 +223,96 @@ export default function InfoPage(): React.ReactElement {
                             icon="update"
                         />
                         <StatItem
-                            label="AI Providers"
-                            labelTh="ผู้ให้บริการ AI"
-                            value="2 (Ollama, Claude)"
+                            label="AI Chatbots"
+                            labelTh="AI แชทบอท"
+                            value="Qwen 2.5 / Claude"
                             icon="smart_toy"
                         />
+                    </div>
+                </Card>
+
+                {/* AI Models Detail */}
+                <Card className="p-6 mb-8">
+                    <h2 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isLight ? 'text-gray-900' : 'text-white'}`}>
+                        <Icon name="model_training" size="sm" className="text-purple-500" />
+                        {lang === 'th' ? 'โมเดล AI ที่ใช้งาน' : 'AI Models in Use'}
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Ollama Model */}
+                        <div className={`p-5 rounded-xl border-2 ${isLight ? 'bg-blue-50 border-blue-200' : 'bg-blue-900/20 border-blue-800'}`}>
+                            <div className="flex items-start gap-4">
+                                <div className={`p-3 rounded-lg ${isLight ? 'bg-white' : 'bg-gray-800'} shadow-sm`}>
+                                    <Icon name="dns" size="md" className="text-blue-500" />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <h3 className={`text-lg font-semibold ${isLight ? 'text-gray-900' : 'text-white'}`}>
+                                            Ollama (Local)
+                                        </h3>
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${isLight ? 'bg-green-100 text-green-700' : 'bg-green-800/50 text-green-300'}`}>
+                                            {lang === 'th' ? 'ฟรี' : 'Free'}
+                                        </span>
+                                    </div>
+                                    <p className={`text-sm font-mono mb-2 ${isLight ? 'text-blue-600' : 'text-blue-400'}`}>
+                                        qwen2.5:1.5b
+                                    </p>
+                                    <p className={`text-sm ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
+                                        {lang === 'th'
+                                            ? 'โมเดลภาษาขนาดเล็กที่รันบนเครื่อง ตอบสนองเร็ว เหมาะสำหรับคำถามทั่วไป'
+                                            : 'Lightweight local model with fast response time, suitable for general queries'}
+                                    </p>
+                                    <div className="flex flex-wrap gap-2 mt-3">
+                                        <span className={`px-2 py-1 rounded-md text-xs ${isLight ? 'bg-blue-100 text-blue-700' : 'bg-blue-800/50 text-blue-200'}`}>
+                                            1.5B params
+                                        </span>
+                                        <span className={`px-2 py-1 rounded-md text-xs ${isLight ? 'bg-blue-100 text-blue-700' : 'bg-blue-800/50 text-blue-200'}`}>
+                                            Self-hosted
+                                        </span>
+                                        <span className={`px-2 py-1 rounded-md text-xs ${isLight ? 'bg-blue-100 text-blue-700' : 'bg-blue-800/50 text-blue-200'}`}>
+                                            Docker
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Claude Model */}
+                        <div className={`p-5 rounded-xl border-2 ${isLight ? 'bg-purple-50 border-purple-200' : 'bg-purple-900/20 border-purple-800'}`}>
+                            <div className="flex items-start gap-4">
+                                <div className={`p-3 rounded-lg ${isLight ? 'bg-white' : 'bg-gray-800'} shadow-sm`}>
+                                    <Icon name="auto_awesome" size="md" className="text-purple-500" />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <h3 className={`text-lg font-semibold ${isLight ? 'text-gray-900' : 'text-white'}`}>
+                                            Claude (Anthropic)
+                                        </h3>
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${isLight ? 'bg-orange-100 text-orange-700' : 'bg-orange-800/50 text-orange-300'}`}>
+                                            API
+                                        </span>
+                                    </div>
+                                    <p className={`text-sm font-mono mb-2 ${isLight ? 'text-purple-600' : 'text-purple-400'}`}>
+                                        claude-3-haiku
+                                    </p>
+                                    <p className={`text-sm ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
+                                        {lang === 'th'
+                                            ? 'โมเดลภาษาขั้นสูงจาก Anthropic มีความสามารถในการวิเคราะห์และตอบคำถามซับซ้อน'
+                                            : 'Advanced language model from Anthropic with strong analytical and complex reasoning capabilities'}
+                                    </p>
+                                    <div className="flex flex-wrap gap-2 mt-3">
+                                        <span className={`px-2 py-1 rounded-md text-xs ${isLight ? 'bg-purple-100 text-purple-700' : 'bg-purple-800/50 text-purple-200'}`}>
+                                            Fast
+                                        </span>
+                                        <span className={`px-2 py-1 rounded-md text-xs ${isLight ? 'bg-purple-100 text-purple-700' : 'bg-purple-800/50 text-purple-200'}`}>
+                                            Cloud API
+                                        </span>
+                                        <span className={`px-2 py-1 rounded-md text-xs ${isLight ? 'bg-purple-100 text-purple-700' : 'bg-purple-800/50 text-purple-200'}`}>
+                                            Anthropic
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </Card>
 
@@ -617,10 +702,10 @@ export default function InfoPage(): React.ReactElement {
                     </h2>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {[
-                            { category: 'Frontend', categoryTh: 'ฟรอนท์เอนด์', items: ['React', 'TypeScript', 'Tailwind CSS', 'Recharts'] },
-                            { category: 'Backend', categoryTh: 'แบ็คเอนด์', items: ['FastAPI', 'Python', 'SQLAlchemy', 'Pydantic'] },
-                            { category: 'Database', categoryTh: 'ฐานข้อมูล', items: ['PostgreSQL', 'PostGIS', 'TimescaleDB'] },
-                            { category: 'AI/ML', categoryTh: 'AI/ML', items: ['TensorFlow', 'Keras', 'Ollama', 'Claude API'] }
+                            { category: 'Frontend', categoryTh: 'ฟรอนท์เอนด์', items: ['React 19.2', 'TypeScript 5.9', 'Tailwind CSS 4.1', 'Vite 7.2', 'ECharts 6.0', 'MapLibre GL'] },
+                            { category: 'Backend', categoryTh: 'แบ็คเอนด์', items: ['FastAPI', 'Python 3.11', 'SQLAlchemy', 'Pydantic', 'LINE SDK'] },
+                            { category: 'Database', categoryTh: 'ฐานข้อมูล', items: ['PostgreSQL 16', 'PostGIS 3.4'] },
+                            { category: 'AI/ML', categoryTh: 'AI/ML', items: ['TensorFlow', 'Keras', 'Ollama (Qwen 2.5)', 'Claude API (Haiku)'] }
                         ].map((stack, idx) => (
                             <div key={idx} className={`p-4 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-gray-800/50'}`}>
                                 <p className={`font-semibold mb-2 ${isLight ? 'text-gray-900' : 'text-white'}`}>

@@ -450,37 +450,96 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                     </button>
                 </div>
 
-                {/* Footer */}
+                {/* Footer - User Status */}
                 <div className={`p-3 border-t ${isLight ? 'border-gray-200' : 'border-dark-700'}`}>
-                    {isCollapsed ? (
-                        // Collapsed footer - just status indicator
-                        <div className={`
-                            flex justify-center items-center p-2 rounded-xl
-                            ${isLight ? 'bg-gray-50' : 'bg-dark-800'}
-                        `}>
-                            <div className="relative">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isLight ? 'bg-primary-100' : 'bg-primary-900/30'}`}>
-                                    <Icon name="eco" size="sm" className="text-primary-500" />
+                    {isAuthenticated && user ? (
+                        // Logged in user
+                        isCollapsed ? (
+                            // Collapsed - avatar only
+                            <div
+                                className={`
+                                    flex justify-center items-center p-2 rounded-xl cursor-pointer
+                                    ${isLight ? 'bg-gray-50 hover:bg-gray-100' : 'bg-dark-800 hover:bg-dark-700'}
+                                `}
+                                onClick={() => navigate('/profile')}
+                                title={user.username}
+                            >
+                                <div className="relative">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isLight ? 'bg-primary-100' : 'bg-primary-900/30'}`}>
+                                        <span className="text-primary-500 font-semibold text-sm">
+                                            {user.username?.charAt(0).toUpperCase()}
+                                        </span>
+                                    </div>
+                                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-white dark:border-dark-800" />
                                 </div>
-                                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-white dark:border-dark-800" />
                             </div>
-                        </div>
+                        ) : (
+                            // Expanded - full user info
+                            <div className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-gray-50' : 'bg-dark-800'}`}>
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isLight ? 'bg-primary-100' : 'bg-primary-900/30'}`}>
+                                    <span className="text-primary-500 font-semibold">
+                                        {user.username?.charAt(0).toUpperCase()}
+                                    </span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className={`text-sm font-medium truncate ${isLight ? 'text-gray-700' : 'text-dark-200'}`}>
+                                        {user.full_name || user.username}
+                                    </p>
+                                    <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                        <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium mr-1 ${user.role === 'admin'
+                                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                                                : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-dark-300'
+                                            }`}>
+                                            {user.role === 'admin' ? '👑 Admin' : 'User'}
+                                        </span>
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        localStorage.removeItem('token')
+                                        window.location.href = '/'
+                                    }}
+                                    className={`p-2 rounded-lg ${isLight ? 'hover:bg-gray-200 text-gray-500' : 'hover:bg-dark-700 text-dark-400'}`}
+                                    title={lang === 'th' ? 'ออกจากระบบ' : 'Logout'}
+                                >
+                                    <Icon name="logout" size="sm" />
+                                </button>
+                            </div>
+                        )
                     ) : (
-                        // Expanded footer
-                        <div className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-gray-50' : 'bg-dark-800'}`}>
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isLight ? 'bg-primary-100' : 'bg-primary-900/30'}`}>
-                                <Icon name="eco" size="sm" className="text-primary-500" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className={`text-xs font-medium truncate ${isLight ? 'text-gray-700' : 'text-dark-200'}`}>
-                                    {lang === 'th' ? 'สถานะระบบ' : 'System Status'}
-                                </p>
-                                <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 mr-1" />
-                                    {lang === 'th' ? 'ออนไลน์' : 'Online'}
-                                </p>
-                            </div>
-                        </div>
+                        // Not logged in - show login button
+                        isCollapsed ? (
+                            <Link
+                                to="/login"
+                                className={`
+                                    flex justify-center items-center p-2 rounded-xl
+                                    ${isLight ? 'bg-gray-50 hover:bg-gray-100' : 'bg-dark-800 hover:bg-dark-700'}
+                                `}
+                                title={lang === 'th' ? 'เข้าสู่ระบบ' : 'Login'}
+                            >
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isLight ? 'bg-gray-200' : 'bg-dark-700'}`}>
+                                    <Icon name="login" size="sm" className={isLight ? 'text-gray-500' : 'text-dark-400'} />
+                                </div>
+                            </Link>
+                        ) : (
+                            <Link
+                                to="/login"
+                                className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-gray-50 hover:bg-gray-100' : 'bg-dark-800 hover:bg-dark-700'}`}
+                            >
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isLight ? 'bg-gray-200' : 'bg-dark-700'}`}>
+                                    <Icon name="login" size="sm" className={isLight ? 'text-gray-500' : 'text-dark-400'} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className={`text-sm font-medium ${isLight ? 'text-gray-700' : 'text-dark-200'}`}>
+                                        {lang === 'th' ? 'เข้าสู่ระบบ' : 'Login'}
+                                    </p>
+                                    <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                        {lang === 'th' ? 'เพื่อเข้าถึงฟีเจอร์ทั้งหมด' : 'Access all features'}
+                                    </p>
+                                </div>
+                                <Icon name="arrow_forward" size="sm" className={isLight ? 'text-gray-400' : 'text-dark-500'} />
+                            </Link>
+                        )
                     )}
                 </div>
             </aside>

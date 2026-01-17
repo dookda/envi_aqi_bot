@@ -21,13 +21,12 @@ CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 
 -- Insert default admin user
 -- Username: admin
--- Password: envirai1234 (SHA256 hashed)
--- SHA256 hash of 'envirai1234' = '8a5928e2b5ff8c0b9c5a5e5a7c1e8f4d9a3b6c8e1f5a9d3c7b2e4f6a8b9c0d1e' (pre-computed)
+-- Password: envirai1234 (bcrypt hashed)
 INSERT INTO users (email, username, hashed_password, full_name, role, is_active, receive_notifications)
 VALUES (
     'admin@envir-ai.com',
     'admin',
-    '0fae88ce34c27cda9c5bcf72e1d71ccb5f8de448a696185faa1039a251382e2d',  -- SHA256 of 'envirai1234'
+    '$2b$12$FC6ZNnC.uY3kbgC.xi63jejRIKY9i4w8zCelhU7Ptssr9sRGliApO',  -- bcrypt hash of 'envirai1234'
     'System Administrator',
     'admin',
     TRUE,

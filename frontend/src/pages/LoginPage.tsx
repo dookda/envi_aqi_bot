@@ -1,11 +1,12 @@
-import React, { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { useAuth, useTheme, useLanguage } from '../contexts'
 import { Navbar } from '../components/organisms'
 
 const LoginPage: React.FC = () => {
-    const { login } = useAuth()
+    const { login, isAuthenticated } = useAuth()
     const navigate = useNavigate()
+    const location = useLocation()
     const { isLight } = useTheme()
     const { t } = useLanguage()
 
@@ -14,13 +15,24 @@ const LoginPage: React.FC = () => {
     const [error, setError] = useState('')
     const [isLoading, setIsLoading] = useState(false)
 
+    // Get the redirect path from location state, or default to '/'
+    const from = (location.state as any)?.from?.pathname || '/'
+
+    // If already authenticated, redirect immediately
+    useEffect(() => {
+        if (isAuthenticated) {
+            navigate(from, { replace: true })
+        }
+    }, [isAuthenticated, navigate, from])
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setError('')
         setIsLoading(true)
         try {
             await login(username, password)
-            navigate('/')
+            // Redirect to the saved location or home
+            navigate(from, { replace: true })
         } catch (err: any) {
             setError(err.message || 'Failed to login')
         } finally {
