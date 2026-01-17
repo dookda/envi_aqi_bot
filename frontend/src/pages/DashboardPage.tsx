@@ -345,7 +345,7 @@ const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({
 }
 
 // Status filter type
-type StatusFilter = 'all' | 'measured' | 'imputed' | 'missing'
+type StatusFilter = 'all' | 'measured' | 'imputed' | 'missing' | 'negative'
 
 // Data Table View Component
 const DataTableView: React.FC<DataTableViewProps> = ({
@@ -359,30 +359,34 @@ const DataTableView: React.FC<DataTableViewProps> = ({
     onParamChange,
     totalRecords
 }) => {
-    const [searchDate, setSearchDate] = useState<string>('')
+    const [startDate, setStartDate] = useState<string>('')
+    const [endDate, setEndDate] = useState<string>('')
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
     const currentStation = stations.find(s => s.station_id === selectedStation)
 
-    // Filter data based on search and status
+    // Filter data based on date range and status
     const filteredData = useMemo(() => {
         if (!data) return []
 
         return data.filter(row => {
-            // Date search filter
-            if (searchDate) {
+            // Date range filter
+            if (startDate || endDate) {
                 const rowDate = new Date(row.datetime)
-                const searchLower = searchDate.toLowerCase()
-                const dateStr = rowDate.toLocaleDateString().toLowerCase()
-                const timeStr = rowDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()
-                const fullDateStr = `${dateStr} ${timeStr}`
-                if (!fullDateStr.includes(searchLower) && !row.datetime.toLowerCase().includes(searchLower)) {
-                    return false
+                if (startDate) {
+                    const start = new Date(startDate)
+                    start.setHours(0, 0, 0, 0)
+                    if (rowDate < start) return false
+                }
+                if (endDate) {
+                    const end = new Date(endDate)
+                    end.setHours(23, 59, 59, 999)
+                    if (rowDate > end) return false
                 }
             }
 
             // Status filter
-            const value = row[selectedParam as keyof AQIHourlyData]
+            const value = row[selectedParam as keyof AQIHourlyData] as number | null | undefined
             const isImputed = row.is_imputed || row[`${selectedParam}_imputed` as keyof AQIHourlyData]
 
             if (statusFilter === 'measured') {
@@ -394,10 +398,13 @@ const DataTableView: React.FC<DataTableViewProps> = ({
             if (statusFilter === 'missing') {
                 return value === null || value === undefined
             }
+            if (statusFilter === 'negative') {
+                return value !== null && value !== undefined && value < 0
+            }
 
             return true
         })
-    }, [data, searchDate, statusFilter, selectedParam])
+    }, [data, startDate, endDate, statusFilter, selectedParam])
 
     // Define columns dynamically based on language and selected parameter
     const columns: TableColumn<AQIHourlyData>[] = [
@@ -465,9 +472,9 @@ const DataTableView: React.FC<DataTableViewProps> = ({
 
     // Count stats for filter badges
     const stats = useMemo(() => {
-        if (!data) return { measured: 0, imputed: 0, missing: 0 }
+        if (!data) return { measured: 0, imputed: 0, missing: 0, negative: 0 }
         return data.reduce((acc, row) => {
-            const value = row[selectedParam as keyof AQIHourlyData]
+            const value = row[selectedParam as keyof AQIHourlyData] as number | null | undefined
             const isImputed = row.is_imputed || row[`${selectedParam}_imputed` as keyof AQIHourlyData]
             if (value === null || value === undefined) {
                 acc.missing++
@@ -476,8 +483,12 @@ const DataTableView: React.FC<DataTableViewProps> = ({
             } else {
                 acc.measured++
             }
+            // Count negative values separately
+            if (value !== null && value !== undefined && value < 0) {
+                acc.negative++
+            }
             return acc
-        }, { measured: 0, imputed: 0, missing: 0 })
+        }, { measured: 0, imputed: 0, missing: 0, negative: 0 })
     }, [data, selectedParam])
 
     return (
@@ -526,29 +537,41 @@ const DataTableView: React.FC<DataTableViewProps> = ({
                             </div>
                         </div>
 
-                        {/* Bottom row: Search and Status Filters */}
+                        {/* Bottom row: Date Range and Status Filters */}
                         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                            {/* Date Search */}
-                            <div className="relative flex-1 max-w-xs">
+                            {/* Date Range Filter */}
+                            <div className="flex items-center gap-2">
                                 <Icon
-                                    name="search"
+                                    name="calendar_today"
                                     size="sm"
-                                    className={`absolute left-3 top-1/2 -translate-y-1/2 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}
+                                    className={isLight ? 'text-gray-400' : 'text-dark-500'}
                                 />
                                 <input
-                                    type="text"
-                                    placeholder={lang === 'th' ? 'ค้นหาวันที่...' : 'Search date...'}
-                                    value={searchDate}
-                                    onChange={(e) => setSearchDate(e.target.value)}
-                                    className={`w-full pl-9 pr-3 py-1.5 rounded-lg border text-sm transition-all ${isLight
-                                        ? 'bg-white border-gray-200 text-gray-800 placeholder-gray-400 focus:border-primary-400'
-                                        : 'bg-dark-700 border-dark-600 text-white placeholder-dark-500 focus:border-primary-500'
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className={`px-2 py-1.5 rounded-lg border text-sm transition-all ${isLight
+                                        ? 'bg-white border-gray-200 text-gray-800 focus:border-primary-400'
+                                        : 'bg-dark-700 border-dark-600 text-white focus:border-primary-500'
                                         } focus:outline-none focus:ring-1 focus:ring-primary-500/30`}
                                 />
-                                {searchDate && (
+                                <span className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                    {lang === 'th' ? 'ถึง' : 'to'}
+                                </span>
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className={`px-2 py-1.5 rounded-lg border text-sm transition-all ${isLight
+                                        ? 'bg-white border-gray-200 text-gray-800 focus:border-primary-400'
+                                        : 'bg-dark-700 border-dark-600 text-white focus:border-primary-500'
+                                        } focus:outline-none focus:ring-1 focus:ring-primary-500/30`}
+                                />
+                                {(startDate || endDate) && (
                                     <button
-                                        onClick={() => setSearchDate('')}
-                                        className={`absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-dark-600`}
+                                        onClick={() => { setStartDate(''); setEndDate(''); }}
+                                        className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-dark-600`}
+                                        title={lang === 'th' ? 'ล้างตัวกรอง' : 'Clear filter'}
                                     >
                                         <Icon name="close" size="xs" className={isLight ? 'text-gray-400' : 'text-dark-400'} />
                                     </button>
@@ -607,6 +630,18 @@ const DataTableView: React.FC<DataTableViewProps> = ({
                                     <Icon name="help_outline" size="xs" />
                                     {lang === 'th' ? 'ขาดหาย' : 'Missing'} ({stats.missing})
                                 </button>
+                                <button
+                                    onClick={() => setStatusFilter('negative')}
+                                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${statusFilter === 'negative'
+                                        ? 'bg-red-600 text-white'
+                                        : isLight
+                                            ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                                            : 'bg-red-900/30 text-red-400 hover:bg-red-900/50'
+                                        }`}
+                                >
+                                    <Icon name="remove_circle" size="xs" />
+                                    {lang === 'th' ? 'ค่าติดลบ' : 'Negative'} ({stats.negative})
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -617,7 +652,7 @@ const DataTableView: React.FC<DataTableViewProps> = ({
                     columns={columns}
                     data={filteredData}
                     loading={loading}
-                    emptyMessage={searchDate || statusFilter !== 'all'
+                    emptyMessage={(startDate || endDate) || statusFilter !== 'all'
                         ? (lang === 'th' ? 'ไม่พบข้อมูลที่ตรงกับตัวกรอง' : 'No data matches the filter')
                         : (lang === 'th' ? 'ไม่พบข้อมูล' : 'No data available')
                     }

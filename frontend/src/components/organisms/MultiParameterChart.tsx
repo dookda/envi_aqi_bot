@@ -247,7 +247,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                     negativeData.push({
                         value: [time, value],
                         itemStyle: {
-                            color: '#8b5cf6',
+                            color: '#dc2626',
                             borderColor: '#fff',
                             borderWidth: 2,
                         },
@@ -358,18 +358,17 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                 name: lang === 'th' ? 'ค่าติดลบ' : 'Negative',
                 type: 'scatter',
                 data: chartData.negativeData,
-                symbol: 'pin',
-                symbolSize: 18,
-                symbolRotate: 180,
+                symbol: 'circle',
+                symbolSize: 14,
                 z: 20,
                 itemStyle: {
-                    color: '#8b5cf6'
+                    color: '#dc2626'
                 },
                 emphasis: {
                     scale: 1.5,
                     itemStyle: {
                         shadowBlur: 10,
-                        shadowColor: 'rgba(139, 92, 246, 0.5)',
+                        shadowColor: 'rgba(220, 38, 38, 0.5)',
                     },
                 },
             })
@@ -418,7 +417,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                                 content += `Value: <strong>${param.value[1].toFixed(2)} ${paramConfig.unit}</strong><br/>`
                                 content += `<span style="color:${subTextColor}">σ deviation: ${param.data.spike.deviation}</span><br/>`
                             } else if (isNegative && param.data.negative) {
-                                content += `<span style="color:#8b5cf6">⚠ Negative Value</span><br/>`
+                                content += `<span style="color:#dc2626">⚠ Negative Value</span><br/>`
                                 content += `Value: <strong>${param.value[1].toFixed(2)} ${paramConfig.unit}</strong><br/>`
                             } else {
                                 const icon = isGapFill ? '◆' : '●'
@@ -565,9 +564,9 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                                 type="checkbox"
                                 checked={showNegative}
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowNegative(e.target.checked)}
-                                className="w-4 h-4 rounded accent-purple-500"
+                                className="w-4 h-4 rounded accent-red-600"
                             />
-                            <Icon name="remove_circle" size="sm" style={{ color: '#8b5cf6' }} />
+                            <Icon name="remove_circle" size="sm" style={{ color: '#dc2626' }} />
                             <span className="text-sm">{lang === 'th' ? 'ค่าติดลบ' : 'Negative'}</span>
                         </label>
                     </div>
@@ -654,14 +653,14 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
 
                     {/* Negative Values */}
                     <div className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-white' : 'bg-dark-700/50'}`}>
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${chartData.stats.negativeCount > 0 ? 'bg-purple-100' : isLight ? 'bg-gray-100' : 'bg-dark-600'}`}>
-                            <Icon name="remove_circle" style={{ color: chartData.stats.negativeCount > 0 ? '#8b5cf6' : '#9ca3af' }} />
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${chartData.stats.negativeCount > 0 ? 'bg-red-100' : isLight ? 'bg-gray-100' : 'bg-dark-600'}`}>
+                            <Icon name="remove_circle" style={{ color: chartData.stats.negativeCount > 0 ? '#dc2626' : '#9ca3af' }} />
                         </div>
                         <div>
                             <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
                                 {lang === 'th' ? 'ค่าติดลบ' : 'Negative'}
                             </p>
-                            <p className={`text-xl font-bold ${chartData.stats.negativeCount > 0 ? 'text-purple-500' : isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                            <p className={`text-xl font-bold ${chartData.stats.negativeCount > 0 ? 'text-red-600' : isLight ? 'text-gray-400' : 'text-dark-500'}`}>
                                 {chartData.stats.negativeCount}
                             </p>
                         </div>
@@ -706,7 +705,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                     )}
                     {showNegative && chartData.negativeData.length > 0 && (
                         <div className="flex items-center gap-2">
-                            <span style={{ color: '#8b5cf6' }}>▼</span>
+                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#dc2626' }} />
                             <span>{chartData.negativeData.length} {lang === 'th' ? 'ค่าติดลบ' : 'Negative'}</span>
                         </div>
                     )}
