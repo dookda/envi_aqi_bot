@@ -507,6 +507,12 @@ const DataTableView: React.FC<DataTableViewProps> = ({
                                 <Badge variant="primary">
                                     {filteredData.length}/{totalRecords || data?.length || 0} {lang === 'th' ? 'รายการ' : 'records'}
                                 </Badge>
+                                {stats.negative > 0 && (
+                                    <Badge variant="danger" className="flex items-center gap-1">
+                                        <Icon name="remove_circle" size="xs" />
+                                        {stats.negative} {lang === 'th' ? 'ค่าติดลบ' : 'Negative'}
+                                    </Badge>
+                                )}
                             </div>
 
                             {/* Parameter Selector */}
