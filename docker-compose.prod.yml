@@ -54,7 +54,7 @@ services:
   ollama:
     restart: always
     # Ollama needs more memory for AI model inference
-    # qwen2.5:1.5b uses ~1.5GB, allocate 6GB for headroom
+    # qwen2.5:1.5b uses ~1.5GB, allocate 8GB for headroom
     environment:
       - OLLAMA_MODEL=qwen2.5:1.5b
       - OLLAMA_NUM_PARALLEL=1
@@ -62,7 +62,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6G
+          memory: 8G
         reservations:
           memory: 2G
     # Increase healthcheck timeout for production servers
