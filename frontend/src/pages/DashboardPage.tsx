@@ -2,8 +2,9 @@
  * Dashboard Page - Premium Redesign
  * Modern air quality monitoring dashboard with full environmental data
  */
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import * as echarts from 'echarts'
 import { Card, Icon, Badge, Spinner } from '../components/atoms'
 import { StationSelector, DataTable } from '../components/molecules'
 import { StationMap, Navbar, MultiParameterChart } from '../components/organisms'
@@ -491,6 +492,31 @@ const DataTableView: React.FC<DataTableViewProps> = ({
         }, { measured: 0, imputed: 0, missing: 0, negative: 0 })
     }, [data, selectedParam])
 
+    // Calculate summary statistics for the current parameter
+    const summaryStats = useMemo(() => {
+        if (!data || data.length === 0) {
+            return { max: null, min: null, avg: null, collected: 0, total: 0, completeness: 0 }
+        }
+
+        const values = data
+            .map(row => row[selectedParam as keyof AQIHourlyData] as number | null | undefined)
+            .filter((v): v is number => v !== null && v !== undefined)
+
+        const total = data.length
+        const collected = values.length
+        const completeness = total > 0 ? (collected / total) * 100 : 0
+
+        if (values.length === 0) {
+            return { max: null, min: null, avg: null, collected: 0, total, completeness: 0 }
+        }
+
+        const max = Math.max(...values)
+        const min = Math.min(...values)
+        const avg = values.reduce((sum, v) => sum + v, 0) / values.length
+
+        return { max, min, avg, collected, total, completeness }
+    }, [data, selectedParam])
+
     return (
         <section>
             <Card className="p-0 overflow-hidden">
@@ -545,33 +571,35 @@ const DataTableView: React.FC<DataTableViewProps> = ({
 
                         {/* Bottom row: Date Range and Status Filters */}
                         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                            {/* Date Range Filter */}
-                            <div className="flex items-center gap-2">
+                            {/* Date-Time Range Filter */}
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <Icon
                                     name="calendar_today"
                                     size="sm"
                                     className={isLight ? 'text-gray-400' : 'text-dark-500'}
                                 />
                                 <input
-                                    type="date"
+                                    type="datetime-local"
                                     value={startDate}
                                     onChange={(e) => setStartDate(e.target.value)}
                                     className={`px-2 py-1.5 rounded-lg border text-sm transition-all ${isLight
                                         ? 'bg-white border-gray-200 text-gray-800 focus:border-primary-400'
                                         : 'bg-dark-700 border-dark-600 text-white focus:border-primary-500'
                                         } focus:outline-none focus:ring-1 focus:ring-primary-500/30`}
+                                    title={lang === 'th' ? 'วันเวลาเริ่มต้น' : 'Start date-time'}
                                 />
                                 <span className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
                                     {lang === 'th' ? 'ถึง' : 'to'}
                                 </span>
                                 <input
-                                    type="date"
+                                    type="datetime-local"
                                     value={endDate}
                                     onChange={(e) => setEndDate(e.target.value)}
                                     className={`px-2 py-1.5 rounded-lg border text-sm transition-all ${isLight
                                         ? 'bg-white border-gray-200 text-gray-800 focus:border-primary-400'
                                         : 'bg-dark-700 border-dark-600 text-white focus:border-primary-500'
                                         } focus:outline-none focus:ring-1 focus:ring-primary-500/30`}
+                                    title={lang === 'th' ? 'วันเวลาสิ้นสุด' : 'End date-time'}
                                 />
                                 {(startDate || endDate) && (
                                     <button
@@ -664,8 +692,369 @@ const DataTableView: React.FC<DataTableViewProps> = ({
                     }
                     pageSize={15}
                 />
+
+                {/* Summary Statistics - moved below table */}
+                <div className={`grid grid-cols-2 md:grid-cols-6 gap-3 p-4 border-t ${isLight ? 'border-gray-100 bg-gray-50/50' : 'border-dark-700 bg-dark-800/50'}`}>
+                    {/* Maximum */}
+                    <div className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-white' : 'bg-dark-700/50'}`}>
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-red-100">
+                            <Icon name="arrow_upward" style={{ color: '#ef4444' }} />
+                        </div>
+                        <div>
+                            <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                {lang === 'th' ? 'ค่าสูงสุด' : 'Maximum'}
+                            </p>
+                            <p className={`text-lg font-bold ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                {summaryStats.max !== null ? summaryStats.max.toFixed(2) : '—'}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Minimum */}
+                    <div className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-white' : 'bg-dark-700/50'}`}>
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-blue-100">
+                            <Icon name="arrow_downward" style={{ color: '#3b82f6' }} />
+                        </div>
+                        <div>
+                            <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                {lang === 'th' ? 'ค่าน้อยสุด' : 'Minimum'}
+                            </p>
+                            <p className={`text-lg font-bold ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                {summaryStats.min !== null ? summaryStats.min.toFixed(2) : '—'}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Average */}
+                    <div className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-white' : 'bg-dark-700/50'}`}>
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-purple-100">
+                            <Icon name="functions" style={{ color: '#8b5cf6' }} />
+                        </div>
+                        <div>
+                            <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                {lang === 'th' ? 'ค่าเฉลี่ย' : 'Average'}
+                            </p>
+                            <p className={`text-lg font-bold ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                {summaryStats.avg !== null ? summaryStats.avg.toFixed(2) : '—'}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Collected Count */}
+                    <div className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-white' : 'bg-dark-700/50'}`}>
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-emerald-100">
+                            <Icon name="check_circle" style={{ color: '#10b981' }} />
+                        </div>
+                        <div>
+                            <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                {lang === 'th' ? 'จำนวนที่เก็บค่าได้' : 'Collected'}
+                            </p>
+                            <p className={`text-lg font-bold text-emerald-500`}>
+                                {summaryStats.collected}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Total Hours */}
+                    <div className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-white' : 'bg-dark-700/50'}`}>
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-amber-100">
+                            <Icon name="schedule" style={{ color: '#f59e0b' }} />
+                        </div>
+                        <div>
+                            <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                {lang === 'th' ? 'จำนวนชั่วโมงทั้งหมด' : 'Total Hours'}
+                            </p>
+                            <p className={`text-lg font-bold text-amber-500`}>
+                                {summaryStats.total}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Completeness */}
+                    <div className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-white' : 'bg-dark-700/50'}`}>
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-cyan-100">
+                            <Icon name="pie_chart" style={{ color: '#06b6d4' }} />
+                        </div>
+                        <div>
+                            <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                {lang === 'th' ? 'เปอร์เซ็นต์การเก็บค่าได้' : 'Completeness'}
+                            </p>
+                            <p className={`text-lg font-bold text-cyan-500`}>
+                                {summaryStats.completeness.toFixed(1)}%
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </Card>
         </section>
+    )
+}
+
+// ============== Calendar Heatmap Component ==============
+
+interface CalendarHeatmapProps {
+    data: Array<{ date: string; displayDate: string; count: number; percentage: number }>
+    overall: number
+    loading: boolean
+    isLight: boolean
+    lang: Language
+}
+
+const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
+    data,
+    overall,
+    loading,
+    isLight,
+    lang
+}) => {
+    const chartRef = useRef<HTMLDivElement>(null)
+    const chartInstance = useRef<echarts.ECharts | null>(null)
+
+    useEffect(() => {
+        if (!chartRef.current || data.length === 0) return
+
+        // Initialize or get existing chart instance
+        if (!chartInstance.current) {
+            chartInstance.current = echarts.init(chartRef.current)
+        }
+
+        const textColor = isLight ? '#374151' : '#f1f5f9'
+        const subTextColor = isLight ? '#6b7280' : '#94a3b8'
+
+        // Get date range for calendar
+        const dates = data.map(d => d.date).sort()
+        const startDate = dates[0]
+        const endDate = dates[dates.length - 1]
+
+        // Determine the year range
+        const startYear = new Date(startDate).getFullYear()
+        const endYear = new Date(endDate).getFullYear()
+        const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i)
+
+        // Format data for ECharts calendar heatmap: [date, value]
+        const heatmapData = data.map(d => [d.date, d.percentage])
+
+        // Calculate chart height for calendars
+        const calendarHeight = 140  // Height per year calendar
+        const calendarSpacing = 30  // Space between calendars
+        const topPadding = 20       // Top padding for chart
+        const totalHeight = topPadding + years.length * (calendarHeight + calendarSpacing)
+
+        // Create calendar and series for each year - with partial year ranges
+        const calendars: echarts.EChartsOption['calendar'] = years.map((year, idx) => {
+            // Determine the date range for this particular year
+            let yearStart: string
+            let yearEnd: string
+
+            if (year === startYear && year === endYear) {
+                // Same year - use exact data range
+                yearStart = startDate
+                yearEnd = endDate
+            } else if (year === startYear) {
+                // First year in multi-year range
+                yearStart = startDate
+                yearEnd = `${year}-12-31`
+            } else if (year === endYear) {
+                // Last year in multi-year range
+                yearStart = `${year}-01-01`
+                yearEnd = endDate
+            } else {
+                // Middle year - show full year
+                yearStart = `${year}-01-01`
+                yearEnd = `${year}-12-31`
+            }
+
+            return {
+                top: topPadding + idx * (calendarHeight + calendarSpacing),
+                left: 80,
+                right: 30,
+                cellSize: ['auto', 15],
+                range: [yearStart, yearEnd],
+                itemStyle: {
+                    borderWidth: 2,
+                    borderColor: isLight ? '#fff' : '#1e293b',
+                },
+                yearLabel: {
+                    show: true,
+                    position: 'left',
+                    color: textColor,
+                    fontSize: 14,
+                    fontWeight: 'bold',
+                    formatter: () => year.toString(),
+                },
+                monthLabel: {
+                    show: true,
+                    color: subTextColor,
+                    fontSize: 11,
+                    nameMap: lang === 'th'
+                        ? ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
+                        : undefined,  // Use default English names
+                },
+                dayLabel: {
+                    show: true,
+                    firstDay: 0,
+                    color: subTextColor,
+                    fontSize: 9,
+                    nameMap: lang === 'th'
+                        ? ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
+                        : ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
+                },
+                splitLine: {
+                    show: true,
+                    lineStyle: {
+                        color: isLight ? '#e5e7eb' : '#334155',
+                        width: 1,
+                    },
+                },
+            }
+        })
+
+        const series: echarts.SeriesOption[] = years.map((year, idx) => ({
+            type: 'heatmap',
+            coordinateSystem: 'calendar',
+            calendarIndex: idx,
+            data: heatmapData.filter(d => (d[0] as string).startsWith(year.toString())),
+            emphasis: {
+                itemStyle: {
+                    shadowBlur: 10,
+                    shadowColor: 'rgba(0, 0, 0, 0.3)',
+                },
+            },
+        }))
+
+        const option: echarts.EChartsOption = {
+            backgroundColor: 'transparent',
+            tooltip: {
+                trigger: 'item',
+                backgroundColor: isLight ? '#fff' : '#1e293b',
+                borderColor: isLight ? '#e5e7eb' : '#334155',
+                textStyle: { color: textColor },
+                formatter: (params: any) => {
+                    const date = params.data[0]
+                    const value = params.data[1]
+                    const dayData = data.find(d => d.date === date)
+                    const formattedDate = new Date(date).toLocaleDateString(
+                        lang === 'th' ? 'th-TH' : 'en-US',
+                        { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }
+                    )
+                    return `
+                        <div style="padding: 4px;">
+                            <strong>${formattedDate}</strong><br/>
+                            ${lang === 'th' ? 'ข้อมูล' : 'Data'}: ${dayData?.count || 0}/24 ${lang === 'th' ? 'ชม.' : 'hrs'}<br/>
+                            <span style="color: ${value >= 90 ? '#10b981' : value >= 70 ? '#f59e0b' : value >= 50 ? '#f97316' : '#ef4444'}; font-weight: bold;">
+                                ${value.toFixed(1)}%
+                            </span>
+                        </div>
+                    `
+                },
+            },
+            // Hidden visualMap - just for color mapping
+            visualMap: {
+                show: false,
+                min: 0,
+                max: 100,
+                inRange: {
+                    color: ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981'],
+                },
+            },
+            calendar: calendars,
+            series: series,
+        }
+
+        chartInstance.current.setOption(option, true)
+        chartInstance.current.resize()
+
+        const handleResize = () => chartInstance.current?.resize()
+        window.addEventListener('resize', handleResize)
+
+        return () => {
+            window.removeEventListener('resize', handleResize)
+        }
+    }, [data, isLight, lang])
+
+    // Cleanup
+    useEffect(() => {
+        return () => {
+            chartInstance.current?.dispose()
+            chartInstance.current = null
+        }
+    }, [])
+
+    // Calculate chart height based on years (matching constants from useEffect)
+    const calendarHeight = 140
+    const calendarSpacing = 30
+    const topPadding = 20
+    const years = data.length > 0
+        ? Array.from(new Set(data.map(d => new Date(d.date).getFullYear()))).length
+        : 1
+    const chartHeight = Math.max(200, topPadding + years * (calendarHeight + calendarSpacing) + 20)
+
+    return (
+        <div className="h-full flex flex-col">
+            {/* Header */}
+            <div className={`p-3 border-b ${isLight ? 'border-gray-100' : 'border-dark-700'}`}>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-teal-600 flex items-center justify-center">
+                            <Icon name="calendar_month" className="text-white" size="sm" />
+                        </div>
+                        <div>
+                            <h3 className={`text-sm font-semibold ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                {lang === 'th' ? 'ความสมบูรณ์ข้อมูลรายวัน' : 'Daily Data Completeness'}
+                            </h3>
+                        </div>
+                    </div>
+                    <Badge
+                        variant={overall >= 90 ? 'success' : overall >= 70 ? 'warning' : 'danger'}
+                        size="sm"
+                    >
+                        {overall.toFixed(1)}%
+                    </Badge>
+                </div>
+            </div>
+
+            {/* Chart */}
+            <div className="flex-1 p-2 min-h-0">
+                {loading ? (
+                    <div className="flex items-center justify-center h-full">
+                        <Spinner size="lg" />
+                    </div>
+                ) : data.length === 0 ? (
+                    <div className={`flex flex-col items-center justify-center h-full ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                        <Icon name="event_busy" size="xl" className="mb-2" />
+                        <p>{lang === 'th' ? 'ไม่มีข้อมูล' : 'No data available'}</p>
+                    </div>
+                ) : (
+                    <div ref={chartRef} style={{ width: '100%', height: '100%' }} />
+                )}
+            </div>
+
+            {/* Legend - Compact */}
+            {!loading && data.length > 0 && (
+                <div className={`px-3 pb-2 flex flex-wrap items-center justify-center gap-2 text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                    <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded" style={{ backgroundColor: '#10b981' }} />
+                        <span>≥90%</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded" style={{ backgroundColor: '#84cc16' }} />
+                        <span>≥80%</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded" style={{ backgroundColor: '#f59e0b' }} />
+                        <span>≥70%</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded" style={{ backgroundColor: '#f97316' }} />
+                        <span>≥50%</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded" style={{ backgroundColor: '#ef4444' }} />
+                        <span>&lt;50%</span>
+                    </div>
+                </div>
+            )}
+        </div>
     )
 }
 
@@ -685,6 +1074,68 @@ export default function Dashboard(): React.ReactElement {
     const [fullDataLoading, setFullDataLoading] = useState<boolean>(false)
     const [activeTab, setActiveTab] = useState<TabId>('map')
     const [selectedParam, setSelectedParam] = useState<ParameterKey>('pm25')
+    const [latestStationData, setLatestStationData] = useState<AQIHourlyData | null>(null)
+
+    // Pollutant threshold configuration with localStorage persistence
+    const [showThresholdSettings, setShowThresholdSettings] = useState<boolean>(false)
+    const [pollutantThresholds, setPollutantThresholds] = useState<Record<string, number>>(() => {
+        const saved = localStorage.getItem('pollutantThresholds')
+        if (saved) {
+            try {
+                return JSON.parse(saved)
+            } catch {
+                return {}
+            }
+        }
+        return {
+            co: -0.3,      // ppm
+            so2: -3,       // ppb
+            o3: -3,        // ppb
+            nox: -3,       // ppb
+            no2: -3,       // ppb
+            no: -3,        // ppb
+            pm10: -3,      // µg/m³
+        }
+    })
+
+    // Save thresholds to localStorage when changed
+    useEffect(() => {
+        localStorage.setItem('pollutantThresholds', JSON.stringify(pollutantThresholds))
+    }, [pollutantThresholds])
+
+    // Spike detection multiplier (value X times higher than previous = spike)
+    const [spikeMultiplier, setSpikeMultiplier] = useState<number>(() => {
+        const saved = localStorage.getItem('spikeMultiplier')
+        return saved ? parseFloat(saved) : 5
+    })
+
+    // Save spike multiplier to localStorage when changed
+    useEffect(() => {
+        localStorage.setItem('spikeMultiplier', spikeMultiplier.toString())
+    }, [spikeMultiplier])
+
+    // Calculate spike detection (compare latest with previous data point)
+    const previousData = useMemo(() => {
+        if (!fullData?.data?.length || fullData.data.length < 2) return null
+        const sorted = [...fullData.data].sort((a, b) =>
+            new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
+        )
+        return sorted[1] // Second most recent
+    }, [fullData?.data])
+
+    // Fetch the latest data point for the station (always most recent)
+    const fetchLatestData = useCallback(async (): Promise<void> => {
+        if (!selectedStation) return
+        try {
+            const response = await fetch(`${API_BASE}/aqi/${selectedStation}/latest`)
+            if (response.ok) {
+                const data: AQIHourlyData = await response.json()
+                setLatestStationData(data)
+            }
+        } catch (err) {
+            console.error('Failed to fetch latest data:', err)
+        }
+    }, [selectedStation])
 
     // Fetch full environmental data
     const fetchFullData = useCallback(async (): Promise<void> => {
@@ -731,8 +1182,9 @@ export default function Dashboard(): React.ReactElement {
         if (selectedStation) {
             fetchChartData(selectedStation, timePeriod)
             fetchFullData()
+            fetchLatestData()  // Always fetch latest data point
         }
-    }, [selectedStation, timePeriod, fetchChartData, fetchFullData])
+    }, [selectedStation, timePeriod, fetchChartData, fetchFullData, fetchLatestData])
 
     // Auto-select station from URL parameter or first station
     useEffect(() => {
@@ -749,15 +1201,19 @@ export default function Dashboard(): React.ReactElement {
     const stats = chartData?.statistics || {}
     const currentStation = stations.find(s => s.station_id === selectedStation)
 
-    // Get the latest data point (most recent datetime)
+    // Get the latest data point (prefer dedicated /latest endpoint, fallback to fullData)
     const latestData = useMemo(() => {
+        // Prefer the dedicated latest data from /latest endpoint
+        if (latestStationData) return latestStationData
+
+        // Fallback to most recent from fullData
         if (!fullData?.data?.length) return {} as AQIHourlyData
         // Sort by datetime descending and get the first (latest) entry
         const sorted = [...fullData.data].sort((a, b) =>
             new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
         )
         return sorted[0]
-    }, [fullData?.data])
+    }, [latestStationData, fullData?.data])
 
     const currentPm25 = latestData.pm25 || (stats as any).mean
     const aqiLevel = getAqiLevel(currentPm25)
@@ -770,6 +1226,41 @@ export default function Dashboard(): React.ReactElement {
         const index = Math.round(degrees / 45) % 8
         return directions[index]
     }
+
+    // Calculate daily data completeness for weather panel
+    const dailyCompleteness = useMemo(() => {
+        if (!fullData?.data?.length) return { days: [], overall: 0 }
+
+        // Group data by date
+        const dayMap = new Map<string, { count: number; date: Date }>()
+        fullData.data.forEach(row => {
+            const date = new Date(row.datetime)
+            const dateKey = date.toISOString().split('T')[0]
+            const existing = dayMap.get(dateKey)
+            if (existing) {
+                existing.count++
+            } else {
+                dayMap.set(dateKey, { count: 1, date })
+            }
+        })
+
+        // Convert to array and calculate percentages (24 hours = 100%)
+        const days = Array.from(dayMap.entries())
+            .map(([dateKey, { count, date }]) => ({
+                date: dateKey,
+                displayDate: date.toLocaleDateString(lang === 'th' ? 'th-TH' : 'en-US', { month: 'short', day: 'numeric' }),
+                count,
+                percentage: Math.min(100, (count / 24) * 100)
+            }))
+            .sort((a, b) => a.date.localeCompare(b.date))
+
+        // Calculate overall completeness
+        const totalExpected = days.length * 24
+        const totalActual = days.reduce((sum, d) => sum + d.count, 0)
+        const overall = totalExpected > 0 ? (totalActual / totalExpected) * 100 : 0
+
+        return { days, overall }
+    }, [fullData?.data, lang])
 
     return (
         <div className={`min-h-screen ${isLight ? 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50' : 'gradient-dark'}`}>
@@ -839,12 +1330,12 @@ export default function Dashboard(): React.ReactElement {
                             </div>
                         </Card>
 
-                        {/* Weather Summary Card */}
+                        {/* Environmental & Weather Summary Card */}
                         <Card className="lg:col-span-2 p-6">
                             <div className="flex items-center justify-between mb-4">
                                 <h2 className={`text-lg font-semibold ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                                    <Icon name="cloud" className="mr-2" />
-                                    {lang === 'th' ? 'สภาพอากาศ' : 'Weather Conditions'}
+                                    <Icon name="eco" className="mr-2" />
+                                    {lang === 'th' ? 'สภาพอากาศและมลพิษ' : 'Weather & Air Quality'}
                                 </h2>
                                 <div className="flex gap-2">
                                     {TIME_PERIODS.map(p => (
@@ -869,87 +1360,195 @@ export default function Dashboard(): React.ReactElement {
                                     <Spinner size="lg" />
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-                                    {Object.entries(WEATHER_CONFIG).map(([key, config]) => {
-                                        const value = latestData[key as keyof AQIHourlyData] as number | undefined
-                                        const displayValue = key === 'wd' ? getWindArrow(value) : value?.toFixed(1) || '—'
+                                <div className="space-y-4">
+                                    {/* Air Pollutants Section */}
+                                    <div>
+                                        <h3 className={`text-sm font-medium mb-3 flex items-center gap-2 ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
+                                            <Icon name="science" size="sm" />
+                                            {lang === 'th' ? 'มลพิษทางอากาศ' : 'Air Pollutants'}
+                                        </h3>
+                                        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                                            {Object.entries(POLLUTANT_CONFIG).map(([key, config]) => {
+                                                const value = latestData[key as keyof AQIHourlyData] as number | undefined
+                                                const prevValue = previousData?.[key as keyof AQIHourlyData] as number | undefined
 
-                                        return (
-                                            <div
-                                                key={key}
-                                                className={`p-4 rounded-xl text-center ${isLight ? 'bg-gray-50' : 'bg-dark-700/50'}`}
-                                            >
-                                                <Icon
-                                                    name={config.icon}
-                                                    size="lg"
-                                                    style={{ color: config.color }}
-                                                />
-                                                <p className={`text-2xl font-bold mt-2 ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                                                    {displayValue}
-                                                </p>
-                                                <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                                    {config.label}
-                                                </p>
-                                                <p className={`text-xs ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
-                                                    {key === 'wd' ? `${value?.toFixed(0) || '—'}°` : config.unit}
-                                                </p>
-                                            </div>
-                                        )
-                                    })}
+                                                // Use fallback: if current value is missing, use previous value
+                                                const hasCurrentValue = value !== undefined && value !== null
+                                                const displayValue = hasCurrentValue ? value : prevValue
+                                                const usingFallback = !hasCurrentValue && prevValue !== undefined && prevValue !== null
+
+                                                // Check for invalid negative values based on configurable thresholds
+                                                const negativeThreshold = pollutantThresholds[key] ?? (key === 'co' ? -0.3 : -3)
+                                                const isInvalidNegative = displayValue !== undefined && displayValue !== null && displayValue < negativeThreshold
+                                                const isNegative = displayValue !== undefined && displayValue !== null && displayValue < 0
+
+                                                // Check for spike (value X times higher than previous)
+                                                const isSpike = hasCurrentValue && value !== null &&
+                                                    prevValue !== undefined && prevValue !== null && prevValue > 0 &&
+                                                    value >= prevValue * spikeMultiplier
+
+                                                return (
+                                                    <div
+                                                        key={key}
+                                                        className={`p-3 rounded-xl text-center relative ${isSpike
+                                                            ? isLight ? 'bg-purple-50 border-2 border-purple-400' : 'bg-purple-900/30 border-2 border-purple-500'
+                                                            : isInvalidNegative
+                                                                ? isLight ? 'bg-red-50 border-2 border-red-300' : 'bg-red-900/30 border-2 border-red-500'
+                                                                : isNegative
+                                                                    ? isLight ? 'bg-amber-50 border border-amber-300' : 'bg-amber-900/20 border border-amber-500'
+                                                                    : usingFallback
+                                                                        ? isLight ? 'bg-cyan-50 border border-cyan-300' : 'bg-cyan-900/20 border border-cyan-500'
+                                                                        : isLight ? 'bg-gray-50' : 'bg-dark-700/50'
+                                                            }`}
+                                                    >
+                                                        {/* Spike flag */}
+                                                        {isSpike && (
+                                                            <div className="absolute -top-2 -right-2 w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center" title={lang === 'th' ? `ค่าพุ่งสูง (${spikeMultiplier}x)` : `Spike detected (${spikeMultiplier}x)`}>
+                                                                <Icon name="trending_up" size="xs" className="text-white" />
+                                                            </div>
+                                                        )}
+                                                        {/* Fallback indicator */}
+                                                        {!isSpike && usingFallback && (
+                                                            <div className="absolute -top-2 -right-2 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center" title={lang === 'th' ? 'ใช้ค่าก่อนหน้า' : 'Using previous value'}>
+                                                                <Icon name="history" size="xs" className="text-white" />
+                                                            </div>
+                                                        )}
+                                                        {/* Invalid negative flag */}
+                                                        {!isSpike && !usingFallback && isInvalidNegative && (
+                                                            <div className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center" title={lang === 'th' ? 'ค่าไม่ถูกต้อง' : 'Invalid value'}>
+                                                                <Icon name="error" size="xs" className="text-white" />
+                                                            </div>
+                                                        )}
+                                                        {/* Warning for slight negative (but within tolerance) */}
+                                                        {!isSpike && !usingFallback && !isInvalidNegative && isNegative && (
+                                                            <div className="absolute -top-2 -right-2 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center" title={lang === 'th' ? 'ค่าติดลบ' : 'Negative value'}>
+                                                                <Icon name="warning" size="xs" className="text-white" />
+                                                            </div>
+                                                        )}
+                                                        <Icon
+                                                            name={config.icon}
+                                                            size="md"
+                                                            style={{ color: isSpike ? '#a855f7' : isInvalidNegative ? '#ef4444' : usingFallback ? '#06b6d4' : config.color }}
+                                                        />
+                                                        <p className={`text-xl font-bold mt-1 ${isSpike
+                                                            ? 'text-purple-500'
+                                                            : isInvalidNegative
+                                                                ? 'text-red-500'
+                                                                : isNegative
+                                                                    ? 'text-amber-500'
+                                                                    : usingFallback
+                                                                        ? 'text-cyan-600'
+                                                                        : isLight ? 'text-gray-800' : 'text-white'
+                                                            }`}>
+                                                            {displayValue?.toFixed(1) || '—'}
+                                                        </p>
+                                                        <p className={`text-xs font-medium ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
+                                                            {config.label}
+                                                        </p>
+                                                        <p className={`text-xs ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                                                            {config.unit}
+                                                        </p>
+                                                        {/* Fallback label */}
+                                                        {usingFallback && (
+                                                            <p className="text-xs text-cyan-500 font-medium mt-1">
+                                                                {lang === 'th' ? 'ใช้ค่าก่อนหน้า' : 'Previous'}
+                                                            </p>
+                                                        )}
+                                                        {/* Previous value (only show if we have current and different prev) */}
+                                                        {hasCurrentValue && prevValue !== undefined && prevValue !== null && (
+                                                            <p className={`text-xs mt-1 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                                                                {lang === 'th' ? 'ก่อนหน้า' : 'Prev'}: {prevValue.toFixed(1)}
+                                                            </p>
+                                                        )}
+                                                        {/* Spike label */}
+                                                        {isSpike && (
+                                                            <p className="text-xs text-purple-500 font-medium mt-1">
+                                                                {lang === 'th' ? 'ค่าพุ่งสูง' : 'Spike'}
+                                                            </p>
+                                                        )}
+                                                        {/* Invalid label */}
+                                                        {!isSpike && !usingFallback && isInvalidNegative && (
+                                                            <p className="text-xs text-red-500 font-medium mt-1">
+                                                                {lang === 'th' ? 'ค่าไม่ถูกต้อง' : 'Invalid'}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Weather Conditions Section */}
+                                    <div>
+                                        <h3 className={`text-sm font-medium mb-3 flex items-center gap-2 ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
+                                            <Icon name="cloud" size="sm" />
+                                            {lang === 'th' ? 'สภาพอากาศ' : 'Weather Conditions'}
+                                        </h3>
+                                        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                                            {Object.entries(WEATHER_CONFIG).map(([key, config]) => {
+                                                const value = latestData[key as keyof AQIHourlyData] as number | undefined
+                                                const prevValue = previousData?.[key as keyof AQIHourlyData] as number | undefined
+
+                                                // Use fallback: if current value is missing, use previous value
+                                                const hasCurrentValue = value !== undefined && value !== null
+                                                const effectiveValue = hasCurrentValue ? value : prevValue
+                                                const usingFallback = !hasCurrentValue && prevValue !== undefined && prevValue !== null
+
+                                                const displayValue = key === 'wd' ? getWindArrow(effectiveValue) : effectiveValue?.toFixed(1) || '—'
+
+                                                return (
+                                                    <div
+                                                        key={key}
+                                                        className={`p-3 rounded-xl text-center relative ${usingFallback
+                                                            ? isLight ? 'bg-cyan-50 border border-cyan-300' : 'bg-cyan-900/20 border border-cyan-500'
+                                                            : isLight ? 'bg-gray-50' : 'bg-dark-700/50'
+                                                            }`}
+                                                    >
+                                                        {/* Fallback indicator */}
+                                                        {usingFallback && (
+                                                            <div className="absolute -top-2 -right-2 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center" title={lang === 'th' ? 'ใช้ค่าก่อนหน้า' : 'Using previous value'}>
+                                                                <Icon name="history" size="xs" className="text-white" />
+                                                            </div>
+                                                        )}
+                                                        <Icon
+                                                            name={config.icon}
+                                                            size="md"
+                                                            style={{ color: usingFallback ? '#06b6d4' : config.color }}
+                                                        />
+                                                        <p className={`text-xl font-bold mt-1 ${usingFallback ? 'text-cyan-600' : isLight ? 'text-gray-800' : 'text-white'}`}>
+                                                            {displayValue}
+                                                        </p>
+                                                        <p className={`text-xs font-medium ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
+                                                            {config.label}
+                                                        </p>
+                                                        <p className={`text-xs ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                                                            {key === 'wd' ? `${effectiveValue?.toFixed(0) || '—'}°` : config.unit}
+                                                        </p>
+                                                        {/* Fallback label */}
+                                                        {usingFallback && (
+                                                            <p className="text-xs text-cyan-500 font-medium mt-1">
+                                                                {lang === 'th' ? 'ใช้ค่าก่อนหน้า' : 'Previous'}
+                                                            </p>
+                                                        )}
+                                                        {/* Previous value (only show if we have current) */}
+                                                        {hasCurrentValue && prevValue !== undefined && prevValue !== null && (
+                                                            <p className={`text-xs mt-1 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                                                                {lang === 'th' ? 'ก่อนหน้า' : 'Prev'}: {key === 'wd' ? `${prevValue.toFixed(0)}°` : prevValue.toFixed(1)}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </Card>
                     </div>
                 </section>
 
-                {/* Pollutant Cards */}
-                <section className="mb-8">
-                    <h2 className={`text-xl font-semibold mb-4 flex items-center gap-2 ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                        <Icon name="science" />
-                        {lang === 'th' ? 'มลพิษทางอากาศ' : 'Air Pollutants'}
-                    </h2>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                        {Object.entries(POLLUTANT_CONFIG).map(([key, config]) => {
-                            const value = latestData[key as keyof AQIHourlyData] as number | undefined
-                            const statistics = fullData?.statistics?.[key]
-
-                            return (
-                                <Card
-                                    key={key}
-                                    className={`relative overflow-hidden group hover:scale-[1.02] transition-transform cursor-pointer`}
-                                >
-                                    <div
-                                        className={`absolute inset-0 bg-gradient-to-br ${config.gradient} opacity-10 group-hover:opacity-20 transition-opacity`}
-                                    />
-                                    <div className="relative z-10 p-4">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <Icon name={config.icon} style={{ color: config.color }} />
-                                            <span className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                                {config.unit}
-                                            </span>
-                                        </div>
-                                        <p className={`text-2xl font-bold ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                                            {value?.toFixed(1) || '—'}
-                                        </p>
-                                        <p className={`text-sm font-medium ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
-                                            {config.label}
-                                        </p>
-                                        {statistics && (
-                                            <div className={`mt-2 text-xs ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
-                                                <span>Avg: {statistics.avg?.toFixed(1)}</span>
-                                                <span className="mx-1">|</span>
-                                                <span>Max: {statistics.max?.toFixed(1)}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </Card>
-                            )
-                        })}
-                    </div>
-                </section>
-
-                {/* Overview Section - Now always visible above tabs */}
-                <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-stretch">
+                {/* Overview Section - Map, AQI Levels, and Calendar Heatmap in one row */}
+                <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                     {/* Map */}
                     <StationMap
                         stations={stations}
@@ -961,7 +1560,7 @@ export default function Dashboard(): React.ReactElement {
                         onShowAnomaliesChange={setShowAnomalies}
                     />
 
-                    {/* AQI Guide - Height matches map, no scroll */}
+                    {/* AQI Guide */}
                     <Card className="p-4 h-[400px] flex flex-col">
                         <h3 className={`text-base font-semibold mb-2 ${isLight ? 'text-gray-800' : 'text-white'}`}>
                             <Icon name="info" className="mr-2" size="sm" />
@@ -990,6 +1589,17 @@ export default function Dashboard(): React.ReactElement {
                                 </div>
                             ))}
                         </div>
+                    </Card>
+
+                    {/* Daily Data Completeness Calendar Heatmap */}
+                    <Card className="h-[400px] overflow-auto">
+                        <CalendarHeatmap
+                            data={dailyCompleteness.days}
+                            overall={dailyCompleteness.overall}
+                            loading={fullDataLoading}
+                            isLight={isLight}
+                            lang={lang}
+                        />
                     </Card>
                 </section>
 
@@ -1021,6 +1631,22 @@ export default function Dashboard(): React.ReactElement {
 
                 {activeTab === 'charts' && (
                     <section className="space-y-6">
+                        {/* Chart Header with Settings */}
+                        <div className="flex items-center justify-between">
+                            <h2 className={`text-lg font-semibold flex items-center gap-2 ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                <Icon name="show_chart" />
+                                {lang === 'th' ? 'กราฟข้อมูล' : 'Data Charts'}
+                            </h2>
+                            <button
+                                onClick={() => setShowThresholdSettings(true)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors ${isLight ? 'hover:bg-gray-100 text-gray-600' : 'hover:bg-dark-700 text-dark-300'}`}
+                                title={lang === 'th' ? 'ตั้งค่าคุณภาพข้อมูล' : 'Data quality settings'}
+                            >
+                                <Icon name="settings" size="sm" />
+                                <span className="text-sm">{lang === 'th' ? 'ตั้งค่า' : 'Settings'}</span>
+                            </button>
+                        </div>
+
                         {/* Multi-Parameter Chart with Gap-Fill & Spike Detection */}
                         <MultiParameterChart
                             stationId={selectedStation}
@@ -1088,6 +1714,132 @@ export default function Dashboard(): React.ReactElement {
                     </Card>
                 </section>
             </main>
+
+            {/* Threshold Settings Modal */}
+            {showThresholdSettings && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowThresholdSettings(false)}>
+                    <div
+                        className={`w-full max-w-md rounded-2xl shadow-xl ${isLight ? 'bg-white' : 'bg-dark-800'} p-6`}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className={`text-lg font-semibold flex items-center gap-2 ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                                <Icon name="settings" />
+                                {lang === 'th' ? 'ตั้งค่าคุณภาพข้อมูล' : 'Data Quality Settings'}
+                            </h3>
+                            <button
+                                onClick={() => setShowThresholdSettings(false)}
+                                className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-gray-100 text-gray-500' : 'hover:bg-dark-700 text-dark-400'}`}
+                            >
+                                <Icon name="close" />
+                            </button>
+                        </div>
+
+                        <p className={`text-sm mb-4 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                            {lang === 'th'
+                                ? 'กำหนดเกณฑ์สำหรับตรวจจับข้อมูลที่ผิดปกติ'
+                                : 'Configure thresholds for detecting abnormal data'
+                            }
+                        </p>
+
+                        {/* Negative Value Thresholds Section */}
+                        <h4 className={`text-sm font-medium mb-3 flex items-center gap-2 ${isLight ? 'text-red-600' : 'text-red-400'}`}>
+                            <Icon name="error" size="sm" />
+                            {lang === 'th' ? 'เกณฑ์ค่าติดลบ' : 'Negative Value Thresholds'}
+                        </h4>
+                        <div className="space-y-3">
+                            {Object.entries(POLLUTANT_CONFIG).map(([key, config]) => (
+                                <div key={key} className={`flex items-center gap-3 p-3 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-dark-700/50'}`}>
+                                    <Icon name={config.icon} style={{ color: config.color }} />
+                                    <div className="flex-1">
+                                        <p className={`text-sm font-medium ${isLight ? 'text-gray-700' : 'text-dark-200'}`}>
+                                            {config.label}
+                                        </p>
+                                        <p className={`text-xs ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                                            {config.unit}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>&lt;</span>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={pollutantThresholds[key] ?? (key === 'co' ? -0.3 : -3)}
+                                            onChange={(e) => setPollutantThresholds(prev => ({
+                                                ...prev,
+                                                [key]: parseFloat(e.target.value) || 0
+                                            }))}
+                                            className={`w-20 px-2 py-1 text-sm rounded-lg border text-center ${isLight
+                                                ? 'bg-white border-gray-200 text-gray-800 focus:border-primary-500'
+                                                : 'bg-dark-600 border-dark-500 text-white focus:border-primary-500'
+                                                } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Spike Detection Section */}
+                        <div className={`mt-4 p-4 rounded-lg ${isLight ? 'bg-purple-50' : 'bg-purple-900/20'}`}>
+                            <h4 className={`text-sm font-medium mb-3 flex items-center gap-2 ${isLight ? 'text-purple-700' : 'text-purple-300'}`}>
+                                <Icon name="trending_up" size="sm" />
+                                {lang === 'th' ? 'ตรวจจับค่าพุ่งสูง (Spike)' : 'Spike Detection'}
+                            </h4>
+                            <p className={`text-xs mb-3 ${isLight ? 'text-purple-600' : 'text-purple-400'}`}>
+                                {lang === 'th'
+                                    ? 'ค่าที่สูงกว่าค่าก่อนหน้า X เท่า จะถูกแสดงเป็นสีม่วง'
+                                    : 'Values X times higher than previous will be shown in purple'
+                                }
+                            </p>
+                            <div className="flex items-center gap-3">
+                                <span className={`text-sm ${isLight ? 'text-purple-700' : 'text-purple-300'}`}>
+                                    {lang === 'th' ? 'ค่าปัจจุบัน ≥ ค่าก่อนหน้า ×' : 'Current ≥ Previous ×'}
+                                </span>
+                                <input
+                                    type="number"
+                                    step="0.5"
+                                    min="1.5"
+                                    value={spikeMultiplier}
+                                    onChange={(e) => setSpikeMultiplier(parseFloat(e.target.value) || 5)}
+                                    className={`w-20 px-2 py-1 text-sm rounded-lg border text-center ${isLight
+                                        ? 'bg-white border-purple-200 text-purple-800 focus:border-purple-500'
+                                        : 'bg-dark-600 border-purple-500 text-white focus:border-purple-400'
+                                        } focus:outline-none focus:ring-2 focus:ring-purple-500/20`}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => {
+                                    setPollutantThresholds({
+                                        co: -0.3,
+                                        so2: -3,
+                                        o3: -3,
+                                        nox: -3,
+                                        no2: -3,
+                                        no: -3,
+                                        pm10: -3,
+                                    })
+                                    setSpikeMultiplier(5)
+                                }}
+                                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${isLight
+                                    ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    : 'bg-dark-700 text-dark-200 hover:bg-dark-600'
+                                    }`}
+                            >
+                                {lang === 'th' ? 'รีเซ็ตค่าเริ่มต้น' : 'Reset to Default'}
+                            </button>
+                            <button
+                                onClick={() => setShowThresholdSettings(false)}
+                                className="flex-1 px-4 py-2 rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 transition-colors"
+                            >
+                                {lang === 'th' ? 'บันทึก' : 'Save'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
