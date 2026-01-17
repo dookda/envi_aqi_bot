@@ -84,6 +84,8 @@ class APIOrchestrator:
         """
         Internal implementation that uses database through ORM
         (not raw SQL - still maintains abstraction)
+        
+        Supports all pollutants: pm25, pm10, o3, co, no2, so2, nox
         """
         try:
             from backend_model.models import AQIHourly
@@ -92,6 +94,29 @@ class APIOrchestrator:
             # Parse dates
             start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
             end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            
+            # Validate pollutant - map to column name
+            valid_pollutants = {
+                # Air quality pollutants
+                "pm25": "pm25",
+                "pm10": "pm10", 
+                "o3": "o3",
+                "co": "co",
+                "no2": "no2",
+                "so2": "so2",
+                "nox": "nox",
+                "aqi": "pm25",  # AQI maps to PM2.5 for calculation
+                # Weather parameters
+                "temp": "temp",
+                "rh": "rh",
+                "ws": "ws",
+                "wd": "wd",
+                "bp": "bp",
+                "rain": "rain",
+            }
+            
+            column_name = valid_pollutants.get(pollutant.lower(), "pm25")
+            logger.info(f"Querying {column_name} for station {station_id}")
 
             with get_db_context() as db:
                 if interval in ["15min", "hour"]:
@@ -106,23 +131,24 @@ class APIOrchestrator:
                     return [
                         {
                             "time": record.datetime.isoformat(),
-                            "value": record.pm25
+                            "value": getattr(record, column_name, None),
+                            "pollutant": pollutant
                         }
                         for record in data
                     ]
 
                 elif interval == "day":
-                    # Aggregate to daily averages
+                    # Aggregate to daily averages - use dynamic column name
                     result = db.execute(
-                        text("""
+                        text(f"""
                             SELECT
                                 DATE_TRUNC('day', datetime) as day,
-                                AVG(pm25) as avg_pm25
+                                AVG({column_name}) as avg_value
                             FROM aqi_hourly
                             WHERE station_id = :station_id
                                 AND datetime >= :start_date
                                 AND datetime <= :end_date
-                                AND pm25 IS NOT NULL
+                                AND {column_name} IS NOT NULL
                             GROUP BY DATE_TRUNC('day', datetime)
                             ORDER BY day ASC
                         """),
@@ -136,13 +162,14 @@ class APIOrchestrator:
                     return [
                         {
                             "time": row[0].isoformat(),
-                            "value": round(row[1], 2) if row[1] else None
+                            "value": round(row[1], 2) if row[1] else None,
+                            "pollutant": pollutant
                         }
                         for row in result
                     ]
 
         except Exception as e:
-            logger.error(f"Error in internal AQI history fetch: {e}")
+            logger.error(f"Error in internal AQI history fetch for {pollutant}: {e}")
             return None
 
     def resolve_station_id(self, station_name_or_id: str) -> Optional[str]:

@@ -28,6 +28,14 @@ AIR_QUALITY_KEYWORDS = [
     "dust", "particulate", "particle", "particles",
     "smog", "haze", "smoke",
     
+    # === Weather Parameters (English) ===
+    "temperature", "temp", "celsius",
+    "humidity", "rh", "relative humidity",
+    "wind", "wind speed", "wind direction", "ws", "wd",
+    "pressure", "barometric", "bp",
+    "rain", "rainfall", "precipitation",
+    "weather",
+    
     # === Actions/Queries ===
     "station", "stations", "monitoring",
     "search", "find", "list", "show", "display", "view", "get",
@@ -80,6 +88,14 @@ AIR_QUALITY_KEYWORDS = [
     "ค่า pm", "ค่าpm",
     "พีเอ็ม", "พี เอ็ม",
     "ควัน", "หมอก", "หมอกควัน",
+    
+    # === Thai Weather Parameters ===
+    "อุณหภูมิ", "อุณห", "เซลเซียส", "องศา",
+    "ความชื้น", "ชื้น",
+    "ลม", "ความเร็วลม", "ทิศทางลม",
+    "ความกดอากาศ", "ความดัน",
+    "ฝน", "ฝนตก", "ปริมาณฝน",
+    "สภาพอากาศ",
     
     # === Thai Actions ===
     "สถานี", "สถานีตรวจวัด", "ตรวจวัด",
@@ -134,6 +150,11 @@ def keyword_filter(query: str) -> Dict[str, Any]:
 # Layer 2: Domain-Restricted LLM System Prompt
 SYSTEM_PROMPT = """You are an Air Quality Assistant for Thailand. Parse user queries to JSON.
 
+**SUPPORTED PARAMETERS:**
+- Pollutants: pm25, pm10, o3 (ozone), co (carbon monoxide), no2 (nitrogen dioxide), so2 (sulfur dioxide), nox (nitrogen oxides)
+- Weather: temp (temperature), rh (humidity), ws (wind speed), wd (wind direction), bp (pressure), rain
+- Default: pm25 if not specified
+
 **IMPORTANT: Determine intent_type FIRST:**
 
 1. **search_stations** - User wants to FIND/LIST stations:
@@ -144,12 +165,15 @@ SYSTEM_PROMPT = """You are an Air Quality Assistant for Thailand. Parse user que
    {{"intent_type": "search_stations", "search_query": "<location>", "output_type": "text"}}
 
 2. **get_data** - User wants AIR QUALITY DATA over time OR EXECUTIVE REPORT:
-   - Keywords: "PM2.5", "ค่าฝุ่น", "ย้อนหลัง", "วันนี้", "last week", "chart", "กราฟ", "report", "summary", "รายงาน", "ผู้บริหาร", "policy", "recommendation"
+   - Keywords: "PM2.5", "PM10", "O3", "CO", "NO2", "SO2", "NOx", "ค่าฝุ่น", "ย้อนหลัง", "วันนี้", "last week", "chart", "กราฟ", "report", "summary", "รายงาน", "ผู้บริหาร", "policy", "recommendation", "temperature", "อุณหภูมิ", "ความชื้น", "ลม"
    - Example: "PM2.5 เชียงใหม่ ย้อนหลัง 7 วัน" → get PM2.5 data
+   - Example: "CO เชียงใหม่ วันนี้" → get CO data
+   - Example: "O3 กรุงเทพ สัปดาห์นี้" → get Ozone data
+   - Example: "อุณหภูมิ เชียงใหม่" → get temperature data (pollutant: "temp")
    - Example: "ขอรายงานสรุปผู้บริหาร เชียงใหม่" → get executive report
    
    Return:
-   {{"intent_type": "get_data", "station_id": "<location>", "pollutant": "pm25", "start_date": "<ISO-8601>", "end_date": "<ISO-8601>", "interval": "hour", "output_type": "chart"}}
+   {{"intent_type": "get_data", "station_id": "<location>", "pollutant": "<pm25|pm10|o3|co|no2|so2|nox|temp|rh|ws|wd|bp|rain>", "start_date": "<ISO-8601>", "end_date": "<ISO-8601>", "interval": "hour", "output_type": "chart"}}
 
 3. **needs_clarification** - Query is UNCLEAR or AMBIGUOUS:
    - Missing location/station name
@@ -179,6 +203,7 @@ SYSTEM_PROMPT = """You are an Air Quality Assistant for Thailand. Parse user que
 - Date examples: "ย้อนหลัง 7 วัน"=7 days ago to now, "วันนี้"=today
 - If query is about air quality BUT missing key info → use needs_clarification
 - ALWAYS prefer asking for clarification over making wrong assumptions
+- Map pollutant names: "ozone"→"o3", "carbon monoxide"→"co", "nitrogen dioxide"→"no2", "sulfur dioxide"→"so2"
 
 Current time: {current_datetime}
 Return ONLY valid JSON, no explanations."""
@@ -190,7 +215,13 @@ def get_system_prompt(current_datetime: str) -> str:
 
 
 # Layer 3: Intent Validation
-VALID_POLLUTANTS = ["pm25", "pm10", "aqi", "o3", "no2", "so2", "co", "nox"]
+# Supported pollutants and weather parameters
+VALID_POLLUTANTS = [
+    # Air quality pollutants
+    "pm25", "pm10", "aqi", "o3", "no2", "so2", "co", "nox",
+    # Weather parameters
+    "temp", "rh", "ws", "wd", "bp", "rain"
+]
 VALID_INTERVALS = ["15min", "hour", "day"]
 VALID_OUTPUT_TYPES = ["text", "chart", "map", "infographic", "report"]
 VALID_INTENT_TYPES = ["search_stations", "get_data", "needs_clarification"]
