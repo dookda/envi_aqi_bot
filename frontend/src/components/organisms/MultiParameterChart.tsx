@@ -51,6 +51,7 @@ interface MultiParameterChartProps {
     onParamChange?: (param: ParameterKey) => void
     externalData?: ChartDataResponse | null
     loading?: boolean
+    onSettingsClick?: () => void
 }
 
 interface SpikeData {
@@ -108,6 +109,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
     onParamChange,
     externalData = null,
     loading: externalLoading = false,
+    onSettingsClick,
 }) => {
     const { lang } = useLanguage()
     const { isLight } = useTheme()
@@ -569,6 +571,21 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                             <Icon name="remove_circle" size="sm" style={{ color: '#dc2626' }} />
                             <span className="text-sm">{lang === 'th' ? 'ค่าติดลบ' : 'Negative'}</span>
                         </label>
+
+                        {/* Settings Button */}
+                        {onSettingsClick && (
+                            <button
+                                onClick={onSettingsClick}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors border ${isLight
+                                    ? 'hover:bg-gray-100 text-gray-600 border-gray-200'
+                                    : 'hover:bg-dark-600 text-dark-300 border-dark-600'
+                                    }`}
+                                title={lang === 'th' ? 'ตั้งค่าคุณภาพข้อมูล' : 'Data quality settings'}
+                            >
+                                <Icon name="settings" size="sm" />
+                                <span className="text-sm">{lang === 'th' ? 'ตั้งค่า' : 'Settings'}</span>
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

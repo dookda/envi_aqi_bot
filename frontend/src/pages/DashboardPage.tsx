@@ -1631,22 +1631,6 @@ export default function Dashboard(): React.ReactElement {
 
                 {activeTab === 'charts' && (
                     <section className="space-y-6">
-                        {/* Chart Header with Settings */}
-                        <div className="flex items-center justify-between">
-                            <h2 className={`text-lg font-semibold flex items-center gap-2 ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                                <Icon name="show_chart" />
-                                {lang === 'th' ? 'กราฟข้อมูล' : 'Data Charts'}
-                            </h2>
-                            <button
-                                onClick={() => setShowThresholdSettings(true)}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors ${isLight ? 'hover:bg-gray-100 text-gray-600' : 'hover:bg-dark-700 text-dark-300'}`}
-                                title={lang === 'th' ? 'ตั้งค่าคุณภาพข้อมูล' : 'Data quality settings'}
-                            >
-                                <Icon name="settings" size="sm" />
-                                <span className="text-sm">{lang === 'th' ? 'ตั้งค่า' : 'Settings'}</span>
-                            </button>
-                        </div>
-
                         {/* Multi-Parameter Chart with Gap-Fill & Spike Detection */}
                         <MultiParameterChart
                             stationId={selectedStation}
@@ -1656,6 +1640,7 @@ export default function Dashboard(): React.ReactElement {
                             onParamChange={setSelectedParam}
                             externalData={fullData as ChartDataResponse | null}
                             loading={fullDataLoading}
+                            onSettingsClick={() => setShowThresholdSettings(true)}
                         />
 
                         {/* AI Insights Panel */}
