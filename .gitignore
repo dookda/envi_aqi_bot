@@ -222,3 +222,4 @@ logs/
 
 # Note: models/ folder is NOT ignored - pre-trained LSTM weights are included
 # for deployment so the server doesn't need to train on first startup
+git_docker.txt

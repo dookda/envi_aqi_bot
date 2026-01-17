@@ -642,7 +642,7 @@ export default function Dashboard(): React.ReactElement {
     const [showAnomalies, setShowAnomalies] = useState<boolean>(true)
     const [fullData, setFullData] = useState<FullDataResponse | null>(null)
     const [fullDataLoading, setFullDataLoading] = useState<boolean>(false)
-    const [activeTab, setActiveTab] = useState<TabId>('charts')
+    const [activeTab, setActiveTab] = useState<TabId>('map')
     const [selectedParam, setSelectedParam] = useState<ParameterKey>('pm25')
 
     // Fetch full environmental data
