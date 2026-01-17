@@ -468,7 +468,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                     formatter: (value: number) => String(Math.round(value))
                 },
                 splitLine: { lineStyle: { color: gridColor } },
-                min: (extent: { min: number; max: number }) => Math.floor(Math.max(0, extent.min - 5)),
+                min: (extent: { min: number; max: number }) => Math.floor(extent.min - 5),
             },
             dataZoom: [
                 { type: 'inside', start: 0, end: 100 },
