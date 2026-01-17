@@ -748,7 +748,17 @@ export default function Dashboard(): React.ReactElement {
 
     const stats = chartData?.statistics || {}
     const currentStation = stations.find(s => s.station_id === selectedStation)
-    const latestData = fullData?.data?.[0] || {} as AQIHourlyData
+
+    // Get the latest data point (most recent datetime)
+    const latestData = useMemo(() => {
+        if (!fullData?.data?.length) return {} as AQIHourlyData
+        // Sort by datetime descending and get the first (latest) entry
+        const sorted = [...fullData.data].sort((a, b) =>
+            new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
+        )
+        return sorted[0]
+    }, [fullData?.data])
+
     const currentPm25 = latestData.pm25 || (stats as any).mean
     const aqiLevel = getAqiLevel(currentPm25)
     const aqiConfig = aqiLevel ? AQI_LEVELS[aqiLevel] : null
@@ -1048,7 +1058,7 @@ export default function Dashboard(): React.ReactElement {
                         isLight={isLight}
                         onParamChange={setSelectedParam}
                         totalRecords={fullData?.total_records}
-                        latestUpdate={fullData?.data?.[0]?.datetime}
+                        latestUpdate={latestData?.datetime}
                     />
                 )}
 
@@ -1068,10 +1078,10 @@ export default function Dashboard(): React.ReactElement {
                                 <Icon name="science" size="sm" />
                                 <span>{fullData?.total_records || 0} {lang === 'th' ? 'จุดข้อมูล' : 'data points'}</span>
                             </div>
-                            {fullData?.data?.[0]?.datetime && (
+                            {latestData?.datetime && (
                                 <div className="flex items-center gap-2">
                                     <Icon name="update" size="sm" />
-                                    <span>{lang === 'th' ? 'ล่าสุด:' : 'Latest:'} {new Date(fullData.data[0].datetime).toLocaleString()}</span>
+                                    <span>{lang === 'th' ? 'ล่าสุด:' : 'Latest:'} {new Date(latestData.datetime).toLocaleString()}</span>
                                 </div>
                             )}
                         </div>
