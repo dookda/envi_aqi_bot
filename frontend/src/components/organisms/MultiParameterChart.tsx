@@ -67,6 +67,18 @@ interface SpikeData {
     }
 }
 
+interface NegativeData {
+    value: [string, number]
+    itemStyle: {
+        color: string
+        borderColor: string
+        borderWidth: number
+    }
+    negative: {
+        value: number
+    }
+}
+
 interface ChartStats {
     mean: number
     stdDev: number
@@ -74,6 +86,7 @@ interface ChartStats {
     imputedCount: number
     missingCount: number
     anomalyCount: number
+    negativeCount: number
     totalPoints: number
 }
 
@@ -81,6 +94,7 @@ interface ProcessedChartData {
     originalData: Array<[string, number | null]>
     imputedData: Array<[string, number | null]>
     spikeData: SpikeData[]
+    negativeData: NegativeData[]
     gapAreas: Array<[{ xAxis: string; itemStyle?: { color: string } }, { xAxis: string }]>
     stats: ChartStats
 }
@@ -105,6 +119,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
     const [internalLoading, setInternalLoading] = useState<boolean>(false)
     const [showGapFill, setShowGapFill] = useState<boolean>(true)
     const [showSpikes, setShowSpikes] = useState<boolean>(true)
+    const [showNegative, setShowNegative] = useState<boolean>(true)
 
     // Use external state if provided, otherwise internal
     const selectedParam = externalSelectedParam || internalSelectedParam
@@ -178,11 +193,12 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
         const originalData: Array<[string, number | null]> = []
         const imputedData: Array<[string, number | null]> = []
         const spikeData: SpikeData[] = []
+        const negativeData: NegativeData[] = []
         const gapAreas: Array<[{ xAxis: string; itemStyle?: { color: string } }, { xAxis: string }]> = []
 
         let gapStart: string | null = null
 
-        sortedData.forEach((d, i) => {
+        sortedData.forEach((d) => {
             const time = d.datetime
             const value = d[selectedParam as keyof AQIHourlyData] as number | null | undefined
             const isImputed = (d[imputedField] as boolean) || d.is_imputed || false
@@ -198,6 +214,9 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
 
                 // Check for spike (value > mean + 2*stdDev or sudden jump)
                 const isSpike = stdDev > 0 && Math.abs(value - mean) > thresholds.spikeMultiplier * stdDev
+
+                // Check for negative value
+                const isNegative = value < 0
 
                 if (isImputed) {
                     imputedData.push([time, value])
@@ -223,6 +242,20 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                         }
                     })
                 }
+
+                if (isNegative) {
+                    negativeData.push({
+                        value: [time, value],
+                        itemStyle: {
+                            color: '#8b5cf6',
+                            borderColor: '#fff',
+                            borderWidth: 2,
+                        },
+                        negative: {
+                            value,
+                        }
+                    })
+                }
             }
         })
 
@@ -230,6 +263,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
             originalData,
             imputedData,
             spikeData,
+            negativeData,
             gapAreas,
             stats: {
                 mean,
@@ -238,6 +272,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                 imputedCount,
                 missingCount,
                 anomalyCount: spikeData.length,
+                negativeCount: negativeData.length,
                 totalPoints
             }
         }
@@ -317,10 +352,36 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
             })
         }
 
+        // Add negative value series
+        if (showNegative && chartData.negativeData.length > 0) {
+            series.push({
+                name: lang === 'th' ? 'ค่าติดลบ' : 'Negative',
+                type: 'scatter',
+                data: chartData.negativeData,
+                symbol: 'pin',
+                symbolSize: 18,
+                symbolRotate: 180,
+                z: 20,
+                itemStyle: {
+                    color: '#8b5cf6'
+                },
+                emphasis: {
+                    scale: 1.5,
+                    itemStyle: {
+                        shadowBlur: 10,
+                        shadowColor: 'rgba(139, 92, 246, 0.5)',
+                    },
+                },
+            })
+        }
+
         const legendData = [lang === 'th' ? 'ข้อมูลจริง' : 'Original Data']
         if (showGapFill) legendData.push('Gap-Fill (LSTM)')
         if (showSpikes && chartData.spikeData.length > 0) {
             legendData.push('Spike')
+        }
+        if (showNegative && chartData.negativeData.length > 0) {
+            legendData.push(lang === 'th' ? 'ค่าติดลบ' : 'Negative')
         }
 
         const textColor = isLight ? '#374151' : '#f1f5f9'
@@ -349,12 +410,16 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                     params.forEach((param: any) => {
                         if (param.value?.[1] !== null && param.value?.[1] !== undefined) {
                             const isSpike = param.seriesName.includes('Spike') || param.seriesName.includes('ผิดปกติ')
+                            const isNegative = param.seriesName.includes('Negative') || param.seriesName.includes('ค่าติดลบ')
                             const isGapFill = param.seriesName.includes('Gap-Fill')
 
                             if (isSpike && param.data.spike) {
                                 content += `<span style="color:#ef4444">⚠ Spike Detected</span><br/>`
                                 content += `Value: <strong>${param.value[1].toFixed(2)} ${paramConfig.unit}</strong><br/>`
                                 content += `<span style="color:${subTextColor}">σ deviation: ${param.data.spike.deviation}</span><br/>`
+                            } else if (isNegative && param.data.negative) {
+                                content += `<span style="color:#8b5cf6">⚠ Negative Value</span><br/>`
+                                content += `Value: <strong>${param.value[1].toFixed(2)} ${paramConfig.unit}</strong><br/>`
                             } else {
                                 const icon = isGapFill ? '◆' : '●'
                                 const color = isGapFill ? '#f59e0b' : paramConfig.color
@@ -433,7 +498,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
         return () => {
             window.removeEventListener('resize', handleResize)
         }
-    }, [chartData, selectedParam, showGapFill, showSpikes, isLight, lang, stationId])
+    }, [chartData, selectedParam, showGapFill, showSpikes, showNegative, isLight, lang, stationId])
 
     // Cleanup
     useEffect(() => {
@@ -494,13 +559,24 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                             <Icon name="warning" size="sm" style={{ color: '#ef4444' }} />
                             <span className="text-sm">Spikes</span>
                         </label>
+
+                        <label className={`flex items-center gap-2 cursor-pointer ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
+                            <input
+                                type="checkbox"
+                                checked={showNegative}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowNegative(e.target.checked)}
+                                className="w-4 h-4 rounded accent-purple-500"
+                            />
+                            <Icon name="remove_circle" size="sm" style={{ color: '#8b5cf6' }} />
+                            <span className="text-sm">{lang === 'th' ? 'ค่าติดลบ' : 'Negative'}</span>
+                        </label>
                     </div>
                 </div>
             </div>
 
             {/* Data Health Stats - Dynamic based on selected parameter */}
             {chartData && (
-                <div className={`grid grid-cols-2 md:grid-cols-5 gap-3 p-4 border-b ${isLight ? 'border-gray-100 bg-gray-50/50' : 'border-dark-700 bg-dark-800/50'}`}>
+                <div className={`grid grid-cols-2 md:grid-cols-6 gap-3 p-4 border-b ${isLight ? 'border-gray-100 bg-gray-50/50' : 'border-dark-700 bg-dark-800/50'}`}>
                     {/* Completeness */}
                     <div className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-white' : 'bg-dark-700/50'}`}>
                         <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-emerald-100">
@@ -575,6 +651,21 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                             </p>
                         </div>
                     </div>
+
+                    {/* Negative Values */}
+                    <div className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-white' : 'bg-dark-700/50'}`}>
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${chartData.stats.negativeCount > 0 ? 'bg-purple-100' : isLight ? 'bg-gray-100' : 'bg-dark-600'}`}>
+                            <Icon name="remove_circle" style={{ color: chartData.stats.negativeCount > 0 ? '#8b5cf6' : '#9ca3af' }} />
+                        </div>
+                        <div>
+                            <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                {lang === 'th' ? 'ค่าติดลบ' : 'Negative'}
+                            </p>
+                            <p className={`text-xl font-bold ${chartData.stats.negativeCount > 0 ? 'text-purple-500' : isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                                {chartData.stats.negativeCount}
+                            </p>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -611,6 +702,12 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                         <div className="flex items-center gap-2">
                             <span style={{ color: '#ef4444' }}>▲</span>
                             <span>{chartData.spikeData.length} Spikes</span>
+                        </div>
+                    )}
+                    {showNegative && chartData.negativeData.length > 0 && (
+                        <div className="flex items-center gap-2">
+                            <span style={{ color: '#8b5cf6' }}>▼</span>
+                            <span>{chartData.negativeData.length} {lang === 'th' ? 'ค่าติดลบ' : 'Negative'}</span>
                         </div>
                     )}
                     <div className="ml-auto">
