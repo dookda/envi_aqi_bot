@@ -105,7 +105,7 @@ const WEATHER_CONFIG: Record<string, WeatherConfigItem> = {
     rain: { label: 'Rainfall', unit: 'mm', icon: 'rainy', color: '#22c55e' },
 }
 
-const API_BASE = '/ebot/api'
+const API_BASE = '/api'
 
 // Time period options
 const TIME_PERIODS: TimePeriodOption[] = [

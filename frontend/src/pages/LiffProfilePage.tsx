@@ -23,7 +23,7 @@ interface UserData {
     is_new: boolean
 }
 
-const API_BASE = '/ebot/api'
+const API_BASE = '/api'
 
 // Get LIFF ID from environment or use a placeholder
 const LIFF_ID = import.meta.env.VITE_LIFF_ID || ''
@@ -324,10 +324,10 @@ export default function LiffProfilePage(): React.ReactElement {
                 {/* Message */}
                 {message && (
                     <div className={`mb-4 p-3 rounded-lg text-sm ${message.type === 'success'
-                            ? 'bg-green-100 text-green-700 border border-green-200'
-                            : message.type === 'error'
-                                ? 'bg-red-100 text-red-700 border border-red-200'
-                                : 'bg-blue-100 text-blue-700 border border-blue-200'
+                        ? 'bg-green-100 text-green-700 border border-green-200'
+                        : message.type === 'error'
+                            ? 'bg-red-100 text-red-700 border border-red-200'
+                            : 'bg-blue-100 text-blue-700 border border-blue-200'
                         }`}>
                         {message.text}
                     </div>

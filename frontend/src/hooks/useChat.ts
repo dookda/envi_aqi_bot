@@ -5,7 +5,7 @@
 import { useState, useCallback } from 'react'
 import type { ChatMessage, UseChatReturn } from '@/types'
 
-// Use BASE_URL from Vite config to ensure /ebot/ prefix is included
+// Use BASE_URL from Vite config
 // Set VITE_API_URL environment variable to override if needed
 const API_URL = import.meta.env.VITE_API_URL || `${import.meta.env.BASE_URL}api`.replace(/\/+/g, '/').replace(/\/$/, '')
 

@@ -1,0 +1,39 @@
+# Production overrides for docker-compose.yml
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+services:
+  postgres:
+    # Don't expose PostgreSQL port externally in production
+    ports: []
+    restart: always
+
+  api:
+    # Only accessible from localhost (Nginx will proxy)
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: always
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+
+  frontend:
+    # Only accessible from localhost (Nginx will proxy)
+    ports:
+      - "127.0.0.1:5800:80"
+    restart: always
+
+  scheduler:
+    restart: always
+
+  ollama:
+    restart: always
+    # Increase healthcheck timeout for slower servers
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:11434/api/tags || exit 1" ]
+      interval: 60s
+      timeout: 30s
+      retries: 10
+      start_period: 300s
+
+  data-prep:
+    restart: always

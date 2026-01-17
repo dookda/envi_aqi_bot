@@ -152,6 +152,82 @@ class ImputationService:
         - Long gaps (>24 hours): flag only, no imputation
         """
         return gap_hours <= self.max_gap_hours
+    
+    def predict_gap_autoregressive(
+        self,
+        db: Session,
+        station_id: str,
+        gap_start: datetime,
+        gap_end: datetime,
+        model,
+        scaler
+    ) -> List[Dict[str, Any]]:
+        """
+        Predict values for a contiguous gap using auto-regressive approach
+        
+        This method predicts values one at a time, using each predicted value
+        as part of the context for the next prediction. This produces more
+        realistic time-series predictions with natural variation.
+        
+        Args:
+            db: Database session
+            station_id: Station identifier
+            gap_start: Start of the gap
+            gap_end: End of the gap
+            model: Trained LSTM model
+            scaler: Fitted scaler
+            
+        Returns:
+            List of prediction dictionaries with datetime and pm25 values
+        """
+        predictions = []
+        
+        # Get initial context window (values before the gap)
+        context, window_start, window_end = self.get_context_window(
+            db, station_id, gap_start
+        )
+        
+        if context is None:
+            logger.debug(f"Insufficient context for auto-regressive prediction at {gap_start}")
+            return predictions
+        
+        # Convert to list for easier modification
+        current_context = list(context)
+        current = gap_start
+        
+        while current <= gap_end:
+            try:
+                # Make prediction using current context
+                context_array = np.array(current_context)
+                predicted_value = lstm_model_service.predict(model, scaler, context_array)
+                
+                predictions.append({
+                    "datetime": current,
+                    "pm25": predicted_value,
+                    "window_start": window_start,
+                    "window_end": window_end
+                })
+                
+                # Update context for next prediction:
+                # Remove oldest value, add new prediction
+                current_context = current_context[1:] + [predicted_value]
+                
+                # Update window end
+                window_end = current
+                
+            except Exception as e:
+                logger.debug(f"Auto-regressive prediction failed for {current}: {e}")
+                # On failure, break the chain
+                break
+            
+            current += timedelta(hours=1)
+        
+        logger.info(
+            f"Auto-regressive prediction for {station_id}: "
+            f"{len(predictions)} values from {gap_start} to {gap_end}"
+        )
+        
+        return predictions
 
     def linear_interpolation_single(
         self,
@@ -456,41 +532,24 @@ class ImputationService:
                     skipped += gap_hours
                     continue
 
-                # Impute each hour in the gap
-                current = gap_start
-                while current <= gap_end:
-                    if current in missing:
-                        # Determine which method to use for this gap
-                        imputed_value = None
-                        imputation_method = method
-
-                        # Auto-select method based on gap size if using fallback
-                        if method in ["linear", "forward_fill"] and gap_hours <= self.short_gap_threshold:
-                            imputation_method = "forward_fill"
-                        elif method == "linear" and gap_hours <= self.medium_gap_threshold:
-                            imputation_method = "linear"
-
-                        # Perform imputation based on selected method
-                        if use_lstm or imputation_method == "lstm":
-                            result = self.impute_single_value(db, station_id, current)
-                            if result and result.get("status") == "success":
-                                imputed += 1
-                                results.append(result)
-                            else:
-                                failed += 1
-                                if result:
-                                    logger.debug(f"Failed to impute {station_id} at {current}: {result.get('error', 'insufficient context')}")
-                                else:
-                                    logger.debug(f"Failed to impute {station_id} at {current}: insufficient context")
-                        elif imputation_method == "linear":
-                            imputed_value = self.linear_interpolation_single(db, station_id, current)
-                        elif imputation_method == "forward_fill":
-                            imputed_value = self.forward_fill_single(db, station_id, current)
-
-                        # If using fallback method, update database directly
-                        if imputed_value is not None and imputation_method in ["linear", "forward_fill"]:
-                            try:
-                                model_version = f"{imputation_method}_v1.0"
+                # For LSTM: Use auto-regressive prediction for the entire gap
+                if use_lstm:
+                    # Load model for auto-regressive prediction
+                    model, scaler = lstm_model_service.load_model(station_id)
+                    if model is not None:
+                        gap_predictions = self.predict_gap_autoregressive(
+                            db, station_id, gap_start, gap_end, model, scaler
+                        )
+                        
+                        if gap_predictions:
+                            # Get model version
+                            model_info = lstm_model_service.get_model_info(station_id)
+                            model_version = "v1.0"
+                            if model_info and model_info.get("training_info"):
+                                model_version = model_info["training_info"].get("model_version", "v1.0")
+                            
+                            # Save predictions to database
+                            for pred in gap_predictions:
                                 db.execute(
                                     text("""
                                         UPDATE aqi_hourly
@@ -498,43 +557,104 @@ class ImputationService:
                                         WHERE station_id = :station_id AND datetime = :datetime
                                     """),
                                     {
-                                        "pm25": imputed_value,
+                                        "pm25": pred["pm25"],
                                         "station_id": station_id,
-                                        "datetime": current,
+                                        "datetime": pred["datetime"],
                                         "model_version": model_version
                                     }
                                 )
-
+                                
                                 # Log imputation
                                 imputation_log = ImputationLog(
                                     station_id=station_id,
-                                    datetime=current,
-                                    imputed_value=imputed_value,
-                                    input_window_start=current - timedelta(hours=1),
-                                    input_window_end=current + timedelta(hours=1),
+                                    datetime=pred["datetime"],
+                                    imputed_value=pred["pm25"],
+                                    input_window_start=pred["window_start"],
+                                    input_window_end=pred["window_end"],
                                     model_version=model_version
                                 )
                                 db.add(imputation_log)
-
+                                
                                 imputed += 1
                                 results.append({
                                     "station_id": station_id,
-                                    "datetime": current,
-                                    "imputed_value": imputed_value,
-                                    "method": imputation_method,
+                                    "datetime": pred["datetime"],
+                                    "imputed_value": pred["pm25"],
+                                    "model_version": model_version,
+                                    "method": "lstm_autoregressive",
                                     "status": "success"
                                 })
-                                logger.bind(context="imputation").info(
-                                    f"Imputed {station_id} at {current}: {imputed_value:.2f} using {imputation_method}"
-                                )
-                            except Exception as e:
-                                logger.error(f"Fallback imputation failed for {station_id} at {current}: {e}")
-                                failed += 1
-                        elif imputed_value is None and imputation_method in ["linear", "forward_fill"]:
-                            failed += 1
-                            logger.debug(f"Failed to impute {station_id} at {current} using {imputation_method}: insufficient data")
+                        else:
+                            failed += gap_hours
+                    else:
+                        failed += gap_hours
+                else:
+                    # Fallback methods: process each hour individually
+                    current = gap_start
+                    while current <= gap_end:
+                        if current in missing:
+                            imputed_value = None
+                            imputation_method = method
 
-                    current += timedelta(hours=1)
+                            # Auto-select method based on gap size
+                            if method in ["linear", "forward_fill"] and gap_hours <= self.short_gap_threshold:
+                                imputation_method = "forward_fill"
+                            elif method == "linear" and gap_hours <= self.medium_gap_threshold:
+                                imputation_method = "linear"
+
+                            if imputation_method == "linear":
+                                imputed_value = self.linear_interpolation_single(db, station_id, current)
+                            elif imputation_method == "forward_fill":
+                                imputed_value = self.forward_fill_single(db, station_id, current)
+
+                            # If using fallback method, update database directly
+                            if imputed_value is not None:
+                                try:
+                                    model_version = f"{imputation_method}_v1.0"
+                                    db.execute(
+                                        text("""
+                                            UPDATE aqi_hourly
+                                            SET pm25 = :pm25, is_imputed = TRUE, model_version = :model_version
+                                            WHERE station_id = :station_id AND datetime = :datetime
+                                        """),
+                                        {
+                                            "pm25": imputed_value,
+                                            "station_id": station_id,
+                                            "datetime": current,
+                                            "model_version": model_version
+                                        }
+                                    )
+
+                                    # Log imputation
+                                    imputation_log = ImputationLog(
+                                        station_id=station_id,
+                                        datetime=current,
+                                        imputed_value=imputed_value,
+                                        input_window_start=current - timedelta(hours=1),
+                                        input_window_end=current + timedelta(hours=1),
+                                        model_version=model_version
+                                    )
+                                    db.add(imputation_log)
+
+                                    imputed += 1
+                                    results.append({
+                                        "station_id": station_id,
+                                        "datetime": current,
+                                        "imputed_value": imputed_value,
+                                        "method": imputation_method,
+                                        "status": "success"
+                                    })
+                                    logger.bind(context="imputation").info(
+                                        f"Imputed {station_id} at {current}: {imputed_value:.2f} using {imputation_method}"
+                                    )
+                                except Exception as e:
+                                    logger.error(f"Fallback imputation failed for {station_id} at {current}: {e}")
+                                    failed += 1
+                            else:
+                                failed += 1
+                                logger.debug(f"Failed to impute {station_id} at {current} using {imputation_method}: insufficient data")
+
+                        current += timedelta(hours=1)
             
             db.commit()
 
@@ -752,34 +872,29 @@ class ImputationService:
                     skipped += gap_hours
                     continue
                 
-                # Predict each hour in the gap
-                current = gap_start
-                while current <= gap_end:
-                    if current in missing:
-                        # Get context window
-                        context, window_start, window_end = self.get_context_window(
-                            db, station_id, current
-                        )
-                        
-                        if context is not None:
-                            try:
-                                predicted_value = lstm_model_service.predict(
-                                    model, scaler, context
-                                )
-                                pending_updates.append({
-                                    "datetime": current,
-                                    "pm25": predicted_value,
-                                    "window_start": window_start,
-                                    "window_end": window_end
-                                })
-                                imputed += 1
-                            except Exception as e:
-                                logger.debug(f"Prediction failed for {current}: {e}")
-                                failed += 1
-                        else:
-                            failed += 1
+                # Use AUTO-REGRESSIVE prediction for the entire gap
+                # This uses each predicted value as context for the next prediction
+                gap_predictions = self.predict_gap_autoregressive(
+                    db, station_id, gap_start, gap_end, model, scaler
+                )
+                
+                if gap_predictions:
+                    pending_updates.extend(gap_predictions)
+                    imputed += len(gap_predictions)
                     
-                    current += timedelta(hours=1)
+                    # Log success
+                    logger.debug(
+                        f"Auto-regressive imputation for {station_id}: "
+                        f"{len(gap_predictions)} values in gap {gap_start} to {gap_end}"
+                    )
+                else:
+                    # Count failed attempts
+                    expected_count = gap_hours
+                    failed += expected_count
+                    logger.debug(
+                        f"Failed auto-regressive imputation for {station_id}: "
+                        f"gap {gap_start} to {gap_end}"
+                    )
             
             # BATCH UPDATE - Single database operation
             if pending_updates:

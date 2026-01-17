@@ -233,6 +233,117 @@ ENGLISH_PHONETIC_VARIANTS: Dict[str, List[str]] = {
     "kh": ["k", "c"],
 }
 
+# =============================================================================
+# THAI HOMOPHONES - Words that sound the same but spelled differently
+# These are common in Thai where similar-sounding consonants/vowels exist
+# =============================================================================
+THAI_HOMOPHONES: Dict[str, List[str]] = {
+    # ค/ข/ฆ - same 'kh' sound
+    "ข": ["ค", "ฆ"],
+    "ค": ["ข", "ฆ"],
+    "ฆ": ["ข", "ค"],
+    
+    # ส/ศ/ษ - same 's' sound
+    "ส": ["ศ", "ษ"],
+    "ศ": ["ส", "ษ"],
+    "ษ": ["ส", "ศ"],
+    
+    # ท/ธ/ฑ/ฒ/ถ - same 'th' sound
+    "ท": ["ธ", "ฑ", "ฒ", "ถ"],
+    "ธ": ["ท", "ฑ", "ฒ", "ถ"],
+    "ถ": ["ท", "ธ", "ฑ", "ฒ"],
+    
+    # พ/ภ/ผ - same 'ph' sound
+    "พ": ["ภ", "ผ"],
+    "ภ": ["พ", "ผ"],
+    "ผ": ["พ", "ภ"],
+    
+    # น/ณ - same 'n' sound
+    "น": ["ณ"],
+    "ณ": ["น"],
+    
+    # ล/ฬ - same 'l' sound
+    "ล": ["ฬ"],
+    "ฬ": ["ล"],
+    
+    # ช/ฉ/ฌ - same 'ch' sound
+    "ช": ["ฉ", "ฌ"],
+    "ฉ": ["ช", "ฌ"],
+    
+    # ญ/ย - similar sounds
+    "ญ": ["ย"],
+    "ย": ["ญ"],
+    
+    # ร/ล - often confused in Thai
+    "ร": ["ล"],
+    "ล": ["ร"],
+    
+    # ใ/ไ - same 'ai' vowel sound
+    "ใ": ["ไ"],
+    "ไ": ["ใ"],
+}
+
+# Common Thai word homophones/misspellings for place names
+THAI_WORD_HOMOPHONES: Dict[str, List[str]] = {
+    # เชียง variations (commonly misspelled)
+    "เชียง": ["เจียง", "เเชียง"],
+    
+    # ใหม่/ไหม่ - common vowel confusion
+    "ใหม่": ["ไหม่", "หม่าย", "ใหม"],
+    
+    # ราย/ไร
+    "ราย": ["ไร", "ลาย"],
+    
+    # กรุงเทพ variations
+    "กรุงเทพ": ["กรุงเทป", "กุงเทพ", "กรุ้งเทพ", "กรุงเทพฯ"],
+    
+    # ขอนแก่น variations
+    "ขอนแก่น": ["คอนแก่น", "ขอนเเก่น", "ขอนแกน"],
+    
+    # ภูเก็ต variations
+    "ภูเก็ต": ["พูเก็ต", "ปูเก็ต", "ภูเก็ด", "ภูเกต"],
+    
+    # อุดร variations
+    "อุดร": ["อุดอน", "อุดอร", "อุดรณ"],
+    
+    # นครราชสีมา variations
+    "นครราชสีมา": ["นคอราชสีมา", "นครราดสีมา", "โคราช", "โคราด"],
+    "โคราช": ["โคราด", "โครราช"],
+    
+    # ลำปาง variations
+    "ลำปาง": ["ลำป่าง", "ลำปัง", "ลัมปาง"],
+    
+    # ลำพูน variations
+    "ลำพูน": ["ลำพุน", "ลัมพูน"],
+    
+    # สระบุรี variations
+    "สระบุรี": ["สระบุลี", "สลาบุรี"],
+    
+    # ปทุมธานี variations
+    "ปทุมธานี": ["ปทุมทานี", "ประทุมธานี"],
+    
+    # ระยอง variations
+    "ระยอง": ["ลายอง", "ระยอน", "รายอง"],
+    
+    # สมุทรปราการ variations
+    "สมุทรปราการ": ["สมุดปราการ", "สมุทปราการ"],
+    
+    # แม่ฮ่องสอน variations  
+    "แม่ฮ่องสอน": ["แม่ฮองสอน", "แมฮ่องสอน", "แม้ฮ่องสอน"],
+    
+    # หาดใหญ่ variations
+    "หาดใหญ่": ["หาดไหญ่", "หาดหญ่", "หาดใหย่"],
+    
+    # น่าน variations
+    "น่าน": ["นาน", "น้าน"],
+    
+    # แพร่ variations
+    "แพร่": ["แพร", "แพ่ร"],
+    
+    # พิษณุโลก variations
+    "พิษณุโลก": ["พิศณุโลก", "พิสณุโลก", "พิษโลก"],
+}
+
 
 class PlaceNameMatcher:
     """
@@ -326,6 +437,44 @@ class PlaceNameMatcher:
         
         return list(set(variants))[:20]  # Limit and dedupe
     
+    def _generate_homophone_variants(self, thai_text: str) -> List[str]:
+        """
+        Generate Thai homophone variants for place names
+        
+        Handles common Thai spelling variations where characters
+        sound the same but are written differently.
+        """
+        variants = [thai_text]
+        
+        # Check for word-level homophones first
+        for word, homophone_list in THAI_WORD_HOMOPHONES.items():
+            if word in thai_text:
+                for homophone in homophone_list:
+                    variants.append(thai_text.replace(word, homophone))
+        
+        # Also add reverse mapping (from homophone to original)
+        for word, homophone_list in THAI_WORD_HOMOPHONES.items():
+            for homophone in homophone_list:
+                if homophone in thai_text:
+                    variants.append(thai_text.replace(homophone, word))
+        
+        # Generate character-level homophone variants (limit to prevent explosion)
+        char_variants = [thai_text]
+        for i, char in enumerate(thai_text):
+            if char in THAI_HOMOPHONES and len(char_variants) < 30:
+                new_variants = []
+                for variant in char_variants[:10]:  # Limit base variants
+                    for homophone in THAI_HOMOPHONES[char]:
+                        new_variant = variant[:i] + homophone + variant[i+1:]
+                        if new_variant not in new_variants and new_variant != variant:
+                            new_variants.append(new_variant)
+                char_variants.extend(new_variants)
+        
+        variants.extend(char_variants)
+        
+        # Remove duplicates
+        return list(set(variants))[:30]
+    
     def find_canonical_name(self, query: str) -> Optional[str]:
         """
         Find canonical place name for a query
@@ -386,9 +535,11 @@ class PlaceNameMatcher:
         # Add phonetic variants
         terms.extend(self._generate_phonetic_variants(normalized))
         
-        # Add Thai phonetic versions
+        # Add Thai phonetic versions and homophones
         if any('\u0e00' <= c <= '\u0e7f' for c in query):
             terms.extend(self._thai_to_phonetic(query)[:10])
+            # Add homophone variants for Thai text
+            terms.extend(self._generate_homophone_variants(query))
         
         # Remove duplicates and empty strings
         seen = set()
@@ -399,7 +550,7 @@ class PlaceNameMatcher:
                 seen.add(term_lower)
                 unique_terms.append(term)
         
-        return unique_terms[:30]  # Limit total terms
+        return unique_terms[:50]  # Increased limit for homophones
     
     def get_all_aliases(self, place_name: str) -> List[str]:
         """Get all known aliases for a place"""

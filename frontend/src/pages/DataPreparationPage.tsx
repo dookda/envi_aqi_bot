@@ -89,7 +89,7 @@ const DataPreparationPage: React.FC = () => {
             const formData = new FormData()
             formData.append('file', selectedFile)
 
-            const response = await fetch('/ebot/api/prepare-csv/preview', {
+            const response = await fetch('/api/prepare-csv/preview', {
                 method: 'POST',
                 body: formData
             })
@@ -118,7 +118,7 @@ const DataPreparationPage: React.FC = () => {
             const formData = new FormData()
             formData.append('file', selectedFile)
 
-            const response = await fetch('/ebot/api/prepare-csv', {
+            const response = await fetch('/api/prepare-csv', {
                 method: 'POST',
                 body: formData
             })

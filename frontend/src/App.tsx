@@ -1,10 +1,12 @@
 /**
  * Main App Component with Routing
+ * Analytics and Settings pages require authentication
  */
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Dashboard, Models, Chat, Claude, Admin, DataUpload, DataPreparation, CCTV, Stations, Info, ExecutiveSummary, Login, Register, Profile, Users, LiffProfile } from './pages'
 import { LanguageProvider, ThemeProvider, ToastProvider, AuthProvider } from './contexts'
 import { Layout } from './components/organisms'
+import ProtectedRoute from './components/ProtectedRoute'
 
 const App: React.FC = () => {
   return (
@@ -12,7 +14,7 @@ const App: React.FC = () => {
       <ThemeProvider>
         <ToastProvider>
           <AuthProvider>
-            <Router basename="/ebot">
+            <Router>
               <Routes>
                 {/* Public Auth Routes (No Sidebar) */}
                 <Route path="/login" element={<Login />} />
@@ -25,19 +27,48 @@ const App: React.FC = () => {
                 <Route path="*" element={
                   <Layout>
                     <Routes>
+                      {/* Public Routes - No authentication required */}
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/executive-summary" element={<ExecutiveSummary />} />
-                      <Route path="/models" element={<Models />} />
                       <Route path="/chat" element={<Chat />} />
                       <Route path="/chat/claude" element={<Claude />} />
-                      <Route path="/admin" element={<Admin />} />
-                      <Route path="/prepare-data" element={<DataPreparation />} />
-                      <Route path="/upload" element={<DataUpload />} />
-                      <Route path="/stations" element={<Stations />} />
-                      <Route path="/users" element={<Users />} />
                       <Route path="/cctv" element={<CCTV />} />
                       <Route path="/info" element={<Info />} />
                       <Route path="/profile" element={<Profile />} />
+
+                      {/* Analytics Routes - Requires authentication */}
+                      <Route path="/models" element={
+                        <ProtectedRoute>
+                          <Models />
+                        </ProtectedRoute>
+                      } />
+
+                      {/* Settings/Admin Routes - Requires authentication */}
+                      <Route path="/prepare-data" element={
+                        <ProtectedRoute>
+                          <DataPreparation />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/upload" element={
+                        <ProtectedRoute>
+                          <DataUpload />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/stations" element={
+                        <ProtectedRoute>
+                          <Stations />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/users" element={
+                        <ProtectedRoute requireAdmin>
+                          <Users />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/admin" element={
+                        <ProtectedRoute requireAdmin>
+                          <Admin />
+                        </ProtectedRoute>
+                      } />
                     </Routes>
                   </Layout>
                 } />

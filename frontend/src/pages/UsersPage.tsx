@@ -30,7 +30,7 @@ interface UserFormData {
     password: string
 }
 
-const API_BASE = '/ebot/api'
+const API_BASE = '/api'
 
 export default function UsersPage(): React.ReactElement {
     const { lang } = useLanguage()

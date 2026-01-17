@@ -2,11 +2,12 @@
  * Sidebar Navigation Component
  * Clean, modern sidebar with collapse to icon-only mode
  * Support for collapsible menu groups
+ * Protected routes show lock icon for unauthenticated users
  */
 import { useState, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Icon } from '../atoms'
-import { useLanguage, useTheme } from '../../contexts'
+import { useLanguage, useTheme, useAuth } from '../../contexts'
 
 interface NavItem {
     id: string
@@ -16,6 +17,8 @@ interface NavItem {
     labelTh: string
     badge?: string
     badgeColor?: string
+    requiresAuth?: boolean
+    requiresAdmin?: boolean
 }
 
 interface NavGroup {
@@ -25,6 +28,7 @@ interface NavGroup {
     icon?: string
     items: NavItem[]
     defaultOpen?: boolean
+    requiresAuth?: boolean
 }
 
 // Navigation structure - grouped for clarity
@@ -58,8 +62,9 @@ const NAV_GROUPS: NavGroup[] = [
         labelTh: 'วิเคราะห์',
         icon: 'analytics',
         defaultOpen: true,
+        requiresAuth: true,
         items: [
-            { id: 'models', path: '/models', icon: 'model_training', labelEn: 'Models', labelTh: 'โมเดล' },
+            { id: 'models', path: '/models', icon: 'model_training', labelEn: 'Models', labelTh: 'โมเดล', requiresAuth: true },
         ]
     },
     {
@@ -68,12 +73,13 @@ const NAV_GROUPS: NavGroup[] = [
         labelTh: 'ตั้งค่า',
         icon: 'settings',
         defaultOpen: false,
+        requiresAuth: true,
         items: [
-            { id: 'prepare', path: '/prepare-data', icon: 'edit_note', labelEn: 'Data Preparation', labelTh: 'เตรียมข้อมูล' },
-            { id: 'upload', path: '/upload', icon: 'cloud_upload', labelEn: 'Data Upload', labelTh: 'อัปโหลดข้อมูล' },
-            { id: 'stations', path: '/stations', icon: 'location_on', labelEn: 'Stations', labelTh: 'จัดการสถานี' },
-            { id: 'users', path: '/users', icon: 'group', labelEn: 'Users & LINE', labelTh: 'ผู้ใช้และ LINE' },
-            { id: 'admin', path: '/admin', icon: 'admin_panel_settings', labelEn: 'Admin', labelTh: 'ผู้ดูแล' },
+            { id: 'prepare', path: '/prepare-data', icon: 'edit_note', labelEn: 'Data Preparation', labelTh: 'เตรียมข้อมูล', requiresAuth: true },
+            { id: 'upload', path: '/upload', icon: 'cloud_upload', labelEn: 'Data Upload', labelTh: 'อัปโหลดข้อมูล', requiresAuth: true },
+            { id: 'stations', path: '/stations', icon: 'location_on', labelEn: 'Stations', labelTh: 'จัดการสถานี', requiresAuth: true },
+            { id: 'users', path: '/users', icon: 'group', labelEn: 'Users & LINE', labelTh: 'ผู้ใช้และ LINE', requiresAuth: true, requiresAdmin: true },
+            { id: 'admin', path: '/admin', icon: 'admin_panel_settings', labelEn: 'Admin', labelTh: 'ผู้ดูแล', requiresAuth: true, requiresAdmin: true },
         ]
     },
     {
@@ -95,8 +101,10 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     const location = useLocation()
+    const navigate = useNavigate()
     const { lang } = useLanguage()
     const { isLight } = useTheme()
+    const { isAuthenticated, user } = useAuth()
 
     // Collapsed state - persisted in localStorage
     const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -164,6 +172,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         return group.items.some(item => isActive(item.path))
     }
 
+    // Check if user can access a protected route
+    const canAccess = (item: NavItem | NavGroup) => {
+        if (!item.requiresAuth) return true
+        if (!isAuthenticated) return false
+        if ('requiresAdmin' in item && item.requiresAdmin && user?.role !== 'admin') return false
+        return true
+    }
+
+    // Handle click on protected item
+    const handleProtectedClick = (e: React.MouseEvent, item: NavItem) => {
+        if (!canAccess(item)) {
+            e.preventDefault()
+            navigate('/login', { state: { from: { pathname: item.path } } })
+        }
+    }
+
     // Sidebar width based on collapsed state
     const sidebarWidth = isCollapsed ? 'w-20' : 'w-64'
 
@@ -191,21 +215,20 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             `}>
                 {/* Logo / Brand */}
                 <div className={`h-16 flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-3 px-5'} border-b ${isLight ? 'border-gray-200' : 'border-dark-700'}`}>
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-primary-500 to-primary-600 flex-shrink-0 p-1.5`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0`}>
                         <img
-                            src="/ebot/logo.svg"
-                            alt="AQI Bot Logo"
-                            className="w-full h-full"
-                            style={{ filter: 'brightness(0) invert(1)' }}
+                            src="/app_logo.png"
+                            alt="Envir AI Logo"
+                            className="w-full h-full object-contain"
                         />
                     </div>
                     {!isCollapsed && (
                         <div className="flex-1 min-w-0">
                             <h1 className={`font-bold truncate ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                                AQI Monitor
+                                Envir AI
                             </h1>
                             <p className={`text-xs truncate ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                {lang === 'th' ? 'ระบบตรวจวัดคุณภาพอากาศ' : 'Air Quality System'}
+                                {lang === 'th' ? 'ระบบจัดการข้อมูลคุณภาพอากาศ' : 'Air Quality Data Management System'}
                             </p>
                         </div>
                     )}
@@ -259,6 +282,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                                             <span className={`text-xs font-semibold uppercase tracking-wider`}>
                                                 {lang === 'th' ? group.labelTh : group.labelEn}
                                             </span>
+                                            {/* Lock icon for protected groups */}
+                                            {group.requiresAuth && !isAuthenticated && (
+                                                <Icon
+                                                    name="lock"
+                                                    size="xs"
+                                                    className={isLight ? 'text-gray-400' : 'text-dark-500'}
+                                                />
+                                            )}
                                         </div>
                                         <Icon
                                             name={isExpanded ? 'expand_less' : 'expand_more'}
@@ -291,19 +322,29 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                                                 >
                                                     <Link
                                                         to={item.path}
-                                                        onClick={onClose}
+                                                        onClick={(e) => {
+                                                            handleProtectedClick(e, item)
+                                                            if (canAccess(item)) onClose()
+                                                        }}
                                                         className={`
                                                             flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} 
                                                             ${isCollapsed ? 'px-2 py-2.5' : 'px-3 py-2.5 ml-2'} rounded-xl
                                                             transition-all duration-200 group
                                                             ${active
                                                                 ? 'bg-primary-500 text-white shadow-md shadow-primary-500/25'
-                                                                : isLight
-                                                                    ? 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                                                                    : 'text-dark-300 hover:bg-dark-800 hover:text-white'
+                                                                : !canAccess(item)
+                                                                    ? isLight
+                                                                        ? 'text-gray-400 hover:bg-gray-100'
+                                                                        : 'text-dark-500 hover:bg-dark-800'
+                                                                    : isLight
+                                                                        ? 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                                                                        : 'text-dark-300 hover:bg-dark-800 hover:text-white'
                                                             }
                                                         `}
-                                                        title={isCollapsed ? (lang === 'th' ? item.labelTh : item.labelEn) : undefined}
+                                                        title={isCollapsed
+                                                            ? `${lang === 'th' ? item.labelTh : item.labelEn}${!canAccess(item) ? ' 🔒' : ''}`
+                                                            : undefined
+                                                        }
                                                     >
                                                         <div className={`
                                                             ${isCollapsed ? 'w-10 h-10' : 'w-8 h-8'} rounded-lg flex items-center justify-center
@@ -322,7 +363,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                                                                 <span className="flex-1 font-medium text-sm truncate">
                                                                     {lang === 'th' ? item.labelTh : item.labelEn}
                                                                 </span>
-                                                                {item.badge && (
+                                                                {/* Lock icon for protected routes */}
+                                                                {!canAccess(item) && (
+                                                                    <Icon
+                                                                        name="lock"
+                                                                        size="xs"
+                                                                        className={isLight ? 'text-gray-400' : 'text-dark-500'}
+                                                                    />
+                                                                )}
+                                                                {item.badge && canAccess(item) && (
                                                                     <span className={`
                                                                         text-[10px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0
                                                                         ${active

@@ -35,7 +35,7 @@ const PARAMETER_CONFIG: Record<string, ParameterConfigItem> = {
     rain: { label: 'Rainfall', unit: 'mm', color: '#22c55e', group: 'meteorological' },
 }
 
-const API_BASE = '/ebot/api'
+const API_BASE = '/api'
 
 interface MockupDataResponse {
     data: AQIHourlyData[]

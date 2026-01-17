@@ -40,7 +40,7 @@ const SPIKE_THRESHOLDS: Record<string, { min: number; max: number; spikeMultipli
     bp: { min: 700, max: 800, spikeMultiplier: 1.2 },
 }
 
-const API_BASE = '/ebot/api'
+const API_BASE = '/api'
 
 interface MultiParameterChartProps {
     stationId?: string
@@ -282,18 +282,15 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
             },
         ]
 
-        // Add gap-fill (imputed) series
+        // Add gap-fill (imputed) series - show only markers, no connecting line
         if (showGapFill) {
             series.push({
                 name: lang === 'th' ? 'Gap-Fill (LSTM)' : 'Gap-Fill (LSTM)',
-                type: 'line',
-                data: chartData.imputedData,
-                smooth: true,
+                type: 'scatter',  // Changed from 'line' to 'scatter' to show only points
+                data: chartData.imputedData.filter(d => d[1] !== null),  // Only show non-null values
                 symbol: 'diamond',
-                symbolSize: 8,
-                lineStyle: { color: '#f59e0b', width: 2, type: 'dashed' },
+                symbolSize: 10,
                 itemStyle: { color: '#f59e0b', borderColor: '#fbbf24', borderWidth: 2 },
-                connectNulls: true,
                 z: 10,
             })
         }

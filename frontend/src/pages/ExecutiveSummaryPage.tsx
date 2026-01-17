@@ -595,32 +595,35 @@ const ExecutiveSummaryPage: React.FC = () => {
         setLoading(true)
         const stationsData: StationWithLatest[] = []
 
-        // Fetch latest data for each station (limit to first 20 for performance)
-        const stationsToFetch = stations.slice(0, 20)
+        // Process all stations in batches of 50 for better performance
+        const batchSize = 50
+        for (let i = 0; i < stations.length; i += batchSize) {
+            const batch = stations.slice(i, i + batchSize)
 
-        await Promise.all(
-            stationsToFetch.map(async (station) => {
-                try {
-                    const latestData = await aqiService.getLatest(station.station_id)
-                    const pm25 = latestData?.pm25
-                    const aqi = calculateAqiFromPm25(pm25)
-                    stationsData.push({
-                        ...station,
-                        latestData,
-                        latestAqi: aqi,
-                        latestPm25: pm25
-                    })
-                } catch {
-                    // Station might not have data
-                    stationsData.push({
-                        ...station,
-                        latestData: null,
-                        latestAqi: undefined,
-                        latestPm25: undefined
-                    })
-                }
-            })
-        )
+            await Promise.all(
+                batch.map(async (station) => {
+                    try {
+                        const latestData = await aqiService.getLatest(station.station_id)
+                        const pm25 = latestData?.pm25
+                        const aqi = calculateAqiFromPm25(pm25)
+                        stationsData.push({
+                            ...station,
+                            latestData,
+                            latestAqi: aqi,
+                            latestPm25: pm25
+                        })
+                    } catch {
+                        // Station might not have data
+                        stationsData.push({
+                            ...station,
+                            latestData: null,
+                            latestAqi: undefined,
+                            latestPm25: undefined
+                        })
+                    }
+                })
+            )
+        }
 
         setStationsWithData(stationsData)
         setLoading(false)

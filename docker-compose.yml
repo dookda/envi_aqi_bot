@@ -71,7 +71,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:5800/ebot}
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:5800}
     container_name: aqi_frontend
     restart: unless-stopped
     ports:
@@ -82,7 +82,7 @@ services:
       data-prep:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "curl -f http://localhost:80/ebot/ || exit 1" ]
+      test: [ "CMD-SHELL", "curl -f http://localhost:80/ || exit 1" ]
       interval: 30s
       timeout: 5s
       retries: 3

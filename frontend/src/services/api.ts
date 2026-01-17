@@ -9,7 +9,7 @@ import type {
   ChartDataResponse,
 } from '@/types'
 
-// Get base URL from Vite config (respects base path like /ebot/)
+// Get base URL from Vite config (uses BASE_URL from vite.config.ts)
 const BASE_URL = `${import.meta.env.BASE_URL}api`.replace(/\/+/g, '/').replace(/\/$/, '')
 const TIMEOUT = 30000
 

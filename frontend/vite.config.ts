@@ -4,8 +4,8 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  // Set base path for deployment under /ebot/ prefix
-  base: '/ebot/',
+  // Serve at root path (no prefix)
+  base: '/',
   plugins: [
     react(),
     tailwindcss(),
@@ -17,11 +17,6 @@ export default defineConfig({
       usePolling: true, // Enable polling for Docker volumes (especially on Windows/Mac)
     },
     proxy: {
-      '/ebot/api': {
-        target: 'http://api:8000',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/ebot/, ''),
-      },
       '/api': {
         target: 'http://api:8000',
         changeOrigin: true,
@@ -29,11 +24,6 @@ export default defineConfig({
       '/health': {
         target: 'http://api:8000',
         changeOrigin: true,
-      },
-      '/ebot/health': {
-        target: 'http://api:8000',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/ebot/, ''),
       },
     },
   },
