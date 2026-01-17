@@ -52,6 +52,7 @@ interface MultiParameterChartProps {
     externalData?: ChartDataResponse | null
     loading?: boolean
     onSettingsClick?: () => void
+    spikeMultiplier?: number  // Default: 5 (spike = value >= prevValue * multiplier)
 }
 
 interface SpikeData {
@@ -63,8 +64,8 @@ interface SpikeData {
     }
     spike: {
         value: number
-        deviation: string
-        mean: string
+        prevValue: number
+        multiplier: number
     }
 }
 
@@ -110,6 +111,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
     externalData = null,
     loading: externalLoading = false,
     onSettingsClick,
+    spikeMultiplier = 5,  // Default: spike if value >= 5x previous value
 }) => {
     const { lang } = useLanguage()
     const { isLight } = useTheme()
@@ -199,6 +201,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
         const gapAreas: Array<[{ xAxis: string; itemStyle?: { color: string } }, { xAxis: string }]> = []
 
         let gapStart: string | null = null
+        let prevValue: number | null = null  // Track previous value for spike detection
 
         sortedData.forEach((d) => {
             const time = d.datetime
@@ -214,8 +217,9 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                     gapStart = null
                 }
 
-                // Check for spike (value > mean + 2*stdDev or sudden jump)
-                const isSpike = stdDev > 0 && Math.abs(value - mean) > thresholds.spikeMultiplier * stdDev
+                // Check for spike: value >= X times the previous value
+                // Only detect spike if we have a valid previous value > 0
+                const isSpike = prevValue !== null && prevValue > 0 && value >= prevValue * spikeMultiplier
 
                 // Check for negative value
                 const isNegative = value < 0
@@ -229,7 +233,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                     imputedData.push([time, null])
                 }
 
-                if (isSpike) {
+                if (isSpike && prevValue !== null) {
                     spikeData.push({
                         value: [time, value],
                         itemStyle: {
@@ -239,8 +243,8 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                         },
                         spike: {
                             value,
-                            deviation: ((value - mean) / stdDev).toFixed(1),
-                            mean: mean.toFixed(1),
+                            prevValue,
+                            multiplier: spikeMultiplier,
                         }
                     })
                 }
@@ -258,6 +262,9 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                         }
                     })
                 }
+
+                // Update previous value for next iteration
+                prevValue = value
             }
         })
 
@@ -415,9 +422,9 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                             const isGapFill = param.seriesName.includes('Gap-Fill')
 
                             if (isSpike && param.data.spike) {
-                                content += `<span style="color:#ef4444">⚠ Spike Detected</span><br/>`
+                                content += `<span style="color:#ef4444">⚠ Spike Detected (${param.data.spike.multiplier}x)</span><br/>`
                                 content += `Value: <strong>${param.value[1].toFixed(2)} ${paramConfig.unit}</strong><br/>`
-                                content += `<span style="color:${subTextColor}">σ deviation: ${param.data.spike.deviation}</span><br/>`
+                                content += `<span style="color:${subTextColor}">Previous: ${param.data.spike.prevValue.toFixed(2)} ${paramConfig.unit}</span><br/>`
                             } else if (isNegative && param.data.negative) {
                                 content += `<span style="color:#dc2626">⚠ Negative Value</span><br/>`
                                 content += `Value: <strong>${param.value[1].toFixed(2)} ${paramConfig.unit}</strong><br/>`

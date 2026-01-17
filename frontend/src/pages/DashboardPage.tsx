@@ -1641,6 +1641,7 @@ export default function Dashboard(): React.ReactElement {
                             externalData={fullData as ChartDataResponse | null}
                             loading={fullDataLoading}
                             onSettingsClick={() => setShowThresholdSettings(true)}
+                            spikeMultiplier={spikeMultiplier}
                         />
 
                         {/* AI Insights Panel */}
