@@ -62,6 +62,7 @@ interface DataTableViewProps {
     onParamChange: (param: ParameterKey) => void
     totalRecords: number | undefined
     latestUpdate?: string
+    consecutiveEqualThreshold?: number
 }
 
 type AQILevelKey = 'excellent' | 'good' | 'moderate' | 'unhealthySensitive' | 'unhealthy'
@@ -346,7 +347,7 @@ const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({
 }
 
 // Status filter type
-type StatusFilter = 'all' | 'measured' | 'imputed' | 'missing' | 'negative'
+type StatusFilter = 'all' | 'measured' | 'imputed' | 'missing' | 'negative' | 'stuck'
 
 // Data Table View Component
 const DataTableView: React.FC<DataTableViewProps> = ({
@@ -358,7 +359,8 @@ const DataTableView: React.FC<DataTableViewProps> = ({
     lang,
     isLight,
     onParamChange,
-    totalRecords
+    totalRecords,
+    consecutiveEqualThreshold = 3
 }) => {
     const [startDate, setStartDate] = useState<string>('')
     const [endDate, setEndDate] = useState<string>('')
@@ -370,7 +372,7 @@ const DataTableView: React.FC<DataTableViewProps> = ({
     const filteredData = useMemo(() => {
         if (!data) return []
 
-        return data.filter(row => {
+        return data.filter((row, idx) => {
             // Date range filter
             if (startDate || endDate) {
                 const rowDate = new Date(row.datetime)
@@ -402,10 +404,13 @@ const DataTableView: React.FC<DataTableViewProps> = ({
             if (statusFilter === 'negative') {
                 return value !== null && value !== undefined && value < 0
             }
+            if (statusFilter === 'stuck') {
+                return stuckIndices.has(idx)
+            }
 
             return true
         })
-    }, [data, startDate, endDate, statusFilter, selectedParam])
+    }, [data, startDate, endDate, statusFilter, selectedParam, stuckIndices])
 
     // Define columns dynamically based on language and selected parameter
     const columns: TableColumn<AQIHourlyData>[] = [
@@ -471,10 +476,54 @@ const DataTableView: React.FC<DataTableViewProps> = ({
         }
     ]
 
+    // Detect stuck values (consecutive equal values)
+    const stuckIndices = useMemo(() => {
+        if (!data || data.length === 0) return new Set<number>()
+
+        const indices = new Set<number>()
+        const sortedData = [...data].sort((a, b) =>
+            new Date(a.datetime).getTime() - new Date(b.datetime).getTime()
+        )
+
+        let consecutiveCount = 1
+        let prevValue: number | null = null
+        let startIdx = 0
+
+        sortedData.forEach((row, idx) => {
+            const value = row[selectedParam as keyof AQIHourlyData] as number | null | undefined
+
+            if (value !== null && value !== undefined && value === prevValue) {
+                consecutiveCount++
+            } else {
+                // Mark previous consecutive sequence if it meets threshold
+                if (consecutiveCount >= consecutiveEqualThreshold && prevValue !== null) {
+                    for (let i = startIdx; i < idx; i++) {
+                        // Find the original index in data array
+                        const originalIdx = data.findIndex(d => d.datetime === sortedData[i].datetime)
+                        if (originalIdx !== -1) indices.add(originalIdx)
+                    }
+                }
+                consecutiveCount = 1
+                startIdx = idx
+            }
+            prevValue = value !== null && value !== undefined ? value : null
+        })
+
+        // Check last sequence
+        if (consecutiveCount >= consecutiveEqualThreshold && prevValue !== null) {
+            for (let i = startIdx; i < sortedData.length; i++) {
+                const originalIdx = data.findIndex(d => d.datetime === sortedData[i].datetime)
+                if (originalIdx !== -1) indices.add(originalIdx)
+            }
+        }
+
+        return indices
+    }, [data, selectedParam, consecutiveEqualThreshold])
+
     // Count stats for filter badges
     const stats = useMemo(() => {
-        if (!data) return { measured: 0, imputed: 0, missing: 0, negative: 0 }
-        return data.reduce((acc, row) => {
+        if (!data) return { measured: 0, imputed: 0, missing: 0, negative: 0, stuck: 0 }
+        const result = data.reduce((acc, row, idx) => {
             const value = row[selectedParam as keyof AQIHourlyData] as number | null | undefined
             const isImputed = row.is_imputed || row[`${selectedParam}_imputed` as keyof AQIHourlyData]
             if (value === null || value === undefined) {
@@ -488,9 +537,14 @@ const DataTableView: React.FC<DataTableViewProps> = ({
             if (value !== null && value !== undefined && value < 0) {
                 acc.negative++
             }
+            // Count stuck values
+            if (stuckIndices.has(idx)) {
+                acc.stuck++
+            }
             return acc
-        }, { measured: 0, imputed: 0, missing: 0, negative: 0 })
-    }, [data, selectedParam])
+        }, { measured: 0, imputed: 0, missing: 0, negative: 0, stuck: 0 })
+        return result
+    }, [data, selectedParam, stuckIndices])
 
     // Calculate summary statistics for the current parameter
     const summaryStats = useMemo(() => {
@@ -667,14 +721,26 @@ const DataTableView: React.FC<DataTableViewProps> = ({
                                 <button
                                     onClick={() => setStatusFilter('negative')}
                                     className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${statusFilter === 'negative'
-                                        ? 'bg-red-600 text-white'
+                                        ? 'bg-cyan-600 text-white'
                                         : isLight
-                                            ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                                            : 'bg-red-900/30 text-red-400 hover:bg-red-900/50'
+                                            ? 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100'
+                                            : 'bg-cyan-900/30 text-cyan-400 hover:bg-cyan-900/50'
                                         }`}
                                 >
                                     <Icon name="remove_circle" size="xs" />
                                     {lang === 'th' ? 'ค่าติดลบ' : 'Negative'} ({stats.negative})
+                                </button>
+                                <button
+                                    onClick={() => setStatusFilter('stuck')}
+                                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${statusFilter === 'stuck'
+                                        ? 'bg-purple-600 text-white'
+                                        : isLight
+                                            ? 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                                            : 'bg-purple-900/30 text-purple-400 hover:bg-purple-900/50'
+                                        }`}
+                                >
+                                    <Icon name="pause" size="xs" />
+                                    {lang === 'th' ? 'ค่าคงที่' : 'Stuck'} ({stats.stuck})
                                 </button>
                             </div>
                         </div>
@@ -1652,6 +1718,7 @@ export default function Dashboard(): React.ReactElement {
                         onParamChange={setSelectedParam}
                         totalRecords={fullData?.total_records}
                         latestUpdate={latestData?.datetime}
+                        consecutiveEqualThreshold={consecutiveEqualThreshold}
                     />
                 )}
 
