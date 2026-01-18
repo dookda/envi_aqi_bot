@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 import httpx
 import pandas as pd
-from sqlalchemy import text
+from sqlalchemy import text, func, case
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 
@@ -485,7 +485,10 @@ class IngestionService:
         records: List[Dict]
     ) -> Tuple[int, int]:
         """
-        Save measurement records to database (upsert) with all Air4Thai parameters
+        Save measurement records to database (upsert) with all Air4Thai parameters.
+
+        IMPORTANT: Real data from API should ALWAYS overwrite imputed (gap-filled) data.
+        Only skip update if incoming data is NULL and existing data is real (non-imputed).
 
         Args:
             db: Database session
@@ -497,35 +500,82 @@ class IngestionService:
         if not records:
             return 0, 0
 
-        # Use PostgreSQL upsert
-        stmt = insert(AQIHourly).values(records)
+        # Filter out records with all NULL parameter values (no real data)
+        valid_records = []
+        for record in records:
+            # Check if at least one parameter has a real value
+            has_data = any(
+                record.get(param) is not None
+                for param in ['pm25', 'pm10', 'o3', 'co', 'no2', 'so2', 'nox',
+                              'ws', 'wd', 'temp', 'rh', 'bp', 'rain']
+            )
+            if has_data:
+                valid_records.append(record)
+
+        if not valid_records:
+            logger.bind(context="ingestion").debug(
+                "No valid records with data to save")
+            return 0, 0
+
+        # Use PostgreSQL upsert - ALWAYS overwrite imputed data with real data
+        # Use COALESCE to only update fields that have new non-NULL values
+        stmt = insert(AQIHourly).values(valid_records)
         stmt = stmt.on_conflict_do_update(
             index_elements=["station_id", "datetime"],
             set_={
-                # Pollutants
-                "pm25": stmt.excluded.pm25,
-                "pm10": stmt.excluded.pm10,
-                "o3": stmt.excluded.o3,
-                "co": stmt.excluded.co,
-                "no2": stmt.excluded.no2,
-                "so2": stmt.excluded.so2,
-                "nox": stmt.excluded.nox,
-                # Weather
-                "ws": stmt.excluded.ws,
-                "wd": stmt.excluded.wd,
-                "temp": stmt.excluded.temp,
-                "rh": stmt.excluded.rh,
-                "bp": stmt.excluded.bp,
-                "rain": stmt.excluded.rain,
-                # Don't overwrite imputed data with NULL
-                "is_imputed": AQIHourly.is_imputed,
+                # Pollutants - use new value if not NULL, otherwise keep existing
+                "pm25": func.coalesce(stmt.excluded.pm25, AQIHourly.pm25),
+                "pm10": func.coalesce(stmt.excluded.pm10, AQIHourly.pm10),
+                "o3": func.coalesce(stmt.excluded.o3, AQIHourly.o3),
+                "co": func.coalesce(stmt.excluded.co, AQIHourly.co),
+                "no2": func.coalesce(stmt.excluded.no2, AQIHourly.no2),
+                "so2": func.coalesce(stmt.excluded.so2, AQIHourly.so2),
+                "nox": func.coalesce(stmt.excluded.nox, AQIHourly.nox),
+                # Weather - use new value if not NULL, otherwise keep existing
+                "ws": func.coalesce(stmt.excluded.ws, AQIHourly.ws),
+                "wd": func.coalesce(stmt.excluded.wd, AQIHourly.wd),
+                "temp": func.coalesce(stmt.excluded.temp, AQIHourly.temp),
+                "rh": func.coalesce(stmt.excluded.rh, AQIHourly.rh),
+                "bp": func.coalesce(stmt.excluded.bp, AQIHourly.bp),
+                "rain": func.coalesce(stmt.excluded.rain, AQIHourly.rain),
+                # CRITICAL: Set is_imputed to FALSE when real data arrives
+                # This ensures real data always takes priority over gap-filled data
+                "is_imputed": False,
+                # Reset per-parameter imputation flags for parameters that got real data
+                "pm25_imputed": case(
+                    (stmt.excluded.pm25.isnot(None), False),
+                    else_=AQIHourly.pm25_imputed
+                ),
+                "pm10_imputed": case(
+                    (stmt.excluded.pm10.isnot(None), False),
+                    else_=AQIHourly.pm10_imputed
+                ),
+                "o3_imputed": case(
+                    (stmt.excluded.o3.isnot(None), False),
+                    else_=AQIHourly.o3_imputed
+                ),
+                "co_imputed": case(
+                    (stmt.excluded.co.isnot(None), False),
+                    else_=AQIHourly.co_imputed
+                ),
+                "no2_imputed": case(
+                    (stmt.excluded.no2.isnot(None), False),
+                    else_=AQIHourly.no2_imputed
+                ),
+                "so2_imputed": case(
+                    (stmt.excluded.so2.isnot(None), False),
+                    else_=AQIHourly.so2_imputed
+                ),
             },
-            # Only update non-imputed records
-            where=(AQIHourly.is_imputed == False)
         )
 
         result = db.execute(stmt)
-        return len(records), 0
+        db.commit()
+
+        logger.bind(context="ingestion").info(
+            f"Saved {len(valid_records)} records (real data overwrites imputed)"
+        )
+        return len(valid_records), 0
 
     def detect_missing_data(
         self,
