@@ -1735,10 +1735,11 @@ export default function Dashboard(): React.ReactElement {
             {showThresholdSettings && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowThresholdSettings(false)}>
                     <div
-                        className={`w-full max-w-md rounded-2xl shadow-xl ${isLight ? 'bg-white' : 'bg-dark-800'} p-6`}
+                        className={`w-full max-w-md max-h-[80vh] flex flex-col rounded-2xl shadow-xl ${isLight ? 'bg-white' : 'bg-dark-800'}`}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between mb-4">
+                        {/* Modal Header - Fixed */}
+                        <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-200 dark:border-dark-700">
                             <h3 className={`text-lg font-semibold flex items-center gap-2 ${isLight ? 'text-gray-800' : 'text-white'}`}>
                                 <Icon name="settings" />
                                 {lang === 'th' ? 'ตั้งค่าคุณภาพข้อมูล' : 'Data Quality Settings'}
@@ -1751,6 +1752,8 @@ export default function Dashboard(): React.ReactElement {
                             </button>
                         </div>
 
+                        {/* Modal Content - Scrollable */}
+                        <div className="flex-1 overflow-y-auto p-6 pt-4">
                         <p className={`text-sm mb-4 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
                             {lang === 'th'
                                 ? 'กำหนดเกณฑ์สำหรับตรวจจับข้อมูลที่ผิดปกติ'
@@ -1887,8 +1890,10 @@ export default function Dashboard(): React.ReactElement {
                                 </span>
                             </div>
                         </div>
+                        </div>
 
-                        <div className="flex gap-3 mt-6">
+                        {/* Modal Footer - Fixed */}
+                        <div className={`flex gap-3 p-6 pt-4 border-t ${isLight ? 'border-gray-200' : 'border-dark-700'}`}>
                             <button
                                 onClick={() => {
                                     setPollutantThresholds({

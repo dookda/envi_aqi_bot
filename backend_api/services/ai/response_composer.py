@@ -445,6 +445,7 @@ def compose_data_response(
     
     # Map pollutant to display name and unit
     pollutant_display = {
+        # Air quality pollutants
         "pm25": {"name": "PM2.5", "unit": "μg/m³"},
         "pm10": {"name": "PM10", "unit": "μg/m³"},
         "o3": {"name": "O₃", "unit": "ppb"},
@@ -452,6 +453,13 @@ def compose_data_response(
         "no2": {"name": "NO₂", "unit": "ppb"},
         "so2": {"name": "SO₂", "unit": "ppb"},
         "nox": {"name": "NOₓ", "unit": "ppb"},
+        # Weather parameters
+        "temp": {"name": "Temperature", "unit": "°C"},
+        "rh": {"name": "Humidity", "unit": "%"},
+        "ws": {"name": "Wind Speed", "unit": "m/s"},
+        "wd": {"name": "Wind Direction", "unit": "°"},
+        "bp": {"name": "Pressure", "unit": "mmHg"},
+        "rain": {"name": "Rainfall", "unit": "mm"},
     }
     
     pollutant_info = pollutant_display.get(pollutant, {"name": pollutant.upper(), "unit": ""})
@@ -517,32 +525,32 @@ def compose_data_response(
     warning_prefix = f"{threshold_warning}\n\n{'─' * 40}\n\n" if threshold_warning else ""
 
     if language == "th":
-        message_title = f"📑 **รายงานสรุปผู้บริหาร: สถานี {display_name}**" if is_report else f"📊 **ข้อมูล PM2.5 สถานี {display_name}**"
-        
+        message_title = f"📑 **รายงานสรุปผู้บริหาร: สถานี {display_name}**" if is_report else f"📊 **ข้อมูล {pollutant_name} สถานี {display_name}**"
+
         message = (
             f"{warning_prefix}"
             f"{message_title}\n\n"
             f"{level_config.get('emoji', '')} **ระดับคุณภาพอากาศ:** {level_config.get('label_th', 'ไม่ทราบ')}\n\n"
             f"📈 **สถิติช่วงเวลาที่เลือก:**\n"
-            f"• ค่าเฉลี่ย: **{summary.get('mean', 'N/A')}** μg/m³\n"
-            f"• ค่าต่ำสุด: {summary.get('min', 'N/A')} μg/m³\n"
-            f"• ค่าสูงสุด: {summary.get('max', 'N/A')} μg/m³\n"
+            f"• ค่าเฉลี่ย: **{summary.get('mean', 'N/A')}** {pollutant_unit}\n"
+            f"• ค่าต่ำสุด: {summary.get('min', 'N/A')} {pollutant_unit}\n"
+            f"• ค่าสูงสุด: {summary.get('max', 'N/A')} {pollutant_unit}\n"
             f"• แนวโน้ม: {trend_desc}\n\n"
             f"🏥 **คำแนะนำสุขภาพ:**\n{level_config.get('advice_th', 'ไม่มีข้อมูล')}\n\n"
             f"😷 **สำหรับกลุ่มเสี่ยง:**\n{level_config.get('sensitive_advice_th', 'ไม่มีข้อมูล')}"
             f"{policy_recs_th if is_report or exceeds_standard else ''}"
         )
     else:
-        message_title = f"📑 **Executive Summary: {display_name}**" if is_report else f"📊 **PM2.5 Data for {display_name}**"
+        message_title = f"📑 **Executive Summary: {display_name}**" if is_report else f"📊 **{pollutant_name} Data for {display_name}**"
 
         message = (
             f"{warning_prefix}"
             f"{message_title}\n\n"
             f"{level_config.get('emoji', '')} **Air Quality Level:** {level_config.get('label_en', 'Unknown')}\n\n"
             f"📈 **Statistics for Selected Period:**\n"
-            f"• Average: **{summary.get('mean', 'N/A')}** μg/m³\n"
-            f"• Minimum: {summary.get('min', 'N/A')} μg/m³\n"
-            f"• Maximum: {summary.get('max', 'N/A')} μg/m³\n"
+            f"• Average: **{summary.get('mean', 'N/A')}** {pollutant_unit}\n"
+            f"• Minimum: {summary.get('min', 'N/A')} {pollutant_unit}\n"
+            f"• Maximum: {summary.get('max', 'N/A')} {pollutant_unit}\n"
             f"• Trend: {trend_desc}\n\n"
             f"🏥 **Health Advice:**\n{level_config.get('advice_en', 'N/A')}\n\n"
             f"😷 **For Sensitive Groups:**\n{level_config.get('sensitive_advice_en', 'N/A')}"
