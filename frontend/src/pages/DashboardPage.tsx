@@ -882,11 +882,25 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
     isLight,
     lang
 }) => {
-    // Group data by year and month
+    const [hoveredDay, setHoveredDay] = useState<{ date: string; percentage: number; count: number; x: number; y: number } | null>(null)
+
+    // Group data by year and month - keep individual days instead of averaging by day of week
     const groupedData = useMemo(() => {
         if (!data.length) return []
 
-        const groups: { year: number; month: string; monthNum: number; days: Array<{ dayName: string; percentage: number; date: string; count: number }> }[] = []
+        const groups: {
+            year: number;
+            month: string;
+            monthNum: number;
+            days: Array<{
+                dayName: string;
+                dayNum: number;
+                percentage: number;
+                date: string;
+                displayDate: string;
+                count: number
+            }>
+        }[] = []
 
         // Group by year-month
         const yearMonthMap = new Map<string, typeof data>()
@@ -916,29 +930,22 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
             const monthNum = parseInt(monthStr) - 1
             const monthData = yearMonthMap.get(key)!
 
-            // Group by day of week and calculate average
-            const dayOfWeekData = new Map<number, { total: number; count: number; dates: string[]; counts: number[] }>()
+            // Sort by date and create individual day entries
+            const sortedMonthData = [...monthData].sort((a, b) =>
+                new Date(a.date).getTime() - new Date(b.date).getTime()
+            )
 
-            monthData.forEach(d => {
+            const days = sortedMonthData.map(d => {
                 const date = new Date(d.date)
                 const dow = date.getDay()
-                if (!dayOfWeekData.has(dow)) {
-                    dayOfWeekData.set(dow, { total: 0, count: 0, dates: [], counts: [] })
-                }
-                const entry = dayOfWeekData.get(dow)!
-                entry.total += d.percentage
-                entry.count += 1
-                entry.dates.push(d.date)
-                entry.counts.push(d.count)
-            })
-
-            const days = dayNames.map((name, idx) => {
-                const dayData = dayOfWeekData.get(idx)
+                const dayNum = date.getDate()
                 return {
-                    dayName: name,
-                    percentage: dayData ? dayData.total / dayData.count : 0,
-                    date: dayData?.dates[0] || '',
-                    count: dayData ? Math.round(dayData.counts.reduce((a, b) => a + b, 0) / dayData.counts.length) : 0
+                    dayName: dayNames[dow],
+                    dayNum,
+                    percentage: d.percentage,
+                    date: d.date,
+                    displayDate: d.displayDate,
+                    count: d.count
                 }
             })
 
@@ -952,6 +959,21 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
 
         return groups
     }, [data, lang])
+
+    const handleMouseEnter = (day: typeof groupedData[0]['days'][0], event: React.MouseEvent) => {
+        const rect = event.currentTarget.getBoundingClientRect()
+        setHoveredDay({
+            date: day.displayDate || day.date,
+            percentage: day.percentage,
+            count: day.count,
+            x: rect.left + rect.width / 2,
+            y: rect.top - 10
+        })
+    }
+
+    const handleMouseLeave = () => {
+        setHoveredDay(null)
+    }
 
     return (
         <div className="h-full flex flex-col">
@@ -978,7 +1000,7 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
             </div>
 
             {/* Chart Content with Scroll */}
-            <div className="flex-1 overflow-y-auto p-3 min-h-0">
+            <div className="flex-1 overflow-y-auto p-3 min-h-0 relative">
                 {loading ? (
                     <div className="flex items-center justify-center h-full">
                         <Spinner size="lg" />
@@ -1007,10 +1029,16 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
                                 {/* Day bars */}
                                 <div className="space-y-1">
                                     {group.days.map((day, dayIdx) => (
-                                        <div key={dayIdx} className="flex items-center gap-2">
-                                            {/* Day name */}
-                                            <div className={`w-8 text-xs text-right ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                                {day.dayName}
+                                        <div
+                                            key={dayIdx}
+                                            className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/50 rounded px-1 -mx-1 transition-colors"
+                                            onMouseEnter={(e) => handleMouseEnter(day, e)}
+                                            onMouseLeave={handleMouseLeave}
+                                        >
+                                            {/* Day name and date */}
+                                            <div className={`w-16 text-xs text-right flex items-center justify-end gap-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                                <span className="font-medium">{day.dayNum}</span>
+                                                <span className="text-gray-400 dark:text-dark-500">{day.dayName}</span>
                                             </div>
 
                                             {/* Bar container with gray background */}
@@ -1035,7 +1063,7 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
                                                 className="w-12 text-xs text-right font-medium"
                                                 style={{ color: day.percentage > 0 ? getCompletenessColor(day.percentage) : (isLight ? '#9ca3af' : '#6b7280') }}
                                             >
-                                                {day.percentage > 0 ? `${day.percentage.toFixed(0)}%` : '-'}
+                                                {day.percentage > 0 ? `${day.percentage.toFixed(0)}%` : '-'}}
                                             </div>
                                         </div>
                                     ))}
@@ -1069,6 +1097,43 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
                         <div className="w-2 h-2 rounded" style={{ backgroundColor: '#ef4444' }} />
                         <span>&lt;50%</span>
                     </div>
+                </div>
+            )}
+
+            {/* Hover Tooltip */}
+            {hoveredDay && (
+                <div
+                    className={`fixed z-50 px-3 py-2 rounded-lg shadow-lg text-xs pointer-events-none transform -translate-x-1/2 -translate-y-full ${isLight ? 'bg-white border border-gray-200' : 'bg-dark-700 border border-dark-600'
+                        }`}
+                    style={{
+                        left: hoveredDay.x,
+                        top: hoveredDay.y - 8
+                    }}
+                >
+                    <div className={`font-semibold mb-1 ${isLight ? 'text-gray-800' : 'text-white'}`}>
+                        {hoveredDay.date}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className={isLight ? 'text-gray-500' : 'text-dark-400'}>
+                            {lang === 'th' ? 'ข้อมูล:' : 'Data:'}
+                        </span>
+                        <span className="font-medium" style={{ color: getCompletenessColor(hoveredDay.percentage) }}>
+                            {hoveredDay.count}/24 {lang === 'th' ? 'ชม.' : 'hrs'}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className={isLight ? 'text-gray-500' : 'text-dark-400'}>
+                            {lang === 'th' ? 'ความสมบูรณ์:' : 'Completeness:'}
+                        </span>
+                        <span className="font-bold" style={{ color: getCompletenessColor(hoveredDay.percentage) }}>
+                            {hoveredDay.percentage.toFixed(1)}%
+                        </span>
+                    </div>
+                    {/* Arrow */}
+                    <div
+                        className={`absolute left-1/2 -translate-x-1/2 -bottom-1 w-2 h-2 rotate-45 ${isLight ? 'bg-white border-r border-b border-gray-200' : 'bg-dark-700 border-r border-b border-dark-600'
+                            }`}
+                    />
                 </div>
             )}
         </div>
