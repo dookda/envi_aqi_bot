@@ -327,7 +327,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                     negativeData.push({
                         value: [time, value],
                         itemStyle: {
-                            color: '#dc2626',
+                            color: '#06b6d4',
                             borderColor: '#fff',
                             borderWidth: 2,
                         },
@@ -465,13 +465,13 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                 symbolSize: 14,
                 z: 20,
                 itemStyle: {
-                    color: '#dc2626'
+                    color: '#06b6d4'
                 },
                 emphasis: {
                     scale: 1.5,
                     itemStyle: {
                         shadowBlur: 10,
-                        shadowColor: 'rgba(220, 38, 38, 0.5)',
+                        shadowColor: 'rgba(6, 182, 212, 0.5)',
                     },
                 },
             })
@@ -546,7 +546,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                                 content += `Value: <strong>${param.value[1].toFixed(2)} ${paramConfig.unit}</strong><br/>`
                                 content += `<span style="color:${subTextColor}">Previous: ${param.data.spike.prevValue.toFixed(2)} ${paramConfig.unit}</span><br/>`
                             } else if (isNegative && param.data.negative) {
-                                content += `<span style="color:#dc2626">⚠ Negative Value</span><br/>`
+                                content += `<span style="color:#06b6d4">⚠ Negative Value</span><br/>`
                                 content += `Value: <strong>${param.value[1].toFixed(2)} ${paramConfig.unit}</strong><br/>`
                             } else if (isConsecutive && param.data.consecutive) {
                                 content += `<span style="color:#8b5cf6">⚠ Stuck Value (${param.data.consecutive.count}x repeated)</span><br/>`
@@ -696,9 +696,9 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                                 type="checkbox"
                                 checked={showNegative}
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowNegative(e.target.checked)}
-                                className="w-4 h-4 rounded accent-red-600"
+                                className="w-4 h-4 rounded accent-cyan-500"
                             />
-                            <Icon name="remove_circle" size="sm" style={{ color: '#dc2626' }} />
+                            <Icon name="remove_circle" size="sm" style={{ color: '#06b6d4' }} />
                             <span className="text-sm">{lang === 'th' ? 'ค่าติดลบ' : 'Negative'}</span>
                         </label>
 
