@@ -80,6 +80,21 @@ class AirQualityChatbotService:
             # "สถานีใดบ้างที่มีข้อมูล x" or "สถานีที่มี x"
             (r"สถานี(?:ใด|ไหน)?(?:บ้าง)?(?:ที่)?(?:มี)?\s*(?:ข้อมูล)?\s*" + self._pollutant_pattern +
              r"\s*(?:ล่าสุด|ใน|ที่)?\s*(.+)?", self._make_station_search_by_param_intent),
+
+            # === INCOMPLETE QUERY PATTERNS - Ask for clarification ===
+            # Pollutant only (no location): "pm2.5", "ค่าฝุ่น", "o3" etc.
+            (r"^(?:ค่า\s*)?" + self._pollutant_pattern +
+             r"(?:\s*(?:ขณะนี้|ในขณะนี้|ในตอนนี้|ตอนนี้|now|วันนี้|today|ย้อนหลัง))?$", self._ask_for_location),
+            # Location only with time keywords (no parameter): "เชียงใหม่ วันนี้", "กรุงเทพ ขณะนี้"
+            (r"^(.+?)\s+(?:วันนี้|today|ขณะนี้|ในขณะนี้|ในตอนนี้|ตอนนี้|now|ย้อนหลัง|ที่ผ่านมา)$",
+             self._ask_for_parameter),
+            # Just time keywords: "วันนี้", "ขณะนี้", "ย้อนหลัง 7 วัน"
+            (r"^(?:วันนี้|today|ขณะนี้|ในขณะนี้|ในตอนนี้|ตอนนี้|now|ย้อนหลัง|ที่ผ่านมา)\s*(\d+)?\s*(?:วัน|day|สัปดาห์|week)?$",
+             self._ask_for_location_and_parameter),
+            # "กราฟ" or "chart" alone
+            (r"^(?:กราฟ|chart|แผนภูมิ)$", self._ask_for_chart_details),
+            # "ข้อมูล" alone
+            (r"^(?:ข้อมูล|data|ดูข้อมูล)$", self._ask_for_data_details),
         ]
 
     def _make_today_intent(self, match) -> Dict[str, Any]:
@@ -386,6 +401,62 @@ class AirQualityChatbotService:
             "search_query": search_query,
             "pollutant_filter": pollutant,
             "output_type": "text"
+        }
+
+    # === CLARIFICATION HELPER FUNCTIONS ===
+
+    def _ask_for_location(self, match) -> Dict[str, Any]:
+        """Ask user to specify location when only pollutant is provided"""
+        from .guardrails import normalize_pollutant
+
+        pollutant_raw = match.group(1).strip() if match.group(1) else "PM2.5"
+        pollutant = normalize_pollutant(pollutant_raw) or "pm25"
+
+        # Format pollutant name for display
+        pollutant_display = {
+            "pm25": "PM2.5", "pm10": "PM10", "o3": "O₃", "co": "CO",
+            "no2": "NO₂", "so2": "SO₂", "nox": "NOₓ", "temp": "อุณหภูมิ",
+            "rh": "ความชื้น", "ws": "ความเร็วลม"
+        }.get(pollutant, pollutant_raw.upper())
+
+        return {
+            "intent_type": "needs_clarification",
+            "missing_info": "location",
+            "clarification_question": f"กรุณาระบุสถานีหรือจังหวัดที่ต้องการดูค่า {pollutant_display}\n\nตัวอย่าง:\n• '{pollutant_raw} เชียงใหม่ ขณะนี้'\n• '{pollutant_raw} กรุงเทพ ย้อนหลัง 7 วัน'\n• 'กราฟ {pollutant_raw} ลำปาง'"
+        }
+
+    def _ask_for_parameter(self, match) -> Dict[str, Any]:
+        """Ask user to specify parameter when only location and time is provided"""
+        location = match.group(1).strip() if match.group(1) else ""
+
+        return {
+            "intent_type": "needs_clarification",
+            "missing_info": "parameter",
+            "clarification_question": f"ต้องการดูข้อมูลอะไรที่ {location}?\n\nพารามิเตอร์ที่รองรับ:\n• PM2.5, PM10 (ฝุ่นละออง)\n• O3 (โอโซน)\n• CO, NO2, SO2, NOx (ก๊าซมลพิษ)\n• temp (อุณหภูมิ), rh (ความชื้น)\n\nตัวอย่าง:\n• 'pm2.5 {location} ขณะนี้'\n• 'o3 {location} วันนี้'"
+        }
+
+    def _ask_for_location_and_parameter(self, match) -> Dict[str, Any]:
+        """Ask user to specify both location and parameter when only time is provided"""
+        return {
+            "intent_type": "needs_clarification",
+            "missing_info": "location and parameter",
+            "clarification_question": "กรุณาระบุพารามิเตอร์และสถานที่ที่ต้องการดูข้อมูล\n\nตัวอย่าง:\n• 'pm2.5 เชียงใหม่ ขณะนี้'\n• 'o3 กรุงเทพ ย้อนหลัง 7 วัน'\n• 'กราฟ pm10 ลำปาง'\n• 'ค้นหาสถานี ภูเก็ต'"
+        }
+
+    def _ask_for_chart_details(self, match) -> Dict[str, Any]:
+        """Ask user to specify details for chart request"""
+        return {
+            "intent_type": "needs_clarification",
+            "missing_info": "chart details (parameter, location, time)",
+            "clarification_question": "ต้องการดูกราฟอะไร? กรุณาระบุพารามิเตอร์ สถานที่ และช่วงเวลา\n\nตัวอย่าง:\n• 'กราฟ pm2.5 เชียงใหม่ ย้อนหลัง 7 วัน'\n• 'chart o3 Bangkok last week'\n• 'กราฟ co ลำปาง ที่ผ่านมา 30 วัน'"
+        }
+
+    def _ask_for_data_details(self, match) -> Dict[str, Any]:
+        """Ask user to specify what data they want"""
+        return {
+            "intent_type": "needs_clarification",
+            "missing_info": "data details (parameter, location)",
+            "clarification_question": "ต้องการดูข้อมูลอะไร? กรุณาระบุพารามิเตอร์และสถานที่\n\nตัวอย่าง:\n• 'pm2.5 เชียงใหม่ ขณะนี้' - ดูค่าปัจจุบัน\n• 'กราฟ o3 กรุงเทพ ย้อนหลัง 7 วัน' - ดูกราฟ\n• 'ค้นหาสถานี ภูเก็ต' - ค้นหาสถานีตรวจวัด"
         }
 
     def _get_cache_key(self, query: str) -> str:
