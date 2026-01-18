@@ -1735,6 +1735,36 @@ export default function Dashboard(): React.ReactElement {
                             {lang === 'th' ? 'เกณฑ์ค่าติดลบ' : 'Negative Value Thresholds'}
                         </h4>
                         <div className="space-y-3">
+                            {/* PM2.5 - Primary pollutant (always first) */}
+                            <div className={`flex items-center gap-3 p-3 rounded-lg border-2 ${isLight ? 'bg-blue-50 border-blue-200' : 'bg-blue-900/20 border-blue-500/30'}`}>
+                                <Icon name="blur_on" style={{ color: '#3b82f6' }} />
+                                <div className="flex-1">
+                                    <p className={`text-sm font-medium ${isLight ? 'text-blue-700' : 'text-blue-300'}`}>
+                                        PM2.5
+                                    </p>
+                                    <p className={`text-xs ${isLight ? 'text-blue-500' : 'text-blue-400'}`}>
+                                        µg/m³
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className={`text-xs ${isLight ? 'text-blue-500' : 'text-blue-400'}`}>&lt;</span>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        value={pollutantThresholds['pm25'] ?? -3}
+                                        onChange={(e) => setPollutantThresholds(prev => ({
+                                            ...prev,
+                                            pm25: parseFloat(e.target.value) || 0
+                                        }))}
+                                        className={`w-20 px-2 py-1 text-sm rounded-lg border text-center ${isLight
+                                            ? 'bg-white border-blue-200 text-blue-800 focus:border-blue-500'
+                                            : 'bg-dark-600 border-blue-500 text-white focus:border-blue-400'
+                                            } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Other pollutants */}
                             {Object.entries(POLLUTANT_CONFIG).map(([key, config]) => (
                                 <div key={key} className={`flex items-center gap-3 p-3 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-dark-700/50'}`}>
                                     <Icon name={config.icon} style={{ color: config.color }} />

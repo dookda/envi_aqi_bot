@@ -694,7 +694,7 @@ const ExecutiveSummaryPage: React.FC = () => {
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 <div>
                     <h1 className={`text-2xl font-bold ${isLight ? 'text-gray-900' : 'text-white'}`}>
-                        {lang === 'th' ? 'สรุปภาพรวมผู้บริหาร' : 'Executive Summary'}
+                        {lang === 'th' ? 'บทสรุปสำหรับผู้บริหาร' : 'Executive Summary'}
                     </h1>
                     <p className={`mt-1 ${isLight ? 'text-gray-500' : 'text-gray-400'}`}>
                         {currentDate}
