@@ -624,7 +624,7 @@ class IngestionService:
             Ingestion result summary
         """
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=min(days, 30))
+        start_date = end_date - timedelta(days=min(days, 90))
 
         with get_db_context() as db:
             # Create ingestion log
@@ -751,16 +751,16 @@ class IngestionService:
         import time
         start_time = time.time()
 
-        # Fetch last 24 hours of data
+        # Fetch last 2 hours of data (with overlap for safety)
         end_date = datetime.now()
-        start_date = end_date - timedelta(hours=24)
+        start_date = end_date - timedelta(hours=2)
 
         with get_db_context() as db:
             station_ids = [s.station_id for s in db.query(Station).all()]
 
         if not station_ids:
             # No stations yet, do a full initial load
-            return await self.ingest_all_stations(days=30)
+            return await self.ingest_all_stations(days=90)
 
         logger.bind(context="ingestion").info(
             f"Starting PARALLEL hourly update for {len(station_ids)} stations "

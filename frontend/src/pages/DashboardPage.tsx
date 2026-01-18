@@ -1642,6 +1642,7 @@ export default function Dashboard(): React.ReactElement {
                             loading={fullDataLoading}
                             onSettingsClick={() => setShowThresholdSettings(true)}
                             spikeMultiplier={spikeMultiplier}
+                            negativeThreshold={pollutantThresholds[selectedParam] ?? (selectedParam === 'co' ? -0.3 : -3)}
                         />
 
                         {/* AI Insights Panel */}

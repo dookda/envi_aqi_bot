@@ -368,29 +368,7 @@ const StationMap: React.FC<StationMapProps> = ({
         style={{ width: '100%', height, opacity: mapLoaded ? 1 : 0, transition: 'opacity 0.5s' }}
       />
 
-      {/* Show Anomalies Checkbox - Top Left */}
-      {mapLoaded && onShowAnomaliesChange && (
-        <div
-          className={`absolute top-3 left-3 z-10 px-3 py-2 rounded-lg shadow-lg backdrop-blur-sm ${isLight
-            ? 'bg-white/90 border border-gray-200'
-            : 'bg-dark-800/90 border border-white/10'
-            }`}
-        >
-          <label className={`flex items-center gap-2 text-sm cursor-pointer select-none ${isLight ? 'text-gray-700' : 'text-dark-200'
-            }`}>
-            <input
-              type="checkbox"
-              checked={showAnomalies}
-              onChange={(e) => onShowAnomaliesChange(e.target.checked)}
-              className={`w-4 h-4 rounded cursor-pointer ${isLight
-                ? 'accent-primary-500'
-                : 'accent-primary-400 border-dark-500'
-                }`}
-            />
-            <span className="font-medium">{t('dashboard.showAnomalies')}</span>
-          </label>
-        </div>
-      )}
+
 
       {/* Loading Overlay */}
       {!mapLoaded && (

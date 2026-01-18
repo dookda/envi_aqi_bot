@@ -53,6 +53,7 @@ interface MultiParameterChartProps {
     loading?: boolean
     onSettingsClick?: () => void
     spikeMultiplier?: number  // Default: 5 (spike = value >= prevValue * multiplier)
+    negativeThreshold?: number  // Threshold below which values are considered invalid negative
 }
 
 interface SpikeData {
@@ -112,6 +113,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
     loading: externalLoading = false,
     onSettingsClick,
     spikeMultiplier = 5,  // Default: spike if value >= 5x previous value
+    negativeThreshold = -3,  // Default: values below -3 are considered invalid
 }) => {
     const { lang } = useLanguage()
     const { isLight } = useTheme()
@@ -221,8 +223,8 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                 // Only detect spike if we have a valid previous value > 0
                 const isSpike = prevValue !== null && prevValue > 0 && value >= prevValue * spikeMultiplier
 
-                // Check for negative value
-                const isNegative = value < 0
+                // Check for negative value using threshold from settings
+                const isNegative = value < negativeThreshold
 
                 if (isImputed) {
                     imputedData.push([time, value])
@@ -285,7 +287,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                 totalPoints
             }
         }
-    }, [data, selectedParam])
+    }, [data, selectedParam, spikeMultiplier, negativeThreshold])
 
     // Initialize and update chart
     useEffect(() => {
