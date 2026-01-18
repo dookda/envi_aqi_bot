@@ -368,6 +368,50 @@ const DataTableView: React.FC<DataTableViewProps> = ({
 
     const currentStation = stations.find(s => s.station_id === selectedStation)
 
+    // Detect stuck values (consecutive equal values) - must be defined before filteredData
+    const stuckIndices = useMemo(() => {
+        if (!data || data.length === 0) return new Set<number>()
+
+        const indices = new Set<number>()
+        const sortedData = [...data].sort((a, b) =>
+            new Date(a.datetime).getTime() - new Date(b.datetime).getTime()
+        )
+
+        let consecutiveCount = 1
+        let prevValue: number | null = null
+        let startIdx = 0
+
+        sortedData.forEach((row, idx) => {
+            const value = row[selectedParam as keyof AQIHourlyData] as number | null | undefined
+
+            if (value !== null && value !== undefined && value === prevValue) {
+                consecutiveCount++
+            } else {
+                // Mark previous consecutive sequence if it meets threshold
+                if (consecutiveCount >= consecutiveEqualThreshold && prevValue !== null) {
+                    for (let i = startIdx; i < idx; i++) {
+                        // Find the original index in data array
+                        const originalIdx = data.findIndex(d => d.datetime === sortedData[i].datetime)
+                        if (originalIdx !== -1) indices.add(originalIdx)
+                    }
+                }
+                consecutiveCount = 1
+                startIdx = idx
+            }
+            prevValue = value !== null && value !== undefined ? value : null
+        })
+
+        // Check last sequence
+        if (consecutiveCount >= consecutiveEqualThreshold && prevValue !== null) {
+            for (let i = startIdx; i < sortedData.length; i++) {
+                const originalIdx = data.findIndex(d => d.datetime === sortedData[i].datetime)
+                if (originalIdx !== -1) indices.add(originalIdx)
+            }
+        }
+
+        return indices
+    }, [data, selectedParam, consecutiveEqualThreshold])
+
     // Filter data based on date range and status
     const filteredData = useMemo(() => {
         if (!data) return []
@@ -475,50 +519,6 @@ const DataTableView: React.FC<DataTableViewProps> = ({
             render: (row) => row.model_version ? `Model: ${row.model_version}` : '—'
         }
     ]
-
-    // Detect stuck values (consecutive equal values)
-    const stuckIndices = useMemo(() => {
-        if (!data || data.length === 0) return new Set<number>()
-
-        const indices = new Set<number>()
-        const sortedData = [...data].sort((a, b) =>
-            new Date(a.datetime).getTime() - new Date(b.datetime).getTime()
-        )
-
-        let consecutiveCount = 1
-        let prevValue: number | null = null
-        let startIdx = 0
-
-        sortedData.forEach((row, idx) => {
-            const value = row[selectedParam as keyof AQIHourlyData] as number | null | undefined
-
-            if (value !== null && value !== undefined && value === prevValue) {
-                consecutiveCount++
-            } else {
-                // Mark previous consecutive sequence if it meets threshold
-                if (consecutiveCount >= consecutiveEqualThreshold && prevValue !== null) {
-                    for (let i = startIdx; i < idx; i++) {
-                        // Find the original index in data array
-                        const originalIdx = data.findIndex(d => d.datetime === sortedData[i].datetime)
-                        if (originalIdx !== -1) indices.add(originalIdx)
-                    }
-                }
-                consecutiveCount = 1
-                startIdx = idx
-            }
-            prevValue = value !== null && value !== undefined ? value : null
-        })
-
-        // Check last sequence
-        if (consecutiveCount >= consecutiveEqualThreshold && prevValue !== null) {
-            for (let i = startIdx; i < sortedData.length; i++) {
-                const originalIdx = data.findIndex(d => d.datetime === sortedData[i].datetime)
-                if (originalIdx !== -1) indices.add(originalIdx)
-            }
-        }
-
-        return indices
-    }, [data, selectedParam, consecutiveEqualThreshold])
 
     // Count stats for filter badges
     const stats = useMemo(() => {
