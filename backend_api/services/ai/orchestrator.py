@@ -15,6 +15,7 @@ from backend_model.models import Station
 from sqlalchemy import text, or_
 from .place_matcher import get_place_matcher, match_place_name
 from .region_matcher import get_region_matcher, match_region, is_region_query
+from .guardrails import normalize_pollutant
 
 
 class APIOrchestrator:
@@ -95,11 +96,12 @@ class APIOrchestrator:
             start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
             end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
             
-            # Validate pollutant - map to column name
+            # Normalize and validate pollutant - map to column name
+            normalized_pollutant = normalize_pollutant(pollutant) or pollutant.lower()
             valid_pollutants = {
                 # Air quality pollutants
                 "pm25": "pm25",
-                "pm10": "pm10", 
+                "pm10": "pm10",
                 "o3": "o3",
                 "co": "co",
                 "no2": "no2",
@@ -114,8 +116,8 @@ class APIOrchestrator:
                 "bp": "bp",
                 "rain": "rain",
             }
-            
-            column_name = valid_pollutants.get(pollutant.lower(), "pm25")
+
+            column_name = valid_pollutants.get(normalized_pollutant, "pm25")
             logger.info(f"Querying {column_name} for station {station_id}")
 
             with get_db_context() as db:
@@ -241,6 +243,33 @@ class APIOrchestrator:
         except Exception as e:
             logger.error(f"Error resolving station: {e}")
             return None
+
+    def get_station_name(self, station_id: str, prefer_thai: bool = True) -> Optional[str]:
+        """
+        Get station name (Thai or English) from station_id
+        
+        Args:
+            station_id: Station identifier
+            prefer_thai: If True, return Thai name first, else English
+            
+        Returns:
+            Station name or None if not found
+        """
+        try:
+            with get_db_context() as db:
+                station = db.query(Station).filter(
+                    Station.station_id == station_id
+                ).first()
+                
+                if station:
+                    if prefer_thai:
+                        return station.name_th or station.name_en or station_id
+                    else:
+                        return station.name_en or station.name_th or station_id
+                return station_id
+        except Exception as e:
+            logger.error(f"Error getting station name: {e}")
+            return station_id
 
     def get_all_stations(self) -> List[Dict[str, Any]]:
         """

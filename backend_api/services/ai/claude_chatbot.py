@@ -230,6 +230,9 @@ class ClaudeChatbotService:
             }
 
         intent["station_id"] = resolved_station_id
+        
+        # Get Thai station name for display
+        station_name = self.orchestrator.get_station_name(resolved_station_id, prefer_thai=True)
 
         data = await self.orchestrator.get_aqi_history(
             station_id=intent["station_id"],
@@ -250,6 +253,8 @@ class ClaudeChatbotService:
             }
 
         summary = self._compose_summary(data, intent)
+        # Add station name to summary for display
+        summary["station_name"] = station_name
 
         return {
             "status": "success",

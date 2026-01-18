@@ -54,6 +54,7 @@ interface MultiParameterChartProps {
     onSettingsClick?: () => void
     spikeMultiplier?: number  // Default: 5 (spike = value >= prevValue * multiplier)
     negativeThreshold?: number  // Threshold below which values are considered invalid negative
+    consecutiveEqualThreshold?: number  // Default: 3 (detect X consecutive equal values)
 }
 
 interface SpikeData {
@@ -82,6 +83,19 @@ interface NegativeData {
     }
 }
 
+interface ConsecutiveEqualData {
+    value: [string, number]
+    itemStyle: {
+        color: string
+        borderColor: string
+        borderWidth: number
+    }
+    consecutive: {
+        value: number
+        count: number
+    }
+}
+
 interface ChartStats {
     mean: number
     stdDev: number
@@ -90,6 +104,7 @@ interface ChartStats {
     missingCount: number
     anomalyCount: number
     negativeCount: number
+    consecutiveEqualCount: number
     totalPoints: number
 }
 
@@ -98,6 +113,7 @@ interface ProcessedChartData {
     imputedData: Array<[string, number | null]>
     spikeData: SpikeData[]
     negativeData: NegativeData[]
+    consecutiveEqualData: ConsecutiveEqualData[]
     gapAreas: Array<[{ xAxis: string; itemStyle?: { color: string } }, { xAxis: string }]>
     stats: ChartStats
 }
@@ -114,6 +130,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
     onSettingsClick,
     spikeMultiplier = 5,  // Default: spike if value >= 5x previous value
     negativeThreshold = -3,  // Default: values below -3 are considered invalid
+    consecutiveEqualThreshold = 3,  // Default: detect 3+ consecutive equal values
 }) => {
     const { lang } = useLanguage()
     const { isLight } = useTheme()
@@ -126,6 +143,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
     const [showGapFill, setShowGapFill] = useState<boolean>(true)
     const [showSpikes, setShowSpikes] = useState<boolean>(true)
     const [showNegative, setShowNegative] = useState<boolean>(true)
+    const [showConsecutiveEqual, setShowConsecutiveEqual] = useState<boolean>(true)
 
     // Use external state if provided, otherwise internal
     const selectedParam = externalSelectedParam || internalSelectedParam
@@ -200,12 +218,16 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
         const imputedData: Array<[string, number | null]> = []
         const spikeData: SpikeData[] = []
         const negativeData: NegativeData[] = []
+        const consecutiveEqualData: ConsecutiveEqualData[] = []
         const gapAreas: Array<[{ xAxis: string; itemStyle?: { color: string } }, { xAxis: string }]> = []
 
         let gapStart: string | null = null
         let prevValue: number | null = null  // Track previous value for spike detection
+        let consecutiveCount = 1  // Track consecutive equal values
+        let consecutiveValue: number | null = null  // Track the value being repeated
+        const consecutivePoints: Array<{ time: string; value: number }> = []  // Track points in current sequence
 
-        sortedData.forEach((d) => {
+        sortedData.forEach((d, index) => {
             const time = d.datetime
             const value = d[selectedParam as keyof AQIHourlyData] as number | null | undefined
             const isImputed = (d[imputedField] as boolean) || d.is_imputed || false
@@ -213,6 +235,27 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
             // Detect gaps (null values)
             if (value === null || value === undefined) {
                 if (!gapStart) gapStart = time
+                // Reset consecutive tracking on gap
+                if (consecutiveCount >= consecutiveEqualThreshold && consecutiveValue !== null) {
+                    // Mark all points in the sequence as consecutive equal
+                    consecutivePoints.forEach(pt => {
+                        consecutiveEqualData.push({
+                            value: [pt.time, pt.value],
+                            itemStyle: {
+                                color: '#f59e0b',  // Amber/orange color
+                                borderColor: '#fff',
+                                borderWidth: 2,
+                            },
+                            consecutive: {
+                                value: pt.value,
+                                count: consecutiveCount,
+                            }
+                        })
+                    })
+                }
+                consecutiveCount = 1
+                consecutiveValue = null
+                consecutivePoints.length = 0
             } else {
                 if (gapStart) {
                     gapAreas.push([{ xAxis: gapStart }, { xAxis: time }])
@@ -225,6 +268,35 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
 
                 // Check for negative value using threshold from settings
                 const isNegative = value < negativeThreshold
+
+                // Track consecutive equal values
+                if (consecutiveValue !== null && value === consecutiveValue) {
+                    consecutiveCount++
+                    consecutivePoints.push({ time, value })
+                } else {
+                    // Value changed - check if previous sequence met threshold
+                    if (consecutiveCount >= consecutiveEqualThreshold && consecutiveValue !== null) {
+                        consecutivePoints.forEach(pt => {
+                            consecutiveEqualData.push({
+                                value: [pt.time, pt.value],
+                                itemStyle: {
+                                    color: '#f59e0b',  // Amber/orange color
+                                    borderColor: '#fff',
+                                    borderWidth: 2,
+                                },
+                                consecutive: {
+                                    value: pt.value,
+                                    count: consecutiveCount,
+                                }
+                            })
+                        })
+                    }
+                    // Start new sequence
+                    consecutiveCount = 1
+                    consecutiveValue = value
+                    consecutivePoints.length = 0
+                    consecutivePoints.push({ time, value })
+                }
 
                 if (isImputed) {
                     imputedData.push([time, value])
@@ -270,11 +342,30 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
             }
         })
 
+        // Check final sequence after loop ends
+        if (consecutiveCount >= consecutiveEqualThreshold && consecutiveValue !== null) {
+            consecutivePoints.forEach(pt => {
+                consecutiveEqualData.push({
+                    value: [pt.time, pt.value],
+                    itemStyle: {
+                        color: '#f59e0b',  // Amber/orange color
+                        borderColor: '#fff',
+                        borderWidth: 2,
+                    },
+                    consecutive: {
+                        value: pt.value,
+                        count: consecutiveCount,
+                    }
+                })
+            })
+        }
+
         return {
             originalData,
             imputedData,
             spikeData,
             negativeData,
+            consecutiveEqualData,
             gapAreas,
             stats: {
                 mean,
@@ -284,10 +375,11 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                 missingCount,
                 anomalyCount: spikeData.length,
                 negativeCount: negativeData.length,
+                consecutiveEqualCount: consecutiveEqualData.length,
                 totalPoints
             }
         }
-    }, [data, selectedParam, spikeMultiplier, negativeThreshold])
+    }, [data, selectedParam, spikeMultiplier, negativeThreshold, consecutiveEqualThreshold])
 
     // Initialize and update chart
     useEffect(() => {
@@ -385,6 +477,28 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
             })
         }
 
+        // Add consecutive equal values series
+        if (showConsecutiveEqual && chartData.consecutiveEqualData.length > 0) {
+            series.push({
+                name: lang === 'th' ? 'ค่าคงที่ซ้ำ' : 'Stuck Values',
+                type: 'scatter',
+                data: chartData.consecutiveEqualData,
+                symbol: 'rect',
+                symbolSize: 12,
+                z: 15,
+                itemStyle: {
+                    color: '#f59e0b'
+                },
+                emphasis: {
+                    scale: 1.5,
+                    itemStyle: {
+                        shadowBlur: 10,
+                        shadowColor: 'rgba(245, 158, 11, 0.5)',
+                    },
+                },
+            })
+        }
+
         const legendData = [lang === 'th' ? 'ข้อมูลจริง' : 'Original Data']
         if (showGapFill) legendData.push('Gap-Fill (LSTM)')
         if (showSpikes && chartData.spikeData.length > 0) {
@@ -392,6 +506,9 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
         }
         if (showNegative && chartData.negativeData.length > 0) {
             legendData.push(lang === 'th' ? 'ค่าติดลบ' : 'Negative')
+        }
+        if (showConsecutiveEqual && chartData.consecutiveEqualData.length > 0) {
+            legendData.push(lang === 'th' ? 'ค่าคงที่ซ้ำ' : 'Stuck Values')
         }
 
         const textColor = isLight ? '#374151' : '#f1f5f9'
@@ -421,6 +538,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                         if (param.value?.[1] !== null && param.value?.[1] !== undefined) {
                             const isSpike = param.seriesName.includes('Spike') || param.seriesName.includes('ผิดปกติ')
                             const isNegative = param.seriesName.includes('Negative') || param.seriesName.includes('ค่าติดลบ')
+                            const isConsecutive = param.seriesName.includes('Stuck') || param.seriesName.includes('ค่าคงที่ซ้ำ')
                             const isGapFill = param.seriesName.includes('Gap-Fill')
 
                             if (isSpike && param.data.spike) {
@@ -429,6 +547,9 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                                 content += `<span style="color:${subTextColor}">Previous: ${param.data.spike.prevValue.toFixed(2)} ${paramConfig.unit}</span><br/>`
                             } else if (isNegative && param.data.negative) {
                                 content += `<span style="color:#dc2626">⚠ Negative Value</span><br/>`
+                                content += `Value: <strong>${param.value[1].toFixed(2)} ${paramConfig.unit}</strong><br/>`
+                            } else if (isConsecutive && param.data.consecutive) {
+                                content += `<span style="color:#f59e0b">⚠ Stuck Value (${param.data.consecutive.count}x repeated)</span><br/>`
                                 content += `Value: <strong>${param.value[1].toFixed(2)} ${paramConfig.unit}</strong><br/>`
                             } else {
                                 const icon = isGapFill ? '◆' : '●'
@@ -508,7 +629,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
         return () => {
             window.removeEventListener('resize', handleResize)
         }
-    }, [chartData, selectedParam, showGapFill, showSpikes, showNegative, isLight, lang, stationId])
+    }, [chartData, selectedParam, showGapFill, showSpikes, showNegative, showConsecutiveEqual, isLight, lang, stationId])
 
     // Cleanup
     useEffect(() => {
@@ -581,6 +702,17 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                             <span className="text-sm">{lang === 'th' ? 'ค่าติดลบ' : 'Negative'}</span>
                         </label>
 
+                        <label className={`flex items-center gap-2 cursor-pointer ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
+                            <input
+                                type="checkbox"
+                                checked={showConsecutiveEqual}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowConsecutiveEqual(e.target.checked)}
+                                className="w-4 h-4 rounded accent-amber-500"
+                            />
+                            <Icon name="pause" size="sm" style={{ color: '#f59e0b' }} />
+                            <span className="text-sm">{lang === 'th' ? 'ค่าคงที่' : 'Stuck'}</span>
+                        </label>
+
                         {/* Settings Button */}
                         {onSettingsClick && (
                             <button
@@ -601,7 +733,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
 
             {/* Data Health Stats - Dynamic based on selected parameter */}
             {chartData && (
-                <div className={`grid grid-cols-2 md:grid-cols-6 gap-3 p-4 border-b ${isLight ? 'border-gray-100 bg-gray-50/50' : 'border-dark-700 bg-dark-800/50'}`}>
+                <div className={`grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 p-4 border-b ${isLight ? 'border-gray-100 bg-gray-50/50' : 'border-dark-700 bg-dark-800/50'}`}>
                     {/* Completeness */}
                     <div className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-white' : 'bg-dark-700/50'}`}>
                         <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-emerald-100">
@@ -691,6 +823,21 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                             </p>
                         </div>
                     </div>
+
+                    {/* Consecutive Equal Values (Stuck) */}
+                    <div className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-white' : 'bg-dark-700/50'}`}>
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${chartData.stats.consecutiveEqualCount > 0 ? 'bg-amber-100' : isLight ? 'bg-gray-100' : 'bg-dark-600'}`}>
+                            <Icon name="pause" style={{ color: chartData.stats.consecutiveEqualCount > 0 ? '#f59e0b' : '#9ca3af' }} />
+                        </div>
+                        <div>
+                            <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                {lang === 'th' ? 'ค่าคงที่ซ้ำ' : 'Stuck Values'}
+                            </p>
+                            <p className={`text-xl font-bold ${chartData.stats.consecutiveEqualCount > 0 ? 'text-amber-500' : isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                                {chartData.stats.consecutiveEqualCount}
+                            </p>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -733,6 +880,12 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                         <div className="flex items-center gap-2">
                             <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#dc2626' }} />
                             <span>{chartData.negativeData.length} {lang === 'th' ? 'ค่าติดลบ' : 'Negative'}</span>
+                        </div>
+                    )}
+                    {showConsecutiveEqual && chartData.consecutiveEqualData.length > 0 && (
+                        <div className="flex items-center gap-2">
+                            <span className="w-3 h-3" style={{ backgroundColor: '#f59e0b' }} />
+                            <span>{chartData.consecutiveEqualData.length} {lang === 'th' ? 'ค่าคงที่ซ้ำ' : 'Stuck'}</span>
                         </div>
                     )}
                     <div className="ml-auto">

@@ -606,6 +606,46 @@ class DataUploadService:
                 expected_records = total_records + missing_hours if missing_hours else total_records
                 coverage_percent = (total_records / expected_records * 100) if expected_records > 0 else 100
                 
+                # === DETECT NEGATIVE VALUES ===
+                # Define thresholds per parameter (values below these are considered invalid)
+                negative_thresholds = {
+                    'pm25': -3, 'pm10': -3, 'o3': -3, 'no2': -3, 'so2': -3, 'nox': -3,
+                    'co': -0.3,  # CO has smaller threshold
+                    'temp': -50,  # Temperature can be negative (valid)
+                    'ws': 0,     # Wind speed should be >= 0
+                    'rh': 0,     # Humidity should be >= 0
+                    'bp': 0,     # Pressure should be >= 0
+                    'rain': 0    # Rain should be >= 0
+                }
+                
+                negative_counts = {}
+                negative_details = []
+                
+                for record in station_records:
+                    for param, threshold in negative_thresholds.items():
+                        value = record.get(param)
+                        if value is not None and value < threshold:
+                            # Count negatives per parameter
+                            if param not in negative_counts:
+                                negative_counts[param] = 0
+                            negative_counts[param] += 1
+                            
+                            # Store first 5 negative values for display
+                            if len(negative_details) < 5:
+                                negative_details.append({
+                                    "datetime": record.get("datetime", "").strftime("%Y-%m-%d %H:%M") 
+                                        if hasattr(record.get("datetime"), "strftime") 
+                                        else str(record.get("datetime", ""))[:16],
+                                    "parameter": param.upper(),
+                                    "value": value,
+                                    "threshold": threshold
+                                })
+                
+                total_negative = sum(negative_counts.values())
+                if total_negative > 0:
+                    logger.warning(f"Station {station_id}: Found {total_negative} negative values: {negative_counts}")
+                # ==============================
+                
                 # Build summary
                 upload_summary = {
                     "total_records": total_records,
@@ -617,7 +657,11 @@ class DataUploadService:
                     "imputed_count": imputed_count,
                     "coverage_percent": coverage_percent,
                     "date_range": date_range,
-                    "anomaly_details": anomaly_details
+                    "anomaly_details": anomaly_details,
+                    # Negative value detection results
+                    "negative_count": total_negative,
+                    "negative_by_param": negative_counts,
+                    "negative_details": negative_details
                 }
                 
                 # Send notification

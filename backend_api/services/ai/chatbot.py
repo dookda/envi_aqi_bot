@@ -49,6 +49,8 @@ class AirQualityChatbotService:
             # (regex_pattern, intent_template)
             (r"(?:pm2\.?5|ค่าฝุ่น)\s+(.+?)\s+(?:วันนี้|today)", self._make_today_intent),
             (r"(?:ค้นหา|หา|search|find)\s*(?:สถานี)?\s*(.+)", self._make_search_intent),
+            # Generic pollutant pattern: "ข้อมูล [pollutant] ใน[location]" or "[pollutant] [location]"
+            (r"(?:ข้อมูล\s*)?(o3|ozone|โอโซน|pm10|pm2\.?5|co|no2|so2|nox)\s+(?:ใน|ที่)?\s*(.+?)(?:\s+(?:วันนี้|today|ย้อนหลัง|สัปดาห์|เดือน))?$", self._make_pollutant_intent),
         ]
 
     def _make_today_intent(self, match) -> Dict[str, Any]:
@@ -73,6 +75,28 @@ class AirQualityChatbotService:
             "intent_type": "search_stations",
             "search_query": location,
             "output_type": "text"
+        }
+
+    def _make_pollutant_intent(self, match) -> Dict[str, Any]:
+        """Create intent for generic pollutant queries like 'ข้อมูล o3 ในกรุงเทพ'"""
+        from datetime import datetime
+        from .guardrails import normalize_pollutant
+
+        pollutant_raw = match.group(1).strip()
+        location = match.group(2).strip()
+
+        # Normalize the pollutant name
+        pollutant = normalize_pollutant(pollutant_raw) or "pm25"
+
+        today = datetime.now()
+        return {
+            "intent_type": "get_data",
+            "station_id": location,
+            "pollutant": pollutant,
+            "start_date": today.replace(hour=0, minute=0).isoformat(),
+            "end_date": today.isoformat(),
+            "interval": "hour",
+            "output_type": "chart"
         }
 
     def _get_cache_key(self, query: str) -> str:
@@ -357,13 +381,17 @@ class AirQualityChatbotService:
         # === COMPOSE SUMMARY ===
         summary = self._compose_summary(data, intent)
 
+        # === GET STATION NAME (Thai preferred) ===
+        station_name = self.orchestrator.get_station_name(resolved_station_id, prefer_thai=True)
+
         # === COMPOSE RICH RESPONSE ===
         response = compose_data_response(
             station_id=resolved_station_id,
             data=data,
             intent=intent,
             summary=summary,
-            language=language
+            language=language,
+            station_name=station_name
         )
 
         return {

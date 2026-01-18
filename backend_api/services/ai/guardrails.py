@@ -215,6 +215,42 @@ def get_system_prompt(current_datetime: str) -> str:
 
 
 # Layer 3: Intent Validation
+# Pollutant name normalization mapping
+POLLUTANT_ALIASES = {
+    # PM2.5 variations
+    "pm2.5": "pm25", "pm 2.5": "pm25", "pm2": "pm25", "ฝุ่น": "pm25", "ฝุ่นละออง": "pm25",
+    # PM10 variations
+    "pm 10": "pm10",
+    # Ozone variations
+    "ozone": "o3", "โอโซน": "o3",
+    # Carbon monoxide variations
+    "carbon monoxide": "co", "คาร์บอนมอนอกไซด์": "co",
+    # Nitrogen dioxide variations
+    "nitrogen dioxide": "no2", "ไนโตรเจนไดออกไซด์": "no2",
+    # Sulfur dioxide variations
+    "sulfur dioxide": "so2", "ซัลเฟอร์ไดออกไซด์": "so2",
+    # NOx variations
+    "nitrogen oxides": "nox", "ไนโตรเจนออกไซด์": "nox",
+    # Weather parameter variations
+    "temperature": "temp", "อุณหภูมิ": "temp",
+    "humidity": "rh", "ความชื้น": "rh",
+    "wind speed": "ws", "ความเร็วลม": "ws",
+    "wind direction": "wd", "ทิศทางลม": "wd",
+    "pressure": "bp", "ความดัน": "bp",
+    "rainfall": "rain", "ฝน": "rain", "ปริมาณฝน": "rain",
+}
+
+def normalize_pollutant(pollutant: Optional[str]) -> Optional[str]:
+    """Normalize pollutant name to valid code"""
+    if not pollutant:
+        return None
+    pollutant_lower = pollutant.lower().strip()
+    # Check if already valid
+    if pollutant_lower in VALID_POLLUTANTS:
+        return pollutant_lower
+    # Check aliases
+    return POLLUTANT_ALIASES.get(pollutant_lower, pollutant_lower)
+
 # Supported pollutants and weather parameters
 VALID_POLLUTANTS = [
     # Air quality pollutants
@@ -401,9 +437,16 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
 
     # ============ VALIDATE GET_DATA INTENT ============
     # For backward compatibility, if no intent_type, treat as get_data
-    
+
     from datetime import datetime, timezone, timedelta
-    
+
+    # Normalize pollutant name first (before defaulting)
+    if "pollutant" in intent and intent["pollutant"]:
+        original_pollutant = intent["pollutant"]
+        intent["pollutant"] = normalize_pollutant(intent["pollutant"])
+        if intent["pollutant"] != original_pollutant.lower():
+            logger.info(f"Normalized pollutant '{original_pollutant}' to '{intent['pollutant']}'")
+
     # Set defaults for optional fields before validation
     if "pollutant" not in intent or not intent["pollutant"]:
         intent["pollutant"] = "pm25"

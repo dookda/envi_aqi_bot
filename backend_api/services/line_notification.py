@@ -107,9 +107,10 @@ class LineNotificationService:
         spike_count = upload_summary.get("spike_count", 0)
         missing_hours = upload_summary.get("missing_hours", 0)
         failed = upload_summary.get("failed", 0)
+        negative_count = upload_summary.get("negative_count", 0)
         
         # Only send alert if there are issues
-        if spike_count == 0 and missing_hours == 0 and failed == 0:
+        if spike_count == 0 and missing_hours == 0 and failed == 0 and negative_count == 0:
             logger.debug("No quality issues found, skipping LINE alert")
             return False
 
@@ -153,6 +154,9 @@ class LineNotificationService:
         failed = upload_summary.get("failed", 0)
         date_range = upload_summary.get("date_range", (None, None))
         anomaly_details = upload_summary.get("anomaly_details", [])
+        negative_count = upload_summary.get("negative_count", 0)
+        negative_by_param = upload_summary.get("negative_by_param", {})
+        negative_details = upload_summary.get("negative_details", [])
 
         if language == "th":
             # Thai message
@@ -176,7 +180,7 @@ class LineNotificationService:
                 lines.append(f"• ❌ นำเข้าล้มเหลว: {failed} รายการ")
             
             # Quality issues section
-            if spike_count > 0 or missing_hours > 0:
+            if spike_count > 0 or missing_hours > 0 or negative_count > 0:
                 lines.append("")
                 lines.append("⚠️ พบปัญหาคุณภาพข้อมูล:")
                 
@@ -190,6 +194,18 @@ class LineNotificationService:
                             value = detail.get("value", 0)
                             param = detail.get("parameter", "PM2.5")
                             lines.append(f"   └─ {dt}: {param} = {value:.1f}")
+                
+                if negative_count > 0:
+                    lines.append(f"• ⛔ ค่าติดลบผิดปกติ: {negative_count} จุด")
+                    # Show breakdown by parameter
+                    param_str = ", ".join([f"{p.upper()}:{c}" for p, c in negative_by_param.items()])
+                    lines.append(f"   └─ {param_str}")
+                    # Show top negative details
+                    for detail in negative_details[:3]:
+                        dt = detail.get("datetime", "")
+                        value = detail.get("value", 0)
+                        param = detail.get("parameter", "")
+                        lines.append(f"   └─ {dt}: {param} = {value:.2f}")
                 
                 if missing_hours > 0:
                     lines.append(f"• ⏳ ข้อมูลขาดหาย: {missing_hours} ชั่วโมง ({missing_gaps} ช่วง)")
@@ -206,9 +222,11 @@ class LineNotificationService:
             lines.append("📋 คำแนะนำ:")
             if spike_count > 0:
                 lines.append("• ตรวจสอบค่าที่ผิดปกติในระบบ")
+            if negative_count > 0:
+                lines.append("• ตรวจสอบค่าติดลบ อาจเกิดจากเซ็นเซอร์ผิดพลาด")
             if missing_hours > 0:
                 lines.append("• ตรวจสอบสาเหตุของข้อมูลขาดหาย")
-            if spike_count > 0 or missing_hours > 0:
+            if spike_count > 0 or missing_hours > 0 or negative_count > 0:
                 lines.append("• เข้าระบบเพื่อดูรายละเอียดเพิ่มเติม")
             
         else:
@@ -231,7 +249,7 @@ class LineNotificationService:
             if failed > 0:
                 lines.append(f"• ❌ Failed: {failed}")
             
-            if spike_count > 0 or missing_hours > 0:
+            if spike_count > 0 or missing_hours > 0 or negative_count > 0:
                 lines.append("")
                 lines.append("⚠️ Quality Issues Detected:")
                 
@@ -244,6 +262,16 @@ class LineNotificationService:
                             value = detail.get("value", 0)
                             param = detail.get("parameter", "PM2.5")
                             lines.append(f"   └─ {dt}: {param} = {value:.1f}")
+                
+                if negative_count > 0:
+                    lines.append(f"• ⛔ Invalid Negatives: {negative_count} points")
+                    param_str = ", ".join([f"{p.upper()}:{c}" for p, c in negative_by_param.items()])
+                    lines.append(f"   └─ {param_str}")
+                    for detail in negative_details[:3]:
+                        dt = detail.get("datetime", "")
+                        value = detail.get("value", 0)
+                        param = detail.get("parameter", "")
+                        lines.append(f"   └─ {dt}: {param} = {value:.2f}")
                 
                 if missing_hours > 0:
                     lines.append(f"• ⏳ Missing data: {missing_hours} hours ({missing_gaps} gaps)")
@@ -258,9 +286,11 @@ class LineNotificationService:
             lines.append("📋 Recommendations:")
             if spike_count > 0:
                 lines.append("• Review anomalous values in dashboard")
+            if negative_count > 0:
+                lines.append("• Check negative values - possible sensor error")
             if missing_hours > 0:
                 lines.append("• Investigate cause of data gaps")
-            if spike_count > 0 or missing_hours > 0:
+            if spike_count > 0 or missing_hours > 0 or negative_count > 0:
                 lines.append("• Check details in the admin panel")
 
         return "\n".join(lines)

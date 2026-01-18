@@ -400,7 +400,8 @@ def compose_data_response(
     data: List[Dict[str, Any]],
     intent: Dict[str, Any],
     summary: Dict[str, Any],
-    language: str = "en"
+    language: str = "en",
+    station_name: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Compose rich response for data retrieval queries
@@ -411,21 +412,25 @@ def compose_data_response(
         intent: Parsed intent
         summary: Data summary statistics
         language: Response language (en/th)
+        station_name: Optional station name (Thai/English) for display
         
     Returns:
         Formatted response dict with message and enhanced summary
     """
+    # Use station_name if provided, otherwise fall back to station_id
+    display_name = station_name or station_id
+    
     if not data:
         if language == "th":
             message = (
                 f"❌ **ไม่พบข้อมูล**\n\n"
-                f"ไม่พบข้อมูลสำหรับสถานี '{station_id}' ในช่วงเวลาที่ระบุ\n\n"
+                f"ไม่พบข้อมูลสำหรับสถานี '{display_name}' ในช่วงเวลาที่ระบุ\n\n"
                 f"💡 ลองเปลี่ยนช่วงเวลาหรือสถานี"
             )
         else:
             message = (
                 f"❌ **No Data Found**\n\n"
-                f"No data available for station '{station_id}' in the specified period.\n\n"
+                f"No data available for station '{display_name}' in the specified period.\n\n"
                 f"💡 Try a different time range or station."
             )
         return {"message": message, "summary": summary}
@@ -434,6 +439,24 @@ def compose_data_response(
     avg_pm25 = summary.get("mean")
     aqi_level = get_aqi_level_from_pm25(avg_pm25) if avg_pm25 else "unknown"
     level_config = AQI_LEVELS.get(aqi_level, {})
+
+    # Get the actual pollutant from intent
+    pollutant = intent.get("pollutant", "pm25")
+    
+    # Map pollutant to display name and unit
+    pollutant_display = {
+        "pm25": {"name": "PM2.5", "unit": "μg/m³"},
+        "pm10": {"name": "PM10", "unit": "μg/m³"},
+        "o3": {"name": "O₃", "unit": "ppb"},
+        "co": {"name": "CO", "unit": "ppm"},
+        "no2": {"name": "NO₂", "unit": "ppb"},
+        "so2": {"name": "SO₂", "unit": "ppb"},
+        "nox": {"name": "NOₓ", "unit": "ppb"},
+    }
+    
+    pollutant_info = pollutant_display.get(pollutant, {"name": pollutant.upper(), "unit": ""})
+    pollutant_name = pollutant_info["name"]
+    pollutant_unit = pollutant_info["unit"]
 
     # Generate threshold warnings for all parameters
     threshold_warning = generate_threshold_warnings(data, intent, language)
@@ -494,7 +517,7 @@ def compose_data_response(
     warning_prefix = f"{threshold_warning}\n\n{'─' * 40}\n\n" if threshold_warning else ""
 
     if language == "th":
-        message_title = f"📑 **รายงานสรุปผู้บริหาร: สถานี {station_id}**" if is_report else f"📊 **ข้อมูล PM2.5 สถานี {station_id}**"
+        message_title = f"📑 **รายงานสรุปผู้บริหาร: สถานี {display_name}**" if is_report else f"📊 **ข้อมูล PM2.5 สถานี {display_name}**"
         
         message = (
             f"{warning_prefix}"
@@ -510,7 +533,7 @@ def compose_data_response(
             f"{policy_recs_th if is_report or exceeds_standard else ''}"
         )
     else:
-        message_title = f"📑 **Executive Summary: Station {station_id}**" if is_report else f"📊 **PM2.5 Data for {station_id}**"
+        message_title = f"📑 **Executive Summary: {display_name}**" if is_report else f"📊 **PM2.5 Data for {display_name}**"
 
         message = (
             f"{warning_prefix}"

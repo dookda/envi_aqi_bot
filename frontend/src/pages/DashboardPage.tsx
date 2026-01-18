@@ -1114,6 +1114,17 @@ export default function Dashboard(): React.ReactElement {
         localStorage.setItem('spikeMultiplier', spikeMultiplier.toString())
     }, [spikeMultiplier])
 
+    // Consecutive equal values threshold (detect X consecutive equal values)
+    const [consecutiveEqualThreshold, setConsecutiveEqualThreshold] = useState<number>(() => {
+        const saved = localStorage.getItem('consecutiveEqualThreshold')
+        return saved ? parseInt(saved) : 3
+    })
+
+    // Save consecutive equal threshold to localStorage when changed
+    useEffect(() => {
+        localStorage.setItem('consecutiveEqualThreshold', consecutiveEqualThreshold.toString())
+    }, [consecutiveEqualThreshold])
+
     // Calculate spike detection (compare latest with previous data point)
     const previousData = useMemo(() => {
         if (!fullData?.data?.length || fullData.data.length < 2) return null
@@ -1327,6 +1338,23 @@ export default function Dashboard(): React.ReactElement {
                                         className="w-full"
                                     />
                                 </div>
+
+                                {/* Latest Data Timestamp */}
+                                {latestData?.datetime && (
+                                    <div className={`mt-4 flex items-center gap-2 text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                        <Icon name="schedule" size="sm" />
+                                        <span>
+                                            {lang === 'th' ? 'ข้อมูลล่าสุด:' : 'Latest data:'}{' '}
+                                            {new Date(latestData.datetime).toLocaleString(lang === 'th' ? 'th-TH' : 'en-US', {
+                                                day: 'numeric',
+                                                month: 'short',
+                                                year: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         </Card>
 
@@ -1643,12 +1671,13 @@ export default function Dashboard(): React.ReactElement {
                             onSettingsClick={() => setShowThresholdSettings(true)}
                             spikeMultiplier={spikeMultiplier}
                             negativeThreshold={pollutantThresholds[selectedParam] ?? (selectedParam === 'co' ? -0.3 : -3)}
+                            consecutiveEqualThreshold={consecutiveEqualThreshold}
                         />
 
                         {/* AI Insights Panel */}
                         <AIInsightsPanel
                             stationId={selectedStation}
-                            stationName={currentStation?.name_en || currentStation?.name_th || null}
+                            stationName={currentStation?.name_th || currentStation?.name_en || null}
                             parameter={selectedParam}
                             timePeriod={timePeriod}
                             statistics={fullData?.statistics}
@@ -1826,6 +1855,39 @@ export default function Dashboard(): React.ReactElement {
                             </div>
                         </div>
 
+                        {/* Consecutive Equal Values (Stuck) Detection Section */}
+                        <div className={`mt-4 p-4 rounded-lg ${isLight ? 'bg-amber-50' : 'bg-amber-900/20'}`}>
+                            <h4 className={`text-sm font-medium mb-3 flex items-center gap-2 ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>
+                                <Icon name="pause" size="sm" />
+                                {lang === 'th' ? 'ตรวจจับค่าคงที่ซ้ำ (Stuck Values)' : 'Stuck Values Detection'}
+                            </h4>
+                            <p className={`text-xs mb-3 ${isLight ? 'text-amber-600' : 'text-amber-400'}`}>
+                                {lang === 'th'
+                                    ? 'ค่าที่เท่ากันติดต่อกัน X ครั้งขึ้นไป จะถูกแสดงเป็นสีส้ม (อาจบ่งชี้เซ็นเซอร์ค้าง)'
+                                    : 'X or more consecutive equal values will be shown in orange (may indicate sensor stuck)'
+                                }
+                            </p>
+                            <div className="flex items-center gap-3">
+                                <span className={`text-sm ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>
+                                    {lang === 'th' ? 'ค่าซ้ำติดต่อกัน ≥' : 'Consecutive equal ≥'}
+                                </span>
+                                <input
+                                    type="number"
+                                    step="1"
+                                    min="2"
+                                    value={consecutiveEqualThreshold}
+                                    onChange={(e) => setConsecutiveEqualThreshold(parseInt(e.target.value) || 3)}
+                                    className={`w-20 px-2 py-1 text-sm rounded-lg border text-center ${isLight
+                                        ? 'bg-white border-amber-200 text-amber-800 focus:border-amber-500'
+                                        : 'bg-dark-600 border-amber-500 text-white focus:border-amber-400'
+                                        } focus:outline-none focus:ring-2 focus:ring-amber-500/20`}
+                                />
+                                <span className={`text-sm ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>
+                                    {lang === 'th' ? 'ครั้ง' : 'times'}
+                                </span>
+                            </div>
+                        </div>
+
                         <div className="flex gap-3 mt-6">
                             <button
                                 onClick={() => {
@@ -1839,6 +1901,7 @@ export default function Dashboard(): React.ReactElement {
                                         pm10: -3,
                                     })
                                     setSpikeMultiplier(5)
+                                    setConsecutiveEqualThreshold(3)
                                 }}
                                 className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${isLight
                                     ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
