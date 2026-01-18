@@ -811,14 +811,14 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
 
                     {/* Negative Values */}
                     <div className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-white' : 'bg-dark-700/50'}`}>
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${chartData.stats.negativeCount > 0 ? 'bg-red-100' : isLight ? 'bg-gray-100' : 'bg-dark-600'}`}>
-                            <Icon name="remove_circle" style={{ color: chartData.stats.negativeCount > 0 ? '#dc2626' : '#9ca3af' }} />
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${chartData.stats.negativeCount > 0 ? 'bg-cyan-100' : isLight ? 'bg-gray-100' : 'bg-dark-600'}`}>
+                            <Icon name="remove_circle" style={{ color: chartData.stats.negativeCount > 0 ? '#06b6d4' : '#9ca3af' }} />
                         </div>
                         <div>
                             <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
                                 {lang === 'th' ? 'ค่าติดลบ' : 'Negative'}
                             </p>
-                            <p className={`text-xl font-bold ${chartData.stats.negativeCount > 0 ? 'text-red-600' : isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                            <p className={`text-xl font-bold ${chartData.stats.negativeCount > 0 ? 'text-cyan-500' : isLight ? 'text-gray-400' : 'text-dark-500'}`}>
                                 {chartData.stats.negativeCount}
                             </p>
                         </div>
@@ -826,14 +826,14 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
 
                     {/* Consecutive Equal Values (Stuck) */}
                     <div className={`flex items-center gap-3 p-3 rounded-xl ${isLight ? 'bg-white' : 'bg-dark-700/50'}`}>
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${chartData.stats.consecutiveEqualCount > 0 ? 'bg-amber-100' : isLight ? 'bg-gray-100' : 'bg-dark-600'}`}>
-                            <Icon name="pause" style={{ color: chartData.stats.consecutiveEqualCount > 0 ? '#f59e0b' : '#9ca3af' }} />
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${chartData.stats.consecutiveEqualCount > 0 ? 'bg-purple-100' : isLight ? 'bg-gray-100' : 'bg-dark-600'}`}>
+                            <Icon name="pause" style={{ color: chartData.stats.consecutiveEqualCount > 0 ? '#8b5cf6' : '#9ca3af' }} />
                         </div>
                         <div>
                             <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
                                 {lang === 'th' ? 'ค่าคงที่ซ้ำ' : 'Stuck Values'}
                             </p>
-                            <p className={`text-xl font-bold ${chartData.stats.consecutiveEqualCount > 0 ? 'text-amber-500' : isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                            <p className={`text-xl font-bold ${chartData.stats.consecutiveEqualCount > 0 ? 'text-purple-500' : isLight ? 'text-gray-400' : 'text-dark-500'}`}>
                                 {chartData.stats.consecutiveEqualCount}
                             </p>
                         </div>
