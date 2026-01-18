@@ -800,6 +800,15 @@ interface CalendarHeatmapProps {
     lang: Language
 }
 
+// Helper function to get color based on percentage
+const getCompletenessColor = (percentage: number): string => {
+    if (percentage >= 90) return '#10b981' // Green
+    if (percentage >= 80) return '#84cc16' // Lime
+    if (percentage >= 70) return '#f59e0b' // Amber
+    if (percentage >= 50) return '#f97316' // Orange
+    return '#ef4444' // Red
+}
+
 const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
     data,
     overall,
@@ -807,187 +816,76 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
     isLight,
     lang
 }) => {
-    const chartRef = useRef<HTMLDivElement>(null)
-    const chartInstance = useRef<echarts.ECharts | null>(null)
+    // Group data by year and month
+    const groupedData = useMemo(() => {
+        if (!data.length) return []
 
-    useEffect(() => {
-        if (!chartRef.current || data.length === 0) return
+        const groups: { year: number; month: string; monthNum: number; days: Array<{ dayName: string; percentage: number; date: string; count: number }> }[] = []
 
-        // Initialize or get existing chart instance
-        if (!chartInstance.current) {
-            chartInstance.current = echarts.init(chartRef.current)
-        }
-
-        const textColor = isLight ? '#374151' : '#f1f5f9'
-        const subTextColor = isLight ? '#6b7280' : '#94a3b8'
-
-        // Get date range for calendar
-        const dates = data.map(d => d.date).sort()
-        const startDate = dates[0]
-        const endDate = dates[dates.length - 1]
-
-        // Determine the year range
-        const startYear = new Date(startDate).getFullYear()
-        const endYear = new Date(endDate).getFullYear()
-        const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i)
-
-        // Format data for ECharts calendar heatmap: [date, value]
-        const heatmapData = data.map(d => [d.date, d.percentage])
-
-        // Calculate chart height for calendars
-        const calendarHeight = 140  // Height per year calendar
-        const calendarSpacing = 30  // Space between calendars
-        const topPadding = 20       // Top padding for chart
-        const totalHeight = topPadding + years.length * (calendarHeight + calendarSpacing)
-
-        // Create calendar and series for each year - with partial year ranges
-        const calendars: echarts.EChartsOption['calendar'] = years.map((year, idx) => {
-            // Determine the date range for this particular year
-            let yearStart: string
-            let yearEnd: string
-
-            if (year === startYear && year === endYear) {
-                // Same year - use exact data range
-                yearStart = startDate
-                yearEnd = endDate
-            } else if (year === startYear) {
-                // First year in multi-year range
-                yearStart = startDate
-                yearEnd = `${year}-12-31`
-            } else if (year === endYear) {
-                // Last year in multi-year range
-                yearStart = `${year}-01-01`
-                yearEnd = endDate
-            } else {
-                // Middle year - show full year
-                yearStart = `${year}-01-01`
-                yearEnd = `${year}-12-31`
+        // Group by year-month
+        const yearMonthMap = new Map<string, typeof data>()
+        data.forEach(d => {
+            const date = new Date(d.date)
+            const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+            if (!yearMonthMap.has(key)) {
+                yearMonthMap.set(key, [])
             }
-
-            return {
-                top: topPadding + idx * (calendarHeight + calendarSpacing),
-                left: 80,
-                right: 30,
-                cellSize: ['auto', 15],
-                range: [yearStart, yearEnd],
-                itemStyle: {
-                    borderWidth: 2,
-                    borderColor: isLight ? '#fff' : '#1e293b',
-                },
-                yearLabel: {
-                    show: true,
-                    position: 'left',
-                    color: textColor,
-                    fontSize: 14,
-                    fontWeight: 'bold',
-                    formatter: () => year.toString(),
-                },
-                monthLabel: {
-                    show: true,
-                    color: subTextColor,
-                    fontSize: 11,
-                    nameMap: lang === 'th'
-                        ? ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
-                        : undefined,  // Use default English names
-                },
-                dayLabel: {
-                    show: true,
-                    firstDay: 0,
-                    color: subTextColor,
-                    fontSize: 9,
-                    nameMap: lang === 'th'
-                        ? ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
-                        : ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
-                },
-                splitLine: {
-                    show: true,
-                    lineStyle: {
-                        color: isLight ? '#e5e7eb' : '#334155',
-                        width: 1,
-                    },
-                },
-            }
+            yearMonthMap.get(key)!.push(d)
         })
 
-        const series: echarts.SeriesOption[] = years.map((year, idx) => ({
-            type: 'heatmap',
-            coordinateSystem: 'calendar',
-            calendarIndex: idx,
-            data: heatmapData.filter(d => (d[0] as string).startsWith(year.toString())),
-            emphasis: {
-                itemStyle: {
-                    shadowBlur: 10,
-                    shadowColor: 'rgba(0, 0, 0, 0.3)',
-                },
-            },
-        }))
+        // Convert to array and sort
+        const sortedKeys = Array.from(yearMonthMap.keys()).sort()
 
-        const option: echarts.EChartsOption = {
-            backgroundColor: 'transparent',
-            tooltip: {
-                trigger: 'item',
-                backgroundColor: isLight ? '#fff' : '#1e293b',
-                borderColor: isLight ? '#e5e7eb' : '#334155',
-                textStyle: { color: textColor },
-                formatter: (params: any) => {
-                    const date = params.data[0]
-                    const value = params.data[1]
-                    const dayData = data.find(d => d.date === date)
-                    const formattedDate = new Date(date).toLocaleDateString(
-                        lang === 'th' ? 'th-TH' : 'en-US',
-                        { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }
-                    )
-                    return `
-                        <div style="padding: 4px;">
-                            <strong>${formattedDate}</strong><br/>
-                            ${lang === 'th' ? 'ข้อมูล' : 'Data'}: ${dayData?.count || 0}/24 ${lang === 'th' ? 'ชม.' : 'hrs'}<br/>
-                            <span style="color: ${value >= 90 ? '#10b981' : value >= 70 ? '#f59e0b' : value >= 50 ? '#f97316' : '#ef4444'}; font-weight: bold;">
-                                ${value.toFixed(1)}%
-                            </span>
-                        </div>
-                    `
-                },
-            },
-            // Hidden visualMap - just for color mapping
-            visualMap: {
-                show: false,
-                min: 0,
-                max: 100,
-                inRange: {
-                    color: ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981'],
-                },
-            },
-            calendar: calendars,
-            series: series,
-        }
+        const dayNames = lang === 'th'
+            ? ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
+            : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-        chartInstance.current.setOption(option, true)
-        chartInstance.current.resize()
+        const monthNames = lang === 'th'
+            ? ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
+            : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-        const handleResize = () => chartInstance.current?.resize()
-        window.addEventListener('resize', handleResize)
+        sortedKeys.forEach(key => {
+            const [yearStr, monthStr] = key.split('-')
+            const year = parseInt(yearStr)
+            const monthNum = parseInt(monthStr) - 1
+            const monthData = yearMonthMap.get(key)!
 
-        return () => {
-            window.removeEventListener('resize', handleResize)
-        }
-    }, [data, isLight, lang])
+            // Group by day of week and calculate average
+            const dayOfWeekData = new Map<number, { total: number; count: number; dates: string[]; counts: number[] }>()
 
-    // Cleanup
-    useEffect(() => {
-        return () => {
-            chartInstance.current?.dispose()
-            chartInstance.current = null
-        }
-    }, [])
+            monthData.forEach(d => {
+                const date = new Date(d.date)
+                const dow = date.getDay()
+                if (!dayOfWeekData.has(dow)) {
+                    dayOfWeekData.set(dow, { total: 0, count: 0, dates: [], counts: [] })
+                }
+                const entry = dayOfWeekData.get(dow)!
+                entry.total += d.percentage
+                entry.count += 1
+                entry.dates.push(d.date)
+                entry.counts.push(d.count)
+            })
 
-    // Calculate chart height based on years (matching constants from useEffect)
-    const calendarHeight = 140
-    const calendarSpacing = 30
-    const topPadding = 20
-    const years = data.length > 0
-        ? Array.from(new Set(data.map(d => new Date(d.date).getFullYear()))).length
-        : 1
-    const chartHeight = Math.max(200, topPadding + years * (calendarHeight + calendarSpacing) + 20)
+            const days = dayNames.map((name, idx) => {
+                const dayData = dayOfWeekData.get(idx)
+                return {
+                    dayName: name,
+                    percentage: dayData ? dayData.total / dayData.count : 0,
+                    date: dayData?.dates[0] || '',
+                    count: dayData ? Math.round(dayData.counts.reduce((a, b) => a + b, 0) / dayData.counts.length) : 0
+                }
+            })
+
+            groups.push({
+                year,
+                month: monthNames[monthNum],
+                monthNum,
+                days
+            })
+        })
+
+        return groups
+    }, [data, lang])
 
     return (
         <div className="h-full flex flex-col">
@@ -1013,8 +911,8 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
                 </div>
             </div>
 
-            {/* Chart */}
-            <div className="flex-1 p-2 min-h-0">
+            {/* Chart Content with Scroll */}
+            <div className="flex-1 overflow-y-auto p-3 min-h-0">
                 {loading ? (
                     <div className="flex items-center justify-center h-full">
                         <Spinner size="lg" />
@@ -1025,13 +923,66 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
                         <p>{lang === 'th' ? 'ไม่มีข้อมูล' : 'No data available'}</p>
                     </div>
                 ) : (
-                    <div ref={chartRef} style={{ width: '100%', height: '100%' }} />
+                    <div className="space-y-4">
+                        {groupedData.map((group, groupIdx) => (
+                            <div key={`${group.year}-${group.monthNum}`} className="space-y-1">
+                                {/* Year label - show only for first month of each year */}
+                                {(groupIdx === 0 || groupedData[groupIdx - 1]?.year !== group.year) && (
+                                    <div className={`text-sm font-bold mb-2 ${isLight ? 'text-gray-700' : 'text-white'}`}>
+                                        {group.year}
+                                    </div>
+                                )}
+
+                                {/* Month header */}
+                                <div className={`text-xs font-medium text-center mb-1 ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
+                                    {group.month}
+                                </div>
+
+                                {/* Day bars */}
+                                <div className="space-y-1">
+                                    {group.days.map((day, dayIdx) => (
+                                        <div key={dayIdx} className="flex items-center gap-2">
+                                            {/* Day name */}
+                                            <div className={`w-8 text-xs text-right ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                                {day.dayName}
+                                            </div>
+
+                                            {/* Bar container with gray background */}
+                                            <div className="flex-1 relative">
+                                                <div
+                                                    className={`h-5 rounded ${isLight ? 'bg-gray-200' : 'bg-dark-600'}`}
+                                                    style={{ width: '100%' }}
+                                                >
+                                                    {/* Colored fill bar */}
+                                                    <div
+                                                        className="h-full rounded transition-all duration-300"
+                                                        style={{
+                                                            width: `${Math.min(day.percentage, 100)}%`,
+                                                            backgroundColor: day.percentage > 0 ? getCompletenessColor(day.percentage) : 'transparent'
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Percentage label */}
+                                            <div
+                                                className="w-12 text-xs text-right font-medium"
+                                                style={{ color: day.percentage > 0 ? getCompletenessColor(day.percentage) : (isLight ? '#9ca3af' : '#6b7280') }}
+                                            >
+                                                {day.percentage > 0 ? `${day.percentage.toFixed(0)}%` : '-'}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 )}
             </div>
 
             {/* Legend - Compact */}
             {!loading && data.length > 0 && (
-                <div className={`px-3 pb-2 flex flex-wrap items-center justify-center gap-2 text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                <div className={`px-3 py-2 border-t flex flex-wrap items-center justify-center gap-2 text-xs ${isLight ? 'border-gray-100 text-gray-500' : 'border-dark-700 text-dark-400'}`}>
                     <div className="flex items-center gap-1">
                         <div className="w-2 h-2 rounded" style={{ backgroundColor: '#10b981' }} />
                         <span>≥90%</span>
@@ -1754,142 +1705,142 @@ export default function Dashboard(): React.ReactElement {
 
                         {/* Modal Content - Scrollable */}
                         <div className="flex-1 overflow-y-auto p-6 pt-4">
-                        <p className={`text-sm mb-4 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                            {lang === 'th'
-                                ? 'กำหนดเกณฑ์สำหรับตรวจจับข้อมูลที่ผิดปกติ'
-                                : 'Configure thresholds for detecting abnormal data'
-                            }
-                        </p>
+                            <p className={`text-sm mb-4 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
+                                {lang === 'th'
+                                    ? 'กำหนดเกณฑ์สำหรับตรวจจับข้อมูลที่ผิดปกติ'
+                                    : 'Configure thresholds for detecting abnormal data'
+                                }
+                            </p>
 
-                        {/* Negative Value Thresholds Section */}
-                        <h4 className={`text-sm font-medium mb-3 flex items-center gap-2 ${isLight ? 'text-red-600' : 'text-red-400'}`}>
-                            <Icon name="error" size="sm" />
-                            {lang === 'th' ? 'เกณฑ์ค่าติดลบ' : 'Negative Value Thresholds'}
-                        </h4>
-                        <div className="space-y-3">
-                            {/* PM2.5 - Primary pollutant (always first) */}
-                            <div className={`flex items-center gap-3 p-3 rounded-lg border-2 ${isLight ? 'bg-blue-50 border-blue-200' : 'bg-blue-900/20 border-blue-500/30'}`}>
-                                <Icon name="blur_on" style={{ color: '#3b82f6' }} />
-                                <div className="flex-1">
-                                    <p className={`text-sm font-medium ${isLight ? 'text-blue-700' : 'text-blue-300'}`}>
-                                        PM2.5
-                                    </p>
-                                    <p className={`text-xs ${isLight ? 'text-blue-500' : 'text-blue-400'}`}>
-                                        µg/m³
-                                    </p>
+                            {/* Negative Value Thresholds Section */}
+                            <h4 className={`text-sm font-medium mb-3 flex items-center gap-2 ${isLight ? 'text-red-600' : 'text-red-400'}`}>
+                                <Icon name="error" size="sm" />
+                                {lang === 'th' ? 'เกณฑ์ค่าติดลบ' : 'Negative Value Thresholds'}
+                            </h4>
+                            <div className="space-y-3">
+                                {/* PM2.5 - Primary pollutant (always first) */}
+                                <div className={`flex items-center gap-3 p-3 rounded-lg border-2 ${isLight ? 'bg-blue-50 border-blue-200' : 'bg-blue-900/20 border-blue-500/30'}`}>
+                                    <Icon name="blur_on" style={{ color: '#3b82f6' }} />
+                                    <div className="flex-1">
+                                        <p className={`text-sm font-medium ${isLight ? 'text-blue-700' : 'text-blue-300'}`}>
+                                            PM2.5
+                                        </p>
+                                        <p className={`text-xs ${isLight ? 'text-blue-500' : 'text-blue-400'}`}>
+                                            µg/m³
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-xs ${isLight ? 'text-blue-500' : 'text-blue-400'}`}>&lt;</span>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={pollutantThresholds['pm25'] ?? -3}
+                                            onChange={(e) => setPollutantThresholds(prev => ({
+                                                ...prev,
+                                                pm25: parseFloat(e.target.value) || 0
+                                            }))}
+                                            className={`w-20 px-2 py-1 text-sm rounded-lg border text-center ${isLight
+                                                ? 'bg-white border-blue-200 text-blue-800 focus:border-blue-500'
+                                                : 'bg-dark-600 border-blue-500 text-white focus:border-blue-400'
+                                                } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                                        />
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <span className={`text-xs ${isLight ? 'text-blue-500' : 'text-blue-400'}`}>&lt;</span>
+
+                                {/* Other pollutants */}
+                                {Object.entries(POLLUTANT_CONFIG).map(([key, config]) => (
+                                    <div key={key} className={`flex items-center gap-3 p-3 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-dark-700/50'}`}>
+                                        <Icon name={config.icon} style={{ color: config.color }} />
+                                        <div className="flex-1">
+                                            <p className={`text-sm font-medium ${isLight ? 'text-gray-700' : 'text-dark-200'}`}>
+                                                {config.label}
+                                            </p>
+                                            <p className={`text-xs ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                                                {config.unit}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>&lt;</span>
+                                            <input
+                                                type="number"
+                                                step="0.1"
+                                                value={pollutantThresholds[key] ?? (key === 'co' ? -0.3 : -3)}
+                                                onChange={(e) => setPollutantThresholds(prev => ({
+                                                    ...prev,
+                                                    [key]: parseFloat(e.target.value) || 0
+                                                }))}
+                                                className={`w-20 px-2 py-1 text-sm rounded-lg border text-center ${isLight
+                                                    ? 'bg-white border-gray-200 text-gray-800 focus:border-primary-500'
+                                                    : 'bg-dark-600 border-dark-500 text-white focus:border-primary-500'
+                                                    } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Spike Detection Section */}
+                            <div className={`mt-4 p-4 rounded-lg ${isLight ? 'bg-purple-50' : 'bg-purple-900/20'}`}>
+                                <h4 className={`text-sm font-medium mb-3 flex items-center gap-2 ${isLight ? 'text-purple-700' : 'text-purple-300'}`}>
+                                    <Icon name="trending_up" size="sm" />
+                                    {lang === 'th' ? 'ตรวจจับค่าพุ่งสูง (Spike)' : 'Spike Detection'}
+                                </h4>
+                                <p className={`text-xs mb-3 ${isLight ? 'text-purple-600' : 'text-purple-400'}`}>
+                                    {lang === 'th'
+                                        ? 'ค่าที่สูงกว่าค่าก่อนหน้า X เท่า จะถูกแสดงเป็นสีม่วง'
+                                        : 'Values X times higher than previous will be shown in purple'
+                                    }
+                                </p>
+                                <div className="flex items-center gap-3">
+                                    <span className={`text-sm ${isLight ? 'text-purple-700' : 'text-purple-300'}`}>
+                                        {lang === 'th' ? 'ค่าปัจจุบัน ≥ ค่าก่อนหน้า ×' : 'Current ≥ Previous ×'}
+                                    </span>
                                     <input
                                         type="number"
-                                        step="0.1"
-                                        value={pollutantThresholds['pm25'] ?? -3}
-                                        onChange={(e) => setPollutantThresholds(prev => ({
-                                            ...prev,
-                                            pm25: parseFloat(e.target.value) || 0
-                                        }))}
+                                        step="0.5"
+                                        min="1.5"
+                                        value={spikeMultiplier}
+                                        onChange={(e) => setSpikeMultiplier(parseFloat(e.target.value) || 5)}
                                         className={`w-20 px-2 py-1 text-sm rounded-lg border text-center ${isLight
-                                            ? 'bg-white border-blue-200 text-blue-800 focus:border-blue-500'
-                                            : 'bg-dark-600 border-blue-500 text-white focus:border-blue-400'
-                                            } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                                            ? 'bg-white border-purple-200 text-purple-800 focus:border-purple-500'
+                                            : 'bg-dark-600 border-purple-500 text-white focus:border-purple-400'
+                                            } focus:outline-none focus:ring-2 focus:ring-purple-500/20`}
                                     />
                                 </div>
                             </div>
 
-                            {/* Other pollutants */}
-                            {Object.entries(POLLUTANT_CONFIG).map(([key, config]) => (
-                                <div key={key} className={`flex items-center gap-3 p-3 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-dark-700/50'}`}>
-                                    <Icon name={config.icon} style={{ color: config.color }} />
-                                    <div className="flex-1">
-                                        <p className={`text-sm font-medium ${isLight ? 'text-gray-700' : 'text-dark-200'}`}>
-                                            {config.label}
-                                        </p>
-                                        <p className={`text-xs ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
-                                            {config.unit}
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>&lt;</span>
-                                        <input
-                                            type="number"
-                                            step="0.1"
-                                            value={pollutantThresholds[key] ?? (key === 'co' ? -0.3 : -3)}
-                                            onChange={(e) => setPollutantThresholds(prev => ({
-                                                ...prev,
-                                                [key]: parseFloat(e.target.value) || 0
-                                            }))}
-                                            className={`w-20 px-2 py-1 text-sm rounded-lg border text-center ${isLight
-                                                ? 'bg-white border-gray-200 text-gray-800 focus:border-primary-500'
-                                                : 'bg-dark-600 border-dark-500 text-white focus:border-primary-500'
-                                                } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
-                                        />
-                                    </div>
+                            {/* Consecutive Equal Values (Stuck) Detection Section */}
+                            <div className={`mt-4 p-4 rounded-lg ${isLight ? 'bg-amber-50' : 'bg-amber-900/20'}`}>
+                                <h4 className={`text-sm font-medium mb-3 flex items-center gap-2 ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>
+                                    <Icon name="pause" size="sm" />
+                                    {lang === 'th' ? 'ตรวจจับค่าคงที่ซ้ำ (Stuck Values)' : 'Stuck Values Detection'}
+                                </h4>
+                                <p className={`text-xs mb-3 ${isLight ? 'text-amber-600' : 'text-amber-400'}`}>
+                                    {lang === 'th'
+                                        ? 'ค่าที่เท่ากันติดต่อกัน X ครั้งขึ้นไป จะถูกแสดงเป็นสีส้ม (อาจบ่งชี้เซ็นเซอร์ค้าง)'
+                                        : 'X or more consecutive equal values will be shown in orange (may indicate sensor stuck)'
+                                    }
+                                </p>
+                                <div className="flex items-center gap-3">
+                                    <span className={`text-sm ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>
+                                        {lang === 'th' ? 'ค่าซ้ำติดต่อกัน ≥' : 'Consecutive equal ≥'}
+                                    </span>
+                                    <input
+                                        type="number"
+                                        step="1"
+                                        min="2"
+                                        value={consecutiveEqualThreshold}
+                                        onChange={(e) => setConsecutiveEqualThreshold(parseInt(e.target.value) || 3)}
+                                        className={`w-20 px-2 py-1 text-sm rounded-lg border text-center ${isLight
+                                            ? 'bg-white border-amber-200 text-amber-800 focus:border-amber-500'
+                                            : 'bg-dark-600 border-amber-500 text-white focus:border-amber-400'
+                                            } focus:outline-none focus:ring-2 focus:ring-amber-500/20`}
+                                    />
+                                    <span className={`text-sm ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>
+                                        {lang === 'th' ? 'ครั้ง' : 'times'}
+                                    </span>
                                 </div>
-                            ))}
-                        </div>
-
-                        {/* Spike Detection Section */}
-                        <div className={`mt-4 p-4 rounded-lg ${isLight ? 'bg-purple-50' : 'bg-purple-900/20'}`}>
-                            <h4 className={`text-sm font-medium mb-3 flex items-center gap-2 ${isLight ? 'text-purple-700' : 'text-purple-300'}`}>
-                                <Icon name="trending_up" size="sm" />
-                                {lang === 'th' ? 'ตรวจจับค่าพุ่งสูง (Spike)' : 'Spike Detection'}
-                            </h4>
-                            <p className={`text-xs mb-3 ${isLight ? 'text-purple-600' : 'text-purple-400'}`}>
-                                {lang === 'th'
-                                    ? 'ค่าที่สูงกว่าค่าก่อนหน้า X เท่า จะถูกแสดงเป็นสีม่วง'
-                                    : 'Values X times higher than previous will be shown in purple'
-                                }
-                            </p>
-                            <div className="flex items-center gap-3">
-                                <span className={`text-sm ${isLight ? 'text-purple-700' : 'text-purple-300'}`}>
-                                    {lang === 'th' ? 'ค่าปัจจุบัน ≥ ค่าก่อนหน้า ×' : 'Current ≥ Previous ×'}
-                                </span>
-                                <input
-                                    type="number"
-                                    step="0.5"
-                                    min="1.5"
-                                    value={spikeMultiplier}
-                                    onChange={(e) => setSpikeMultiplier(parseFloat(e.target.value) || 5)}
-                                    className={`w-20 px-2 py-1 text-sm rounded-lg border text-center ${isLight
-                                        ? 'bg-white border-purple-200 text-purple-800 focus:border-purple-500'
-                                        : 'bg-dark-600 border-purple-500 text-white focus:border-purple-400'
-                                        } focus:outline-none focus:ring-2 focus:ring-purple-500/20`}
-                                />
                             </div>
-                        </div>
-
-                        {/* Consecutive Equal Values (Stuck) Detection Section */}
-                        <div className={`mt-4 p-4 rounded-lg ${isLight ? 'bg-amber-50' : 'bg-amber-900/20'}`}>
-                            <h4 className={`text-sm font-medium mb-3 flex items-center gap-2 ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>
-                                <Icon name="pause" size="sm" />
-                                {lang === 'th' ? 'ตรวจจับค่าคงที่ซ้ำ (Stuck Values)' : 'Stuck Values Detection'}
-                            </h4>
-                            <p className={`text-xs mb-3 ${isLight ? 'text-amber-600' : 'text-amber-400'}`}>
-                                {lang === 'th'
-                                    ? 'ค่าที่เท่ากันติดต่อกัน X ครั้งขึ้นไป จะถูกแสดงเป็นสีส้ม (อาจบ่งชี้เซ็นเซอร์ค้าง)'
-                                    : 'X or more consecutive equal values will be shown in orange (may indicate sensor stuck)'
-                                }
-                            </p>
-                            <div className="flex items-center gap-3">
-                                <span className={`text-sm ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>
-                                    {lang === 'th' ? 'ค่าซ้ำติดต่อกัน ≥' : 'Consecutive equal ≥'}
-                                </span>
-                                <input
-                                    type="number"
-                                    step="1"
-                                    min="2"
-                                    value={consecutiveEqualThreshold}
-                                    onChange={(e) => setConsecutiveEqualThreshold(parseInt(e.target.value) || 3)}
-                                    className={`w-20 px-2 py-1 text-sm rounded-lg border text-center ${isLight
-                                        ? 'bg-white border-amber-200 text-amber-800 focus:border-amber-500'
-                                        : 'bg-dark-600 border-amber-500 text-white focus:border-amber-400'
-                                        } focus:outline-none focus:ring-2 focus:ring-amber-500/20`}
-                                />
-                                <span className={`text-sm ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>
-                                    {lang === 'th' ? 'ครั้ง' : 'times'}
-                                </span>
-                            </div>
-                        </div>
                         </div>
 
                         {/* Modal Footer - Fixed */}
