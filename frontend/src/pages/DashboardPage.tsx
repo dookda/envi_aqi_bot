@@ -1063,7 +1063,7 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
                                                 className="w-12 text-xs text-right font-medium"
                                                 style={{ color: day.percentage > 0 ? getCompletenessColor(day.percentage) : (isLight ? '#9ca3af' : '#6b7280') }}
                                             >
-                                                {day.percentage > 0 ? `${day.percentage.toFixed(0)}%` : '-'}}
+                                                {day.percentage > 0 ? `${day.percentage.toFixed(0)}%` : '-'}
                                             </div>
                                         </div>
                                     ))}
