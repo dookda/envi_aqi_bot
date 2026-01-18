@@ -44,13 +44,22 @@ class AirQualityChatbotService:
         self._cache = {}
         self._cache_ttl = 300  # 5 minutes
         
+        # Pollutant pattern for regex (air quality + weather)
+        self._pollutant_pattern = r"(o3|ozone|โอโซน|pm10|pm2\.?5|co|no2|so2|nox|temp|temperature|อุณหภูมิ|rh|humidity|ความชื้น|ws|wind|ลม|bp|pressure|ความดัน|rain|ฝน)"
+
         # Fast patterns that bypass LLM
         self._fast_patterns = [
             # (regex_pattern, intent_template)
             (r"(?:pm2\.?5|ค่าฝุ่น)\s+(.+?)\s+(?:วันนี้|today)", self._make_today_intent),
             (r"(?:ค้นหา|หา|search|find)\s*(?:สถานี)?\s*(.+)", self._make_search_intent),
             # Generic pollutant pattern: "ข้อมูล [pollutant] ใน[location]" or "[pollutant] [location]"
-            (r"(?:ข้อมูล\s*)?(o3|ozone|โอโซน|pm10|pm2\.?5|co|no2|so2|nox)\s+(?:ใน|ที่)?\s*(.+?)(?:\s+(?:วันนี้|today|ย้อนหลัง|สัปดาห์|เดือน))?$", self._make_pollutant_intent),
+            (r"(?:ข้อมูล\s*)?(o3|ozone|โอโซน|pm10|pm2\.?5|co|no2|so2|nox|temp|temperature|อุณหภูมิ|rh|humidity|ความชื้น)\s+(?:ใน|ที่)?\s*(.+?)(?:\s+(?:วันนี้|today|ย้อนหลัง|สัปดาห์|เดือน))?$", self._make_pollutant_intent),
+            # "ค่า x ตอนนี้เท่าไหร่" or "ค่า x ที่ [location]" - current value query
+            (r"ค่า\s*" + self._pollutant_pattern + r"\s+(?:ตอนนี้|ปัจจุบัน|ล่าสุด|เท่าไหร่|ที่|ใน)\s*(.+)?", self._make_current_value_intent),
+            # "ขอดูกราฟ x ย้อนหลัง" or "กราฟ x ย้อนหลัง 7 วัน"
+            (r"(?:ขอดู|ดู|แสดง)?\s*กราฟ\s*" + self._pollutant_pattern + r"\s*(?:ย้อนหลัง|ที่|ใน)?\s*(.+)?", self._make_chart_intent),
+            # "สถานีใดบ้างที่มีข้อมูล x" or "สถานีที่มี x"
+            (r"สถานี(?:ใด|ไหน)?(?:บ้าง)?(?:ที่)?(?:มี)?\s*(?:ข้อมูล)?\s*" + self._pollutant_pattern + r"\s*(?:ล่าสุด|ใน|ที่)?\s*(.+)?", self._make_station_search_by_param_intent),
         ]
 
     def _make_today_intent(self, match) -> Dict[str, Any]:
@@ -97,6 +106,112 @@ class AirQualityChatbotService:
             "end_date": today.isoformat(),
             "interval": "hour",
             "output_type": "chart"
+        }
+
+    def _make_current_value_intent(self, match) -> Dict[str, Any]:
+        """Create intent for 'ค่า x ตอนนี้เท่าไหร่' or 'ค่า x ที่ [location]' queries"""
+        from datetime import datetime, timedelta
+        from .guardrails import normalize_pollutant
+
+        pollutant_raw = match.group(1).strip()
+        location = match.group(2).strip() if match.group(2) else None
+
+        # Normalize the pollutant name
+        pollutant = normalize_pollutant(pollutant_raw) or "pm25"
+
+        # If no location specified, ask for clarification
+        if not location or location in ["เท่าไหร่", "ตอนนี้", "ปัจจุบัน", "ล่าสุด"]:
+            return {
+                "intent_type": "needs_clarification",
+                "missing_info": "location",
+                "clarification_question": f"กรุณาระบุสถานีหรือจังหวัดที่ต้องการดูค่า {pollutant_raw} เช่น 'ค่า {pollutant_raw} ที่เชียงใหม่' หรือ 'ค่า {pollutant_raw} กรุงเทพ'"
+            }
+
+        # Get data for last 3 hours
+        now = datetime.now()
+        return {
+            "intent_type": "get_data",
+            "station_id": location,
+            "pollutant": pollutant,
+            "start_date": (now - timedelta(hours=3)).isoformat(),
+            "end_date": now.isoformat(),
+            "interval": "hour",
+            "output_type": "text"
+        }
+
+    def _make_chart_intent(self, match) -> Dict[str, Any]:
+        """Create intent for 'ขอดูกราฟ x ย้อนหลัง' queries"""
+        from datetime import datetime, timedelta
+        from .guardrails import normalize_pollutant
+        import re
+
+        pollutant_raw = match.group(1).strip()
+        rest = match.group(2).strip() if match.group(2) else ""
+
+        # Normalize the pollutant name
+        pollutant = normalize_pollutant(pollutant_raw) or "pm25"
+
+        # Parse time period and location from rest
+        days = 7  # default
+        location = None
+
+        if rest:
+            # Check for time period patterns
+            time_match = re.search(r"(\d+)\s*(?:วัน|day)", rest)
+            if time_match:
+                days = int(time_match.group(1))
+                rest = re.sub(r"\d+\s*(?:วัน|day)", "", rest).strip()
+
+            week_match = re.search(r"(?:สัปดาห์|week)", rest)
+            if week_match:
+                days = 7
+                rest = re.sub(r"(?:สัปดาห์|week)", "", rest).strip()
+
+            month_match = re.search(r"(?:เดือน|month)", rest)
+            if month_match:
+                days = 30
+                rest = re.sub(r"(?:เดือน|month)", "", rest).strip()
+
+            # Remaining text is location
+            location = rest.strip() if rest.strip() else None
+
+        # If no location specified, ask for clarification
+        if not location:
+            return {
+                "intent_type": "needs_clarification",
+                "missing_info": "location",
+                "clarification_question": f"กรุณาระบุสถานีหรือจังหวัดที่ต้องการดูกราฟ {pollutant_raw} เช่น 'กราฟ {pollutant_raw} ย้อนหลัง 7 วัน ที่เชียงใหม่'"
+            }
+
+        now = datetime.now()
+        return {
+            "intent_type": "get_data",
+            "station_id": location,
+            "pollutant": pollutant,
+            "start_date": (now - timedelta(days=days)).isoformat(),
+            "end_date": now.isoformat(),
+            "interval": "hour",
+            "output_type": "chart"
+        }
+
+    def _make_station_search_by_param_intent(self, match) -> Dict[str, Any]:
+        """Create intent for 'สถานีใดบ้างที่มีข้อมูล x' queries"""
+        from .guardrails import normalize_pollutant
+
+        pollutant_raw = match.group(1).strip()
+        location = match.group(2).strip() if match.group(2) else None
+
+        # Normalize the pollutant name
+        pollutant = normalize_pollutant(pollutant_raw) or "pm25"
+
+        # Search for stations - if location provided, search in that area
+        search_query = location if location else "ทั้งหมด"
+
+        return {
+            "intent_type": "search_stations",
+            "search_query": search_query,
+            "pollutant_filter": pollutant,
+            "output_type": "text"
         }
 
     def _get_cache_key(self, query: str) -> str:

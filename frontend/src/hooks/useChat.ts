@@ -99,6 +99,23 @@ export default function useChat(): UseChatReturn {
   }
 }
 
+// Pollutant display configuration
+const POLLUTANT_DISPLAY: Record<string, { name: string; unit: string }> = {
+  pm25: { name: 'PM2.5', unit: 'μg/m³' },
+  pm10: { name: 'PM10', unit: 'μg/m³' },
+  o3: { name: 'O₃', unit: 'ppb' },
+  co: { name: 'CO', unit: 'ppm' },
+  no2: { name: 'NO₂', unit: 'ppb' },
+  so2: { name: 'SO₂', unit: 'ppb' },
+  nox: { name: 'NOₓ', unit: 'ppb' },
+  temp: { name: 'อุณหภูมิ', unit: '°C' },
+  rh: { name: 'ความชื้น', unit: '%' },
+  ws: { name: 'ความเร็วลม', unit: 'm/s' },
+  wd: { name: 'ทิศทางลม', unit: '°' },
+  bp: { name: 'ความดัน', unit: 'mmHg' },
+  rain: { name: 'ปริมาณฝน', unit: 'mm' },
+}
+
 function getResponseText(result: ChatApiResponse): string {
   if (result.status === 'out_of_scope') {
     return result.message || 'ระบบนี้รองรับเฉพาะคำถามเกี่ยวกับคุณภาพอากาศเท่านั้น'
@@ -114,10 +131,15 @@ function getResponseText(result: ChatApiResponse): string {
 
   if (result.status === 'success' && result.summary) {
     const s = result.summary
-    let text = `ข้อมูล PM2.5:\n\n`
-    text += `• ค่าเฉลี่ย: ${s.mean} μg/m³\n`
-    text += `• ค่าสูงสุด: ${s.max} μg/m³\n`
-    text += `• ค่าต่ำสุด: ${s.min} μg/m³\n`
+    // Get pollutant from intent
+    const pollutant = result.intent?.pollutant || 'pm25'
+    const pollutantInfo = POLLUTANT_DISPLAY[pollutant] || { name: pollutant.toUpperCase(), unit: '' }
+    const stationName = s.station_name || result.intent?.station_id || ''
+
+    let text = `ข้อมูล ${pollutantInfo.name}${stationName ? ` สถานี ${stationName}` : ''}:\n\n`
+    text += `• ค่าเฉลี่ย: ${s.mean} ${pollutantInfo.unit}\n`
+    text += `• ค่าสูงสุด: ${s.max} ${pollutantInfo.unit}\n`
+    text += `• ค่าต่ำสุด: ${s.min} ${pollutantInfo.unit}\n`
     text += `• จุดข้อมูล: ${s.valid_points}/${s.data_points} จุด\n`
 
     if (s.aqi_level) {
