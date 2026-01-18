@@ -39,13 +39,13 @@ class AirQualityChatbotService:
     def __init__(self):
         self.llm_adapter = get_ollama_adapter()
         self.orchestrator = get_api_orchestrator()
-        
+
         # Response cache for faster repeated queries
         self._cache = {}
         self._cache_ttl = 300  # 5 minutes
-        
+
         # Pollutant pattern for regex (air quality + weather)
-        self._pollutant_pattern = r"(o3|ozone|โอโซน|pm10|pm2\.?5|co|no2|so2|nox|temp|temperature|อุณหภูมิ|rh|humidity|ความชื้น|ws|wind|ลม|bp|pressure|ความดัน|rain|ฝน)"
+        self._pollutant_pattern = r"(o3|ozone|โอโซน|pm10|pm2\.?5|ฝุ่น|co|no2|so2|nox|temp|temperature|อุณหภูมิ|rh|humidity|ความชื้น|ws|wind|ลม|bp|pressure|ความดัน|rain|ฝน)"
 
         # Fast patterns that bypass LLM
         self._fast_patterns = [
@@ -55,11 +55,28 @@ class AirQualityChatbotService:
             # Generic pollutant pattern: "ข้อมูล [pollutant] ใน[location]" or "[pollutant] [location]"
             (r"(?:ข้อมูล\s*)?(o3|ozone|โอโซน|pm10|pm2\.?5|co|no2|so2|nox|temp|temperature|อุณหภูมิ|rh|humidity|ความชื้น)\s+(?:ใน|ที่)?\s*(.+?)(?:\s+(?:วันนี้|today|ย้อนหลัง|สัปดาห์|เดือน))?$", self._make_pollutant_intent),
             # "ค่า x ตอนนี้เท่าไหร่" or "ค่า x ที่ [location]" - current value query
-            (r"ค่า\s*" + self._pollutant_pattern + r"\s+(?:ตอนนี้|ปัจจุบัน|ล่าสุด|เท่าไหร่|ที่|ใน)\s*(.+)?", self._make_current_value_intent),
+            (r"ค่า\s*" + self._pollutant_pattern +
+             r"\s+(?:ตอนนี้|ปัจจุบัน|ล่าสุด|เท่าไหร่|ที่|ใน)\s*(.+)?", self._make_current_value_intent),
             # "ขอดูกราฟ x ย้อนหลัง" or "กราฟ x ย้อนหลัง 7 วัน"
-            (r"(?:ขอดู|ดู|แสดง)?\s*กราฟ\s*" + self._pollutant_pattern + r"\s*(?:ย้อนหลัง|ที่|ใน)?\s*(.+)?", self._make_chart_intent),
+            (r"(?:ขอดู|ดู|แสดง)?\s*กราฟ\s*" + self._pollutant_pattern +
+             r"\s*(?:ย้อนหลัง|ที่|ใน)?\s*(.+)?", self._make_chart_intent),
+            # "chart [pollutant] [location]" or "chart for [location]"
+            (r"chart\s+" + self._pollutant_pattern +
+             r"\s*(?:for|at|in)?\s*(.+)?", self._make_chart_intent),
+            (r"chart\s+(?:for|at|in)\s*(.+)",
+             self._make_chart_location_only_intent),
+            # "ข้อมูลย้อนหลัง [pollutant] [location]" or "ข้อมูลย้อนหลัง [location]"
+            (r"ข้อมูลย้อนหลัง\s*" + self._pollutant_pattern +
+             r"?\s*(?:ที่|ใน|ของ)?\s*(.+)?", self._make_historical_data_intent),
+            # "ที่ผ่านมา X วัน" pattern - e.g., "ค่า pm2.5 ที่ผ่านมา 7 วัน ที่เชียงใหม่"
+            (r"(?:ค่า\s*)?" + self._pollutant_pattern +
+             r"\s*(?:ที่ผ่านมา|ในช่วง)\s*(\d+)\s*(?:วัน|day)\s*(?:ที่|ใน|ของ)?\s*(.+)?", self._make_past_days_intent),
+            # "กราฟ [location] ย้อนหลัง x วัน" - location first, then time
+            (r"กราฟ\s*(.+?)\s*(?:ย้อนหลัง|ที่ผ่านมา)\s*(\d+)?\s*(?:วัน|day|สัปดาห์|week|เดือน|month)?",
+             self._make_chart_location_time_intent),
             # "สถานีใดบ้างที่มีข้อมูล x" or "สถานีที่มี x"
-            (r"สถานี(?:ใด|ไหน)?(?:บ้าง)?(?:ที่)?(?:มี)?\s*(?:ข้อมูล)?\s*" + self._pollutant_pattern + r"\s*(?:ล่าสุด|ใน|ที่)?\s*(.+)?", self._make_station_search_by_param_intent),
+            (r"สถานี(?:ใด|ไหน)?(?:บ้าง)?(?:ที่)?(?:มี)?\s*(?:ข้อมูล)?\s*" + self._pollutant_pattern +
+             r"\s*(?:ล่าสุด|ใน|ที่)?\s*(.+)?", self._make_station_search_by_param_intent),
         ]
 
     def _make_today_intent(self, match) -> Dict[str, Any]:
@@ -194,6 +211,137 @@ class AirQualityChatbotService:
             "output_type": "chart"
         }
 
+    def _make_chart_location_only_intent(self, match) -> Dict[str, Any]:
+        """Create intent for 'chart for [location]' queries without pollutant specified"""
+        from datetime import datetime, timedelta
+
+        location = match.group(1).strip() if match.group(1) else None
+
+        if not location:
+            return {
+                "intent_type": "needs_clarification",
+                "missing_info": "location",
+                "clarification_question": "กรุณาระบุสถานีหรือจังหวัดที่ต้องการดูกราฟ เช่น 'chart pm2.5 for Chiang Mai' หรือ 'กราฟ pm2.5 เชียงใหม่'"
+            }
+
+        now = datetime.now()
+        return {
+            "intent_type": "get_data",
+            "station_id": location,
+            "pollutant": "pm25",  # Default to PM2.5
+            "start_date": (now - timedelta(days=7)).isoformat(),
+            "end_date": now.isoformat(),
+            "interval": "hour",
+            "output_type": "chart"
+        }
+
+    def _make_historical_data_intent(self, match) -> Dict[str, Any]:
+        """Create intent for 'ข้อมูลย้อนหลัง' queries"""
+        from datetime import datetime, timedelta
+        from .guardrails import normalize_pollutant
+
+        pollutant_raw = match.group(1).strip() if match.group(1) else None
+        location = match.group(2).strip() if match.group(2) else None
+
+        # Normalize the pollutant name or default to PM2.5
+        pollutant = normalize_pollutant(
+            pollutant_raw) if pollutant_raw else "pm25"
+
+        if not location:
+            pollutant_display = pollutant_raw if pollutant_raw else "PM2.5"
+            return {
+                "intent_type": "needs_clarification",
+                "missing_info": "location",
+                "clarification_question": f"กรุณาระบุสถานีหรือจังหวัดที่ต้องการดูข้อมูลย้อนหลัง เช่น 'ข้อมูลย้อนหลัง {pollutant_display} ที่เชียงใหม่' หรือ 'ข้อมูลย้อนหลัง กรุงเทพ'"
+            }
+
+        now = datetime.now()
+        return {
+            "intent_type": "get_data",
+            "station_id": location,
+            "pollutant": pollutant or "pm25",
+            "start_date": (now - timedelta(days=7)).isoformat(),
+            "end_date": now.isoformat(),
+            "interval": "hour",
+            "output_type": "chart"
+        }
+
+    def _make_past_days_intent(self, match) -> Dict[str, Any]:
+        """Create intent for 'ที่ผ่านมา X วัน' queries - e.g., 'ค่า pm2.5 ที่ผ่านมา 7 วัน ที่เชียงใหม่'"""
+        from datetime import datetime, timedelta
+        from .guardrails import normalize_pollutant
+
+        pollutant_raw = match.group(1).strip() if match.group(1) else None
+        days_str = match.group(2)
+        location = match.group(3).strip() if match.group(3) else None
+
+        # Normalize the pollutant name
+        pollutant = normalize_pollutant(
+            pollutant_raw) if pollutant_raw else "pm25"
+        days = int(days_str) if days_str else 7
+
+        if not location:
+            pollutant_display = pollutant_raw if pollutant_raw else "PM2.5"
+            return {
+                "intent_type": "needs_clarification",
+                "missing_info": "location",
+                "clarification_question": f"กรุณาระบุสถานีหรือจังหวัดที่ต้องการดูข้อมูล {pollutant_display} ที่ผ่านมา {days} วัน เช่น 'ค่า {pollutant_display} ที่ผ่านมา {days} วัน ที่เชียงใหม่'"
+            }
+
+        now = datetime.now()
+        return {
+            "intent_type": "get_data",
+            "station_id": location,
+            "pollutant": pollutant,
+            "start_date": (now - timedelta(days=days)).isoformat(),
+            "end_date": now.isoformat(),
+            "interval": "hour",
+            "output_type": "chart"
+        }
+
+    def _make_chart_location_time_intent(self, match) -> Dict[str, Any]:
+        """Create intent for 'กราฟ [location] ย้อนหลัง x วัน' queries"""
+        from datetime import datetime, timedelta
+        import re
+
+        location = match.group(1).strip() if match.group(1) else None
+        days_str = match.group(2)
+
+        # Default to 7 days
+        days = int(days_str) if days_str else 7
+
+        # Check if the original query contains time period keywords without number
+        # The regex group 2 might not capture if there's no number
+
+        if not location:
+            return {
+                "intent_type": "needs_clarification",
+                "missing_info": "location",
+                "clarification_question": "กรุณาระบุสถานีหรือจังหวัดที่ต้องการดูกราฟ เช่น 'กราฟ เชียงใหม่ ย้อนหลัง 7 วัน'"
+            }
+
+        # Extract pollutant if mentioned in location string
+        pollutant = "pm25"  # Default
+        pollutant_match = re.search(
+            r"(pm2\.?5|pm10|o3|co|no2|so2|nox|ฝุ่น)", location.lower())
+        if pollutant_match:
+            from .guardrails import normalize_pollutant
+            pollutant = normalize_pollutant(pollutant_match.group(1)) or "pm25"
+            # Remove pollutant from location
+            location = re.sub(r"(pm2\.?5|pm10|o3|co|no2|so2|nox|ฝุ่น)\s*",
+                              "", location, flags=re.IGNORECASE).strip()
+
+        now = datetime.now()
+        return {
+            "intent_type": "get_data",
+            "station_id": location,
+            "pollutant": pollutant,
+            "start_date": (now - timedelta(days=days)).isoformat(),
+            "end_date": now.isoformat(),
+            "interval": "hour",
+            "output_type": "chart"
+        }
+
     def _make_station_search_by_param_intent(self, match) -> Dict[str, Any]:
         """Create intent for 'สถานีใดบ้างที่มีข้อมูล x' queries"""
         from .guardrails import normalize_pollutant
@@ -235,10 +383,11 @@ class AirQualityChatbotService:
         import time
         key = self._get_cache_key(query)
         self._cache[key] = {"response": response, "time": time.time()}
-        
+
         # Cleanup old entries (keep max 100)
         if len(self._cache) > 100:
-            sorted_keys = sorted(self._cache.keys(), key=lambda k: self._cache[k]["time"])
+            sorted_keys = sorted(self._cache.keys(),
+                                 key=lambda k: self._cache[k]["time"])
             for k in sorted_keys[:20]:
                 del self._cache[k]
 
@@ -280,7 +429,7 @@ class AirQualityChatbotService:
             Response dictionary with status, message, data, summary
         """
         logger.info(f"Processing query: {user_query[:100]}")
-        
+
         # Detect user language for response
         language = self._detect_language(user_query)
         logger.info(f"Detected language: {language}")
@@ -293,7 +442,8 @@ class AirQualityChatbotService:
         # === LAYER 1: KEYWORD FILTER (PRE-LLM) ===
         keyword_result = keyword_filter(user_query)
         if not keyword_result["passed"]:
-            error_response = compose_error_response("out_of_scope", language=language)
+            error_response = compose_error_response(
+                "out_of_scope", language=language)
             return {
                 "status": keyword_result["status"],
                 "message": error_response["message"],
@@ -321,7 +471,8 @@ class AirQualityChatbotService:
 
             if llm_output is None:
                 logger.error("LLM failed to generate output")
-                error_response = compose_error_response("service_error", language=language)
+                error_response = compose_error_response(
+                    "service_error", language=language)
                 return {
                     "status": "error",
                     "message": error_response["message"],
@@ -354,18 +505,17 @@ class AirQualityChatbotService:
         # === ROUTE BASED ON INTENT TYPE ===
         intent_type = intent.get("intent_type", "get_data")
 
-        
         if intent_type == "needs_clarification":
             response = await self._handle_needs_clarification(intent, language)
         elif intent_type == "search_stations":
             response = await self._handle_search_stations(intent, language)
         else:
             response = await self._handle_get_data(intent, language)
-        
+
         # Cache successful responses
         if response.get("status") in ["success", "no_results"]:
             self._set_cache(user_query, response)
-        
+
         return response
 
     async def _handle_needs_clarification(
@@ -375,26 +525,26 @@ class AirQualityChatbotService:
     ) -> Dict[str, Any]:
         """
         Handle unclear queries by asking for clarification
-        
+
         Args:
             intent: Intent with clarification question
             language: Response language (th/en)
-            
+
         Returns:
             Response asking user for more information
         """
         clarification_question = intent.get("clarification_question", "")
         missing_info = intent.get("missing_info", "")
-        
+
         logger.info(f"Asking for clarification: {missing_info}")
-        
+
         # Compose friendly clarification response
         response = compose_clarification_response(
             clarification_question=clarification_question,
             missing_info=missing_info,
             language=language
         )
-        
+
         return {
             "status": "needs_clarification",
             "message": response["message"],
@@ -405,29 +555,31 @@ class AirQualityChatbotService:
         }
 
     async def _handle_search_stations(
-        self, 
+        self,
         intent: Dict[str, Any],
         language: str = "en"
     ) -> Dict[str, Any]:
         """
         Handle station search intent with rich response
-        
+
         Args:
             intent: Validated search intent with search_query
             language: Response language (th/en)
-            
+
         Returns:
             Response with search results, summary, and health advice
         """
         search_query = intent.get("search_query", "")
-        logger.info(f"Handling search_stations for: {search_query} (language: {language})")
-        
+        logger.info(
+            f"Handling search_stations for: {search_query} (language: {language})")
+
         # Search for stations using orchestrator
         search_result = await self.orchestrator.search_stations_with_summary(search_query)
-        
+
         # Compose rich response
-        response = compose_search_response(search_query, search_result, language)
-        
+        response = compose_search_response(
+            search_query, search_result, language)
+
         return {
             "status": "success" if search_result["total_found"] > 0 else "no_results",
             "message": response["message"],
@@ -444,19 +596,20 @@ class AirQualityChatbotService:
     ) -> Dict[str, Any]:
         """
         Handle air quality data retrieval intent with rich response
-        
+
         Args:
             intent: Validated data intent with station_id, pollutant, dates
             language: Response language (th/en)
-            
+
         Returns:
             Response with AQI data, summary, health advice, and visualization data
         """
         # === RESOLVE STATION ID ===
-        resolved_station_id = self.orchestrator.resolve_station_id(intent["station_id"])
+        resolved_station_id = self.orchestrator.resolve_station_id(
+            intent["station_id"])
         if not resolved_station_id:
             error_response = compose_error_response(
-                "invalid_station", 
+                "invalid_station",
                 details=intent["station_id"],
                 language=language
             )
@@ -471,7 +624,8 @@ class AirQualityChatbotService:
 
         # Update intent with resolved station_id
         intent["station_id"] = resolved_station_id
-        logger.info(f"Handling get_data for: {resolved_station_id} (language: {language})")
+        logger.info(
+            f"Handling get_data for: {resolved_station_id} (language: {language})")
 
         # === API DATA RETRIEVAL ===
         data = await self.orchestrator.get_aqi_history(
@@ -483,7 +637,8 @@ class AirQualityChatbotService:
         )
 
         if data is None:
-            error_response = compose_error_response("no_data", language=language)
+            error_response = compose_error_response(
+                "no_data", language=language)
             return {
                 "status": "error",
                 "message": error_response["message"],
@@ -497,7 +652,8 @@ class AirQualityChatbotService:
         summary = self._compose_summary(data, intent)
 
         # === GET STATION NAME (Thai preferred) ===
-        station_name = self.orchestrator.get_station_name(resolved_station_id, prefer_thai=True)
+        station_name = self.orchestrator.get_station_name(
+            resolved_station_id, prefer_thai=True)
 
         # === COMPOSE RICH RESPONSE ===
         response = compose_data_response(
@@ -535,7 +691,8 @@ class AirQualityChatbotService:
         """
         from dateutil import parser as date_parser
 
-        values = [point["value"] for point in data if point["value"] is not None]
+        values = [point["value"]
+                  for point in data if point["value"] is not None]
 
         if not values:
             return {
@@ -583,7 +740,8 @@ class AirQualityChatbotService:
         if len(values) >= 2:
             mid_point = len(values) // 2
             first_half_avg = sum(values[:mid_point]) / mid_point
-            second_half_avg = sum(values[mid_point:]) / (len(values) - mid_point)
+            second_half_avg = sum(
+                values[mid_point:]) / (len(values) - mid_point)
 
             if second_half_avg > first_half_avg * 1.1:
                 summary["trend"] = "increasing"

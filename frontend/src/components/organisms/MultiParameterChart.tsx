@@ -242,7 +242,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                         consecutiveEqualData.push({
                             value: [pt.time, pt.value],
                             itemStyle: {
-                                color: '#f59e0b',  // Amber/orange color
+                                color: '#8b5cf6',  // Purple color (distinct from Gap-Fill amber)
                                 borderColor: '#fff',
                                 borderWidth: 2,
                             },
@@ -280,7 +280,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                             consecutiveEqualData.push({
                                 value: [pt.time, pt.value],
                                 itemStyle: {
-                                    color: '#f59e0b',  // Amber/orange color
+                                    color: '#8b5cf6',  // Purple color (distinct from Gap-Fill amber)
                                     borderColor: '#fff',
                                     borderWidth: 2,
                                 },
@@ -348,7 +348,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                 consecutiveEqualData.push({
                     value: [pt.time, pt.value],
                     itemStyle: {
-                        color: '#f59e0b',  // Amber/orange color
+                        color: '#8b5cf6',  // Purple color (distinct from Gap-Fill amber)
                         borderColor: '#fff',
                         borderWidth: 2,
                     },
@@ -487,13 +487,13 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                 symbolSize: 12,
                 z: 15,
                 itemStyle: {
-                    color: '#f59e0b'
+                    color: '#8b5cf6'
                 },
                 emphasis: {
                     scale: 1.5,
                     itemStyle: {
                         shadowBlur: 10,
-                        shadowColor: 'rgba(245, 158, 11, 0.5)',
+                        shadowColor: 'rgba(139, 92, 246, 0.5)',
                     },
                 },
             })
@@ -549,7 +549,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                                 content += `<span style="color:#dc2626">⚠ Negative Value</span><br/>`
                                 content += `Value: <strong>${param.value[1].toFixed(2)} ${paramConfig.unit}</strong><br/>`
                             } else if (isConsecutive && param.data.consecutive) {
-                                content += `<span style="color:#f59e0b">⚠ Stuck Value (${param.data.consecutive.count}x repeated)</span><br/>`
+                                content += `<span style="color:#8b5cf6">⚠ Stuck Value (${param.data.consecutive.count}x repeated)</span><br/>`
                                 content += `Value: <strong>${param.value[1].toFixed(2)} ${paramConfig.unit}</strong><br/>`
                             } else {
                                 const icon = isGapFill ? '◆' : '●'
@@ -707,9 +707,9 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                                 type="checkbox"
                                 checked={showConsecutiveEqual}
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowConsecutiveEqual(e.target.checked)}
-                                className="w-4 h-4 rounded accent-amber-500"
+                                className="w-4 h-4 rounded accent-purple-500"
                             />
-                            <Icon name="pause" size="sm" style={{ color: '#f59e0b' }} />
+                            <Icon name="pause" size="sm" style={{ color: '#8b5cf6' }} />
                             <span className="text-sm">{lang === 'th' ? 'ค่าคงที่' : 'Stuck'}</span>
                         </label>
 
