@@ -201,7 +201,7 @@ export default function Chat(): React.ReactElement {
                                         <Icon name="check_circle" size="xs" /> Online
                                     </Badge>
                                     <Badge variant="primary" size="sm">
-                                        🇹🇭 TH/EN
+                                        🤖 Ollama qwen2.5:1.5b
                                     </Badge>
                                 </div>
                             </div>
