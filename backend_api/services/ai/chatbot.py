@@ -50,13 +50,16 @@ class AirQualityChatbotService:
         # Fast patterns that bypass LLM
         self._fast_patterns = [
             # (regex_pattern, intent_template)
+            # "[pollutant] [station] ขณะนี้/ในขณะนี้/ในตอนนี้/ตอนนี้" - current value with station
+            (r"" + self._pollutant_pattern +
+             r"\s+(.+?)\s+(?:ขณะนี้|ในขณะนี้|ในตอนนี้|ตอนนี้|now)$", self._make_now_intent),
             (r"(?:pm2\.?5|ค่าฝุ่น)\s+(.+?)\s+(?:วันนี้|today)", self._make_today_intent),
             (r"(?:ค้นหา|หา|search|find)\s*(?:สถานี)?\s*(.+)", self._make_search_intent),
             # Generic pollutant pattern: "ข้อมูล [pollutant] ใน[location]" or "[pollutant] [location]"
             (r"(?:ข้อมูล\s*)?(o3|ozone|โอโซน|pm10|pm2\.?5|co|no2|so2|nox|temp|temperature|อุณหภูมิ|rh|humidity|ความชื้น)\s+(?:ใน|ที่)?\s*(.+?)(?:\s+(?:วันนี้|today|ย้อนหลัง|สัปดาห์|เดือน))?$", self._make_pollutant_intent),
             # "ค่า x ตอนนี้เท่าไหร่" or "ค่า x ที่ [location]" - current value query
             (r"ค่า\s*" + self._pollutant_pattern +
-             r"\s+(?:ตอนนี้|ปัจจุบัน|ล่าสุด|เท่าไหร่|ที่|ใน)\s*(.+)?", self._make_current_value_intent),
+             r"\s+(?:ตอนนี้|ขณะนี้|ในขณะนี้|ในตอนนี้|ปัจจุบัน|ล่าสุด|เท่าไหร่|ที่|ใน)\s*(.+)?", self._make_current_value_intent),
             # "ขอดูกราฟ x ย้อนหลัง" or "กราฟ x ย้อนหลัง 7 วัน"
             (r"(?:ขอดู|ดู|แสดง)?\s*กราฟ\s*" + self._pollutant_pattern +
              r"\s*(?:ย้อนหลัง|ที่|ใน)?\s*(.+)?", self._make_chart_intent),
@@ -92,6 +95,29 @@ class AirQualityChatbotService:
             "end_date": today.isoformat(),
             "interval": "hour",
             "output_type": "chart"
+        }
+
+    def _make_now_intent(self, match) -> Dict[str, Any]:
+        """Create intent for '[pollutant] [station] ขณะนี้/ในขณะนี้/ในตอนนี้/now' queries - current value"""
+        from datetime import datetime, timedelta
+        from .guardrails import normalize_pollutant
+
+        pollutant_raw = match.group(1).strip()
+        location = match.group(2).strip()
+
+        # Normalize the pollutant name
+        pollutant = normalize_pollutant(pollutant_raw) or "pm25"
+
+        # Get data for last 3 hours for current value display
+        now = datetime.now()
+        return {
+            "intent_type": "get_data",
+            "station_id": location,
+            "pollutant": pollutant,
+            "start_date": (now - timedelta(hours=3)).isoformat(),
+            "end_date": now.isoformat(),
+            "interval": "hour",
+            "output_type": "text"
         }
 
     def _make_search_intent(self, match) -> Dict[str, Any]:
