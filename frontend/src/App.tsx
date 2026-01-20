@@ -28,9 +28,17 @@ const App: React.FC = () => {
                   <Layout>
                     <Routes>
                       {/* Public Routes - No authentication required */}
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/executive-summary" element={<ExecutiveSummary />} />
-                      <Route path="/chat" element={<Chat />} />
+                      {/* Protected Dashboard & Chat Routes */}
+                      <Route path="/" element={
+                        <ProtectedRoute>
+                          <Dashboard />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/chat" element={
+                        <ProtectedRoute>
+                          <Chat />
+                        </ProtectedRoute>
+                      } />
                       <Route path="/chat/claude" element={
                         <ProtectedRoute>
                           <Claude />
