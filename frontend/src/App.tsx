@@ -54,6 +54,11 @@ const App: React.FC = () => {
                           <Models />
                         </ProtectedRoute>
                       } />
+                      <Route path="/executive-summary" element={
+                        <ProtectedRoute>
+                          <ExecutiveSummary />
+                        </ProtectedRoute>
+                      } />
 
                       {/* Settings/Admin Routes - Requires authentication */}
                       <Route path="/prepare-data" element={

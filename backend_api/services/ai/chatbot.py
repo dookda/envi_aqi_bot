@@ -55,28 +55,34 @@ class AirQualityChatbotService:
              r"\s+(.+?)\s+(?:ขณะนี้|ในขณะนี้|ในตอนนี้|ตอนนี้|now)$", self._make_now_intent),
             (r"(?:pm2\.?5|ค่าฝุ่น)\s+(.+?)\s+(?:วันนี้|today)", self._make_today_intent),
             (r"(?:ค้นหา|หา|search|find)\s*(?:สถานี)?\s*(.+)", self._make_search_intent),
+            # "สถานีตรวจวัดในภูเก็ต" or "สถานีใน กทม"
+            (r"^สถานี(?:ตรวจวัด)?(?:ใน|ที่)?\s*(.+)", self._make_search_intent),
             # Generic pollutant pattern: "ข้อมูล [pollutant] ใน[location]" or "[pollutant] [location]"
             (r"(?:ข้อมูล\s*)?(o3|ozone|โอโซน|pm10|pm2\.?5|co|no2|so2|nox|temp|temperature|อุณหภูมิ|rh|humidity|ความชื้น)\s+(?:ใน|ที่)?\s*(.+?)(?:\s+(?:วันนี้|today|ย้อนหลัง|สัปดาห์|เดือน))?$", self._make_pollutant_intent),
             # "ค่า x ตอนนี้เท่าไหร่" or "ค่า x ที่ [location]" - current value query
             (r"ค่า\s*" + self._pollutant_pattern +
              r"\s+(?:ตอนนี้|ขณะนี้|ในขณะนี้|ในตอนนี้|ปัจจุบัน|ล่าสุด|เท่าไหร่|ที่|ใน)\s*(.+)?", self._make_current_value_intent),
+             
+            # === COMMENTED OUT TO LET LLM HANDLE COMPLEX CHART QUERIES ===
             # "ขอดูกราฟ x ย้อนหลัง" or "กราฟ x ย้อนหลัง 7 วัน"
-            (r"(?:ขอดู|ดู|แสดง)?\s*กราฟ\s*" + self._pollutant_pattern +
-             r"\s*(?:ย้อนหลัง|ที่|ใน)?\s*(.+)?", self._make_chart_intent),
+            # (r"(?:ขอดู|ดู|แสดง)?\s*กราฟ\s*" + self._pollutant_pattern +
+            #  r"\s*(?:ย้อนหลัง|ที่|ใน)?\s*(.+)?", self._make_chart_intent),
             # "chart [pollutant] [location]" or "chart for [location]"
-            (r"chart\s+" + self._pollutant_pattern +
-             r"\s*(?:for|at|in)?\s*(.+)?", self._make_chart_intent),
-            (r"chart\s+(?:for|at|in)\s*(.+)",
-             self._make_chart_location_only_intent),
+            # (r"chart\s+" + self._pollutant_pattern +
+            #  r"\s*(?:for|at|in)?\s*(.+)?", self._make_chart_intent),
+            # (r"chart\s+(?:for|at|in)\s*(.+)",
+            #  self._make_chart_location_only_intent),
+            
             # "ข้อมูลย้อนหลัง [pollutant] [location]" or "ข้อมูลย้อนหลัง [location]"
             (r"ข้อมูลย้อนหลัง\s*" + self._pollutant_pattern +
              r"?\s*(?:ที่|ใน|ของ)?\s*(.+)?", self._make_historical_data_intent),
             # "ที่ผ่านมา X วัน" pattern - e.g., "ค่า pm2.5 ที่ผ่านมา 7 วัน ที่เชียงใหม่"
             (r"(?:ค่า\s*)?" + self._pollutant_pattern +
              r"\s*(?:ที่ผ่านมา|ในช่วง)\s*(\d+)\s*(?:วัน|day)\s*(?:ที่|ใน|ของ)?\s*(.+)?", self._make_past_days_intent),
+             
             # "กราฟ [location] ย้อนหลัง x วัน" - location first, then time
-            (r"กราฟ\s*(.+?)\s*(?:ย้อนหลัง|ที่ผ่านมา)\s*(\d+)?\s*(?:วัน|day|สัปดาห์|week|เดือน|month)?",
-             self._make_chart_location_time_intent),
+            # (r"กราฟ\s*(.+?)\s*(?:ย้อนหลัง|ที่ผ่านมา)\s*(\d+)?\s*(?:วัน|day|สัปดาห์|week|เดือน|month)?",
+            #  self._make_chart_location_time_intent),
             # "สถานีใดบ้างที่มีข้อมูล x" or "สถานีที่มี x"
             (r"สถานี(?:ใด|ไหน)?(?:บ้าง)?(?:ที่)?(?:มี)?\s*(?:ข้อมูล)?\s*" + self._pollutant_pattern +
              r"\s*(?:ล่าสุด|ใน|ที่)?\s*(.+)?", self._make_station_search_by_param_intent),

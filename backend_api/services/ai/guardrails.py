@@ -167,10 +167,12 @@ If the query is NOT about these topics, return:
 **IMPORTANT: Determine intent_type FIRST:**
 
 1. **search_stations** - User wants to FIND/LIST stations:
-   - Keywords: "ค้นหา", "หา", "แสดงสถานี", "สถานีใน", "สถานีใดบ้าง", "สถานีไหน", "search", "find", "list stations", "where", "which stations"
+   - Keywords: "ค้นหา", "หา", "แสดงสถานี", "สถานีใน", "สถานีใดบ้าง", "สถานีไหน", "search", "find", "list stations", "where", "which stations", "สถานีตรวจวัด"
    - Example: "ค้นหาสถานีเชียงใหม่" → search for Chiang Mai stations
    - Example: "สถานีใดบ้างที่มีข้อมูล o3" → search stations with O3 data
    - Example: "สถานีไหนมี pm10 ล่าสุด" → search stations with PM10 data
+   - Example: "ค้นหาสถานีใน กทม" → search stations in Bangkok
+   - Example: "สถานีตรวจวัดในภูเก็ต" → search stations in Phuket
 
    Return:
    {{"intent_type": "search_stations", "search_query": "<location or 'all'>", "output_type": "text"}}
@@ -186,6 +188,8 @@ If the query is NOT about these topics, return:
    - Example: "กราฟ no2 ย้อนหลัง ที่กรุงเทพ" → get NO2 chart (pollutant: "no2")
    - Example: "อุณหภูมิ เชียงใหม่" → get temperature data (pollutant: "temp")
    - Example: "ขอรายงานสรุปผู้บริหาร เชียงใหม่" → get executive report
+   - Example: "ขอดูกราฟ PM2.5 ย้อนหลัง 7 วันของสถานีเชียงใหม่" → get PM2.5 chart
+   - Example: "แสดงกราฟฝุ่น PM2.5 ที่ลำปาง" → get PM2.5 chart
 
    Return:
    {{"intent_type": "get_data", "station_id": "<location>", "pollutant": "<pm25|pm10|o3|co|no2|so2|nox|temp|rh|ws|wd|bp|rain>", "start_date": "<ISO-8601>", "end_date": "<ISO-8601>", "interval": "hour", "output_type": "chart"}}

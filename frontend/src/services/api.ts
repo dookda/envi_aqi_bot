@@ -246,4 +246,9 @@ export const healthService = {
   }),
 }
 
+// AI Service
+export const aiService = {
+  generateExecutiveSummary: (data: any): Promise<any> => api.post('/ai/executive-summary', data),
+}
+
 export default api

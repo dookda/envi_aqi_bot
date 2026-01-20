@@ -109,12 +109,13 @@ app.add_middleware(
 )
 
 # Include Routers
-from backend_api.routers import notifications, line_webhook, charts, users, liff
+from backend_api.routers import notifications, line_webhook, charts, users, liff, ai
 app.include_router(notifications.router)
 app.include_router(line_webhook.router)
 app.include_router(charts.router)
 app.include_router(users.router)
 app.include_router(liff.router)
+app.include_router(ai.router)
 
 @app.get("/health", tags=["Health"])
 async def health_check():

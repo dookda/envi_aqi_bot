@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Card, Icon, Badge, Spinner } from '../components/atoms'
 import { useStations } from '../hooks'
 import { useLanguage, useTheme } from '../contexts'
-import { aqiService } from '../services/api'
+import { aqiService, aiService } from '../services/api'
 import type { Station, AQIHourlyData } from '../types'
 
 // Extended station with latest data
@@ -235,192 +235,46 @@ const AIExecutiveSummaryPanel: React.FC<AIExecutiveSummaryPanelProps> = ({
     const [loading, setLoading] = useState<boolean>(false)
     const [isExpanded, setIsExpanded] = useState<boolean>(true)
 
-    const generateInsight = useCallback(() => {
+    const generateInsight = useCallback(async () => {
         if (!summaryStats) return
 
         setLoading(true)
 
-        // Generate insights locally for fast performance
-        const insights: string[] = []
-        const highlights: string[] = []
-        const actionItems: string[] = []
-        const policyRecommendations: string[] = []
-
-        const { avgAqi, maxAqi, minAqi, activeStations, totalStations, alertCount } = summaryStats
-        const { excellent, good, moderate, unhealthy, veryUnhealthy } = statusDistribution
-
-        // Date and time info
-        const currentDate = new Date()
-        const dateStr = currentDate.toLocaleDateString(lang === 'th' ? 'th-TH' : 'en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        })
-        const timeStr = currentDate.toLocaleTimeString(lang === 'th' ? 'th-TH' : 'en-US', {
-            hour: '2-digit',
-            minute: '2-digit'
-        })
-
-        if (lang === 'th') {
-            // Thai language insights
-            insights.push(`📅 **รายงานสรุปผู้บริหาร** ประจำวัน${dateStr} เวลา ${timeStr}`)
-
-            // Overall status
-            let statusText = ''
-            if (avgAqi <= 25) {
-                statusText = 'ดีมาก (Excellent)'
-                highlights.push('คุณภาพอากาศดีมาก เหมาะสำหรับกิจกรรมกลางแจ้งทุกประเภท')
-            } else if (avgAqi <= 50) {
-                statusText = 'ดี (Good)'
-                highlights.push('คุณภาพอากาศอยู่ในเกณฑ์ดี')
-            } else if (avgAqi <= 100) {
-                statusText = 'ปานกลาง (Moderate)'
-                highlights.push('คุณภาพอากาศปานกลาง กลุ่มเสี่ยงควรระวัง')
-            } else if (avgAqi <= 200) {
-                statusText = 'เริ่มมีผลกระทบต่อสุขภาพ'
-                highlights.push('⚠️ คุณภาพอากาศเริ่มส่งผลกระทบต่อสุขภาพ')
-            } else {
-                statusText = 'มีผลกระทบต่อสุขภาพ'
-                highlights.push('🚨 คุณภาพอากาศอยู่ในระดับวิกฤต')
-            }
-
-            insights.push(`🌍 **สถานะโดยรวม**: คุณภาพอากาศอยู่ในระดับ **${statusText}** โดยมีค่า AQI เฉลี่ย **${avgAqi}**`)
-
-            // Station coverage
-            insights.push(`📍 **การครอบคลุม**: มีสถานีที่ทำงานอยู่ **${activeStations}** จาก **${totalStations}** สถานี (${Math.round(activeStations / totalStations * 100)}%)`)
-            highlights.push(`${activeStations}/${totalStations} สถานีทำงาน`)
-
-            // AQI range
-            insights.push(`📊 **ช่วงค่า AQI**: ต่ำสุด **${minAqi}** - สูงสุด **${maxAqi}** (ช่วงความแตกต่าง ${maxAqi - minAqi})`)
-            highlights.push(`ค่า AQI: ${minAqi} - ${maxAqi}`)
-
-            // Distribution summary
-            const goodStations = excellent + good
-            const badStations = unhealthy + veryUnhealthy
-            if (goodStations > 0) {
-                insights.push(`✅ **สถานีที่มีคุณภาพอากาศดี**: ${goodStations} สถานี (${Math.round(goodStations / activeStations * 100)}%)`)
-            }
-            if (badStations > 0) {
-                insights.push(`⚠️ **สถานีที่ต้องเฝ้าระวัง**: ${badStations} สถานี มีคุณภาพอากาศเริ่มส่งผลกระทบต่อสุขภาพ`)
-                actionItems.push(`เฝ้าระวังพื้นที่ที่มี AQI สูงเกิน 100 จำนวน ${alertCount} สถานี`)
-            }
-
-            // Action items
-            if (alertCount > 0) {
-                actionItems.push(`แจ้งเตือนประชาชนในพื้นที่ที่มีค่า AQI สูง`)
-                actionItems.push(`พิจารณามาตรการลดมลพิษในพื้นที่วิกฤต`)
-            }
-            if (avgAqi > 50) {
-                actionItems.push(`ติดตามแนวโน้มคุณภาพอากาศอย่างใกล้ชิด`)
-            }
-            actionItems.push(`ตรวจสอบการทำงานของสถานีที่ไม่ออนไลน์ (${totalStations - activeStations} สถานี)`)
-
-        } else {
-            // English language insights
-            insights.push(`📅 **Executive Report** for ${dateStr} at ${timeStr}`)
-
-            // Overall status
-            let statusText = ''
-            if (avgAqi <= 25) {
-                statusText = 'Excellent'
-                highlights.push('Air quality is excellent for all outdoor activities')
-            } else if (avgAqi <= 50) {
-                statusText = 'Good'
-                highlights.push('Air quality is satisfactory')
-            } else if (avgAqi <= 100) {
-                statusText = 'Moderate'
-                highlights.push('Air quality is moderate, sensitive groups should be cautious')
-            } else if (avgAqi <= 200) {
-                statusText = 'Unhealthy for Sensitive Groups'
-                highlights.push('⚠️ Air quality affects health of sensitive groups')
-            } else {
-                statusText = 'Unhealthy'
-                highlights.push('🚨 Air quality is at critical level')
-            }
-
-            insights.push(`🌍 **Overall Status**: Air quality is **${statusText}** with average AQI of **${avgAqi}**`)
-
-            // Station coverage
-            insights.push(`📍 **Coverage**: **${activeStations}** of **${totalStations}** stations active (${Math.round(activeStations / totalStations * 100)}%)`)
-            highlights.push(`${activeStations}/${totalStations} stations active`)
-
-            // AQI range
-            insights.push(`📊 **AQI Range**: Lowest **${minAqi}** - Highest **${maxAqi}** (range: ${maxAqi - minAqi})`)
-            highlights.push(`AQI: ${minAqi} - ${maxAqi}`)
-
-            // Distribution summary
-            const goodStations = excellent + good
-            const badStations = unhealthy + veryUnhealthy
-            if (goodStations > 0) {
-                insights.push(`✅ **Good Air Quality**: ${goodStations} stations (${Math.round(goodStations / activeStations * 100)}%)`)
-            }
-            if (badStations > 0) {
-                insights.push(`⚠️ **Stations Requiring Attention**: ${badStations} stations with health-impacting AQI`)
-                actionItems.push(`Monitor ${alertCount} areas with AQI exceeding 100`)
-            }
-
-            // Action items
-            if (alertCount > 0) {
-                actionItems.push(`Issue public advisories for high-AQI areas`)
-                actionItems.push(`Consider pollution reduction measures in critical zones`)
-            }
-            if (avgAqi > 50) {
-                actionItems.push(`Closely monitor air quality trends`)
-            }
-            actionItems.push(`Check connectivity of offline stations (${totalStations - activeStations} stations)`)
-        }
-
-        // Generate Policy Recommendations based on air quality status
-        if (lang === 'th') {
-            // Thai policy recommendations
-            if (avgAqi > 100) {
-                policyRecommendations.push('พิจารณาประกาศเตือนภัยสุขภาพในพื้นที่ที่มีค่า AQI สูง')
-                policyRecommendations.push('ควรจัดตั้งศูนย์พักพิงชั่วคราวสำหรับกลุ่มเสี่ยง')
-                policyRecommendations.push('ประสานงานกับหน่วยงานที่เกี่ยวข้องเพื่อลดกิจกรรมที่ก่อมลพิษ')
-            }
-            if (avgAqi > 50) {
-                policyRecommendations.push('แนะนำให้โรงเรียนและสถานศึกษาพิจารณาลดกิจกรรมกลางแจ้ง')
-                policyRecommendations.push('ประชาสัมพันธ์ให้ประชาชนสวมหน้ากากอนามัยเมื่อออกนอกอาคาร')
-            }
-            if (alertCount >= 3) {
-                policyRecommendations.push('พิจารณามาตรการจำกัดการจราจรในพื้นที่วิกฤต')
-                policyRecommendations.push('เพิ่มความถี่ในการติดตามคุณภาพอากาศเป็นทุก 30 นาที')
-            }
-            policyRecommendations.push('ส่งเสริมการใช้ระบบขนส่งสาธารณะและลดการใช้รถยนต์ส่วนตัว')
-            policyRecommendations.push('สนับสนุนการปลูกต้นไม้และเพิ่มพื้นที่สีเขียวในเมือง')
-        } else {
-            // English policy recommendations
-            if (avgAqi > 100) {
-                policyRecommendations.push('Consider issuing health advisories for high-AQI areas')
-                policyRecommendations.push('Set up temporary shelters for vulnerable populations')
-                policyRecommendations.push('Coordinate with agencies to reduce pollution-causing activities')
-            }
-            if (avgAqi > 50) {
-                policyRecommendations.push('Advise schools to reduce outdoor activities')
-                policyRecommendations.push('Public awareness campaign for wearing masks outdoors')
-            }
-            if (alertCount >= 3) {
-                policyRecommendations.push('Consider traffic restrictions in critical areas')
-                policyRecommendations.push('Increase air quality monitoring frequency to every 30 minutes')
-            }
-            policyRecommendations.push('Promote public transportation and reduce private vehicle usage')
-            policyRecommendations.push('Support urban tree planting and green space expansion')
-        }
-
-        // Simulate a brief loading delay for UX
-        setTimeout(() => {
-            setInsight({
-                status: 'success',
-                insight: insights.join('\n\n'),
-                highlights,
-                executive_brief: highlights[0] || null,
-                action_items: actionItems.length > 0 ? actionItems : null,
-                policy_recommendations: policyRecommendations.length > 0 ? policyRecommendations : null,
-                error: null
+        try {
+            // Call AI Service (Ollama)
+            const response = await aiService.generateExecutiveSummary({
+                ...summaryStats,
+                statusDistribution,
+                lang
             })
+
+            if (response.status === 'success') {
+                setInsight({
+                    status: 'success',
+                    insight: response.insight,
+                    highlights: response.highlights,
+                    executive_brief: response.executive_brief,
+                    action_items: response.action_items,
+                    policy_recommendations: response.policy_recommendations,
+                    error: null
+                })
+            } else {
+                throw new Error(response.error || 'Failed to generate summary')
+            }
+        } catch (err) {
+            console.error('AI Generation failed:', err)
+            setInsight({
+                status: 'error',
+                insight: null,
+                highlights: null,
+                executive_brief: null,
+                action_items: null,
+                policy_recommendations: null,
+                error: lang === 'th' ? 'ไม่สามารถเชื่อมต่อกับบริการ AI ได้ (Ollama)' : 'AI Service Unavailable (Ollama)'
+            })
+        } finally {
             setLoading(false)
-        }, 300)
+        }
 
     }, [summaryStats, statusDistribution, lang])
 
