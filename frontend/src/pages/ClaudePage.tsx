@@ -1,5 +1,5 @@
 /**
- * Claude AI Chat Page - AI-powered Air Quality Chatbot (v2.0)
+ * Model B AI Chat Page - AI-powered Air Quality Chatbot (v2.0)
  *
  * Premium modern chat interface with:
  * - Split-panel layout (matching Ollama version)
@@ -7,7 +7,7 @@
  * - Interactive charts
  * - Health recommendations
  * - Quick action buttons
- * - Claude-specific purple branding
+ * - Model B purple branding
  */
 import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
@@ -180,7 +180,7 @@ export default function Claude(): React.ReactElement {
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                     {/* Sidebar - Info Panel */}
                     <div className={`lg:col-span-1 space-y-4 ${showSidebar ? '' : 'hidden lg:block'}`}>
-                        {/* Claude AI Assistant Card */}
+                        {/* Model B AI Assistant Card */}
                         <Card className="p-4 relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-purple-500/20 to-transparent rounded-bl-full" />
                             <div className="relative z-10">
@@ -202,7 +202,7 @@ export default function Claude(): React.ReactElement {
                                         <Icon name="check_circle" size="xs" /> Online
                                     </Badge>
                                     <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30" size="sm">
-                                        🧠 Claude-3
+                                        🧠 Model B
                                     </Badge>
                                     {lastResponseTime && (
                                         <Badge variant="default" size="sm">
@@ -445,7 +445,7 @@ function ChatMessage({ message, isLight, language }: ChatMessageProps): React.Re
                             : 'rounded-tl-md bg-dark-800'
                     }`}>
 
-                    {/* Response time badge for Claude */}
+                    {/* Response time badge for Model B */}
                     {!isUser && message.response_time_ms && (
                         <div className={`text-xs mb-2 inline-flex items-center gap-1 px-2 py-0.5 rounded ${isLight ? 'bg-purple-100 text-purple-700' : 'bg-purple-800/40 text-purple-200'}`}>
                             <Icon name="bolt" size="xs" />
@@ -782,7 +782,7 @@ function EnhancedChart({ data, summary, isLight, language }: EnhancedChartProps)
                                     return `${x}%,${y}%`
                                 }).join(' ')}
                                 fill="none"
-                                stroke="url(#lineGradientClaude)"
+                                stroke="url(#lineGradientModelB)"
                                 strokeWidth="2.5"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
@@ -791,7 +791,7 @@ function EnhancedChart({ data, summary, isLight, language }: EnhancedChartProps)
 
                             {/* Gradient definition */}
                             <defs>
-                                <linearGradient id="lineGradientClaude" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <linearGradient id="lineGradientModelB" x1="0%" y1="0%" x2="100%" y2="0%">
                                     <stop offset="0%" stopColor="#9333ea" />
                                     <stop offset="50%" stopColor="#a855f7" />
                                     <stop offset="100%" stopColor="#d946ef" />

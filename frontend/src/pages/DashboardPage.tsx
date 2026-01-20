@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import * as echarts from 'echarts'
 import { Card, Icon, Badge, Spinner } from '../components/atoms'
-import { StationSelector, DataTable } from '../components/molecules'
+import { DataTable, SearchFilterPanel } from '../components/molecules'
 import { StationMap, Navbar, MultiParameterChart } from '../components/organisms'
 import { useStations, useChartData } from '../hooks'
 import { useLanguage, useTheme } from '../contexts'
@@ -40,11 +40,6 @@ interface WeatherConfigItem {
     color: string
 }
 
-interface TimePeriodOption {
-    value: number
-    label: string
-}
-
 interface FullDataResponse extends Partial<ChartDataResponse> {
     data?: AQIHourlyData[]
     statistics?: Record<string, ParameterStatistics>
@@ -63,6 +58,9 @@ interface DataTableViewProps {
     totalRecords: number | undefined
     latestUpdate?: string
     consecutiveEqualThreshold?: number
+    // Date filter props (controlled from parent)
+    startDate: string
+    endDate: string
 }
 
 type AQILevelKey = 'excellent' | 'good' | 'moderate' | 'unhealthySensitive' | 'unhealthy'
@@ -108,16 +106,6 @@ const WEATHER_CONFIG: Record<string, WeatherConfigItem> = {
 }
 
 const API_BASE = '/api'
-
-// Time period options
-const TIME_PERIODS: TimePeriodOption[] = [
-    { value: 1, label: '24h' },
-    { value: 3, label: '3d' },
-    { value: 7, label: '7d' },
-    { value: 14, label: '14d' },
-    { value: 30, label: '30d' },
-    { value: 365, label: '1y' }, // Add 1 year option
-]
 
 // ============== Components ==============
 
@@ -360,10 +348,10 @@ const DataTableView: React.FC<DataTableViewProps> = ({
     isLight,
     onParamChange,
     totalRecords,
-    consecutiveEqualThreshold = 3
+    consecutiveEqualThreshold = 3,
+    startDate,
+    endDate
 }) => {
-    const [startDate, setStartDate] = useState<string>('')
-    const [endDate, setEndDate] = useState<string>('')
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
     const currentStation = stations.find(s => s.station_id === selectedStation)
@@ -623,50 +611,8 @@ const DataTableView: React.FC<DataTableViewProps> = ({
                             </div>
                         </div>
 
-                        {/* Bottom row: Date Range and Status Filters */}
+                        {/* Status Filter Buttons */}
                         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                            {/* Date-Time Range Filter */}
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <Icon
-                                    name="calendar_today"
-                                    size="sm"
-                                    className={isLight ? 'text-gray-400' : 'text-dark-500'}
-                                />
-                                <input
-                                    type="datetime-local"
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                    className={`px-2 py-1.5 rounded-lg border text-sm transition-all ${isLight
-                                        ? 'bg-white border-gray-200 text-gray-800 focus:border-primary-400'
-                                        : 'bg-dark-700 border-dark-600 text-white focus:border-primary-500'
-                                        } focus:outline-none focus:ring-1 focus:ring-primary-500/30`}
-                                    title={lang === 'th' ? 'วันเวลาเริ่มต้น' : 'Start date-time'}
-                                />
-                                <span className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                    {lang === 'th' ? 'ถึง' : 'to'}
-                                </span>
-                                <input
-                                    type="datetime-local"
-                                    value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
-                                    className={`px-2 py-1.5 rounded-lg border text-sm transition-all ${isLight
-                                        ? 'bg-white border-gray-200 text-gray-800 focus:border-primary-400'
-                                        : 'bg-dark-700 border-dark-600 text-white focus:border-primary-500'
-                                        } focus:outline-none focus:ring-1 focus:ring-primary-500/30`}
-                                    title={lang === 'th' ? 'วันเวลาสิ้นสุด' : 'End date-time'}
-                                />
-                                {(startDate || endDate) && (
-                                    <button
-                                        onClick={() => { setStartDate(''); setEndDate(''); }}
-                                        className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-dark-600`}
-                                        title={lang === 'th' ? 'ล้างตัวกรอง' : 'Clear filter'}
-                                    >
-                                        <Icon name="close" size="xs" className={isLight ? 'text-gray-400' : 'text-dark-400'} />
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* Status Filter Buttons */}
                             <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className={`text-xs font-medium mr-1 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
                                     {lang === 'th' ? 'สถานะ:' : 'Status:'}
@@ -1157,6 +1103,9 @@ export default function Dashboard(): React.ReactElement {
     const [activeTab, setActiveTab] = useState<TabId>('map')
     const [selectedParam, setSelectedParam] = useState<ParameterKey>('pm25')
     const [latestStationData, setLatestStationData] = useState<AQIHourlyData | null>(null)
+    // Date filter state (controlled from SearchFilterPanel)
+    const [filterStartDate, setFilterStartDate] = useState<string>('')
+    const [filterEndDate, setFilterEndDate] = useState<string>('')
 
     // Pollutant threshold configuration with localStorage persistence
     const [showThresholdSettings, setShowThresholdSettings] = useState<boolean>(false)
@@ -1308,6 +1257,56 @@ export default function Dashboard(): React.ReactElement {
         return sorted[0]
     }, [latestStationData, fullData?.data])
 
+    // Filter fullData based on custom date range (filterStartDate, filterEndDate)
+    const filteredFullData = useMemo((): FullDataResponse | null => {
+        if (!fullData) return null
+
+        // If no custom date filter is set, return original data
+        if (!filterStartDate && !filterEndDate) return fullData
+
+        const startTime = filterStartDate ? new Date(filterStartDate).getTime() : 0
+        const endTime = filterEndDate ? new Date(filterEndDate).getTime() : Infinity
+
+        const filteredData = fullData.data?.filter(row => {
+            const rowTime = new Date(row.datetime).getTime()
+            return rowTime >= startTime && rowTime <= endTime
+        }) || []
+
+        // Recalculate statistics for filtered data
+        const recalculateStats = (data: AQIHourlyData[], param: string): ParameterStatistics | undefined => {
+            const values = data
+                .map(d => d[param as keyof AQIHourlyData] as number)
+                .filter(v => v !== null && v !== undefined && !isNaN(v))
+
+            if (values.length === 0) return undefined
+
+            const nullCount = data.length - values.length
+
+            return {
+                min: Math.min(...values),
+                max: Math.max(...values),
+                avg: values.reduce((a, b) => a + b, 0) / values.length,
+                valid_count: values.length,
+                null_count: nullCount
+            }
+        }
+
+        // Recalculate statistics for all parameters
+        const newStats: Record<string, ParameterStatistics> = {}
+        const params = ['pm25', 'pm10', 'o3', 'co', 'no2', 'so2', 'nox', 'temp', 'rh', 'ws', 'bp']
+        params.forEach(param => {
+            const stat = recalculateStats(filteredData, param)
+            if (stat) newStats[param] = stat
+        })
+
+        return {
+            ...fullData,
+            data: filteredData,
+            statistics: newStats,
+            total_records: filteredData.length
+        }
+    }, [fullData, filterStartDate, filterEndDate])
+
     const currentPm25 = latestData.pm25 || (stats as any).mean
     const aqiLevel = getAqiLevel(currentPm25)
     const aqiConfig = aqiLevel ? AQI_LEVELS[aqiLevel] : null
@@ -1320,13 +1319,13 @@ export default function Dashboard(): React.ReactElement {
         return directions[index]
     }
 
-    // Calculate daily data completeness for weather panel
+    // Calculate daily data completeness for weather panel (uses filtered data)
     const dailyCompleteness = useMemo(() => {
-        if (!fullData?.data?.length) return { days: [], overall: 0 }
+        if (!filteredFullData?.data?.length) return { days: [], overall: 0 }
 
         // Group data by date
         const dayMap = new Map<string, { count: number; date: Date }>()
-        fullData.data.forEach(row => {
+        filteredFullData.data.forEach(row => {
             const date = new Date(row.datetime)
             const dateKey = date.toISOString().split('T')[0]
             const existing = dayMap.get(dateKey)
@@ -1353,11 +1352,31 @@ export default function Dashboard(): React.ReactElement {
         const overall = totalExpected > 0 ? (totalActual / totalExpected) * 100 : 0
 
         return { days, overall }
-    }, [fullData?.data, lang])
+    }, [filteredFullData?.data, lang])
 
     return (
         <div className={`min-h-screen ${isLight ? 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50' : 'gradient-dark'}`}>
             <main className="max-w-7xl mx-auto px-4 py-6">
+                {/* Search & Filter Panel */}
+                <section className="mb-6">
+                    <SearchFilterPanel
+                        stations={stations}
+                        selectedStation={selectedStation}
+                        onStationChange={setSelectedStation}
+                        stationsLoading={stationsLoading}
+                        timePeriod={timePeriod}
+                        onTimePeriodChange={setTimePeriod}
+                        startDate={filterStartDate}
+                        endDate={filterEndDate}
+                        onStartDateChange={setFilterStartDate}
+                        onEndDateChange={setFilterEndDate}
+                        isLight={isLight}
+                        lang={lang}
+                        latestDataTime={latestData?.datetime}
+                        totalRecords={filteredFullData?.total_records}
+                    />
+                </section>
+
                 {/* Hero Section - Current AQI Status */}
                 <section className="mb-8">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1410,17 +1429,6 @@ export default function Dashboard(): React.ReactElement {
                                     </div>
                                 </div>
 
-                                {/* Station Selector */}
-                                <div className="mt-6">
-                                    <StationSelector
-                                        stations={stations}
-                                        value={selectedStation}
-                                        onChange={setSelectedStation}
-                                        loading={stationsLoading}
-                                        className="w-full"
-                                    />
-                                </div>
-
                                 {/* Latest Data Timestamp */}
                                 {latestData?.datetime && (
                                     <div className={`mt-4 flex items-center gap-2 text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
@@ -1447,22 +1455,6 @@ export default function Dashboard(): React.ReactElement {
                                     <Icon name="eco" className="mr-2" />
                                     {lang === 'th' ? 'สภาพอากาศและมลพิษ' : 'Weather & Air Quality'}
                                 </h2>
-                                <div className="flex gap-2">
-                                    {TIME_PERIODS.map(p => (
-                                        <button
-                                            key={p.value}
-                                            onClick={() => setTimePeriod(p.value)}
-                                            className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${timePeriod === p.value
-                                                ? 'bg-primary-500 text-white'
-                                                : isLight
-                                                    ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                                    : 'bg-dark-700 text-dark-300 hover:bg-dark-600'
-                                                }`}
-                                        >
-                                            {p.label}
-                                        </button>
-                                    ))}
-                                </div>
                             </div>
 
                             {fullDataLoading ? (
@@ -1784,6 +1776,8 @@ export default function Dashboard(): React.ReactElement {
                         totalRecords={fullData?.total_records}
                         latestUpdate={latestData?.datetime}
                         consecutiveEqualThreshold={consecutiveEqualThreshold}
+                        startDate={filterStartDate}
+                        endDate={filterEndDate}
                     />
                 )}
 

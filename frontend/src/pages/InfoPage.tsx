@@ -225,7 +225,7 @@ export default function InfoPage(): React.ReactElement {
                         <StatItem
                             label="AI Chatbots"
                             labelTh="AI แชทบอท"
-                            value="Qwen 2.5 / Claude"
+                            value="Qwen 2.5 / Model B"
                             icon="smart_toy"
                         />
                     </div>
@@ -276,7 +276,7 @@ export default function InfoPage(): React.ReactElement {
                             </div>
                         </div>
 
-                        {/* Claude Model */}
+                        {/* Model B */}
                         <div className={`p-5 rounded-xl border-2 ${isLight ? 'bg-purple-50 border-purple-200' : 'bg-purple-900/20 border-purple-800'}`}>
                             <div className="flex items-start gap-4">
                                 <div className={`p-3 rounded-lg ${isLight ? 'bg-white' : 'bg-gray-800'} shadow-sm`}>
@@ -285,19 +285,19 @@ export default function InfoPage(): React.ReactElement {
                                 <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
                                         <h3 className={`text-lg font-semibold ${isLight ? 'text-gray-900' : 'text-white'}`}>
-                                            Claude (Anthropic)
+                                            Model B (Cloud)
                                         </h3>
                                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${isLight ? 'bg-orange-100 text-orange-700' : 'bg-orange-800/50 text-orange-300'}`}>
                                             API
                                         </span>
                                     </div>
                                     <p className={`text-sm font-mono mb-2 ${isLight ? 'text-purple-600' : 'text-purple-400'}`}>
-                                        claude-3-haiku
+                                        haiku
                                     </p>
                                     <p className={`text-sm ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
                                         {lang === 'th'
-                                            ? 'โมเดลภาษาขั้นสูงจาก Anthropic มีความสามารถในการวิเคราะห์และตอบคำถามซับซ้อน'
-                                            : 'Advanced language model from Anthropic with strong analytical and complex reasoning capabilities'}
+                                            ? 'โมเดลภาษาขั้นสูงบน Cloud มีความสามารถในการวิเคราะห์และตอบคำถามซับซ้อน'
+                                            : 'Advanced cloud-based language model with strong analytical and complex reasoning capabilities'}
                                     </p>
                                     <div className="flex flex-wrap gap-2 mt-3">
                                         <span className={`px-2 py-1 rounded-md text-xs ${isLight ? 'bg-purple-100 text-purple-700' : 'bg-purple-800/50 text-purple-200'}`}>
@@ -305,9 +305,6 @@ export default function InfoPage(): React.ReactElement {
                                         </span>
                                         <span className={`px-2 py-1 rounded-md text-xs ${isLight ? 'bg-purple-100 text-purple-700' : 'bg-purple-800/50 text-purple-200'}`}>
                                             Cloud API
-                                        </span>
-                                        <span className={`px-2 py-1 rounded-md text-xs ${isLight ? 'bg-purple-100 text-purple-700' : 'bg-purple-800/50 text-purple-200'}`}>
-                                            Anthropic
                                         </span>
                                     </div>
                                 </div>
@@ -705,7 +702,7 @@ export default function InfoPage(): React.ReactElement {
                             { category: 'Frontend', categoryTh: 'ฟรอนท์เอนด์', items: ['React 19.2', 'TypeScript 5.9', 'Tailwind CSS 4.1', 'Vite 7.2', 'ECharts 6.0', 'MapLibre GL'] },
                             { category: 'Backend', categoryTh: 'แบ็คเอนด์', items: ['FastAPI', 'Python 3.11', 'SQLAlchemy', 'Pydantic', 'LINE SDK'] },
                             { category: 'Database', categoryTh: 'ฐานข้อมูล', items: ['PostgreSQL 16', 'PostGIS 3.4'] },
-                            { category: 'AI/ML', categoryTh: 'AI/ML', items: ['TensorFlow', 'Keras', 'Ollama (Qwen 2.5)', 'Claude API (Haiku)'] }
+                            { category: 'AI/ML', categoryTh: 'AI/ML', items: ['TensorFlow', 'Keras', 'Ollama (Qwen 2.5)', 'Model B API'] }
                         ].map((stack, idx) => (
                             <div key={idx} className={`p-4 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-gray-800/50'}`}>
                                 <p className={`font-semibold mb-2 ${isLight ? 'text-gray-900' : 'text-white'}`}>
