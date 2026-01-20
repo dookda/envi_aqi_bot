@@ -246,9 +246,38 @@ export const healthService = {
   }),
 }
 
+// AI Service Types
+interface ExecutiveSummaryRequest {
+  totalStations: number
+  activeStations: number
+  avgAqi: number
+  maxAqi: number
+  minAqi: number
+  alertCount: number
+  statusDistribution: {
+    excellent: number
+    good: number
+    moderate: number
+    unhealthy: number
+    veryUnhealthy: number
+  }
+  lang: string
+}
+
+interface ExecutiveSummaryResponse {
+  status: 'success' | 'error'
+  insight?: string | null
+  highlights?: string[] | null
+  executive_brief?: string | null
+  action_items?: string[] | null
+  policy_recommendations?: string[] | null
+  error?: string | null
+}
+
 // AI Service
 export const aiService = {
-  generateExecutiveSummary: (data: any): Promise<any> => api.post('/ai/executive-summary', data),
+  generateExecutiveSummary: (data: ExecutiveSummaryRequest): Promise<ExecutiveSummaryResponse> =>
+    api.post<ExecutiveSummaryResponse>('/ai/executive-summary', data),
 }
 
 export default api

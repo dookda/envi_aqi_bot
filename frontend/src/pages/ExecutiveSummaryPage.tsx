@@ -242,27 +242,39 @@ const AIExecutiveSummaryPanel: React.FC<AIExecutiveSummaryPanelProps> = ({
 
         try {
             // Call AI Service (Ollama)
+            console.log('Generating AI summary with lang:', lang)
             const response = await aiService.generateExecutiveSummary({
                 ...summaryStats,
                 statusDistribution,
                 lang
             })
+            console.log('AI response:', response)
 
-            if (response.status === 'success') {
+            if (response.status === 'success' && response.insight) {
                 setInsight({
                     status: 'success',
                     insight: response.insight,
-                    highlights: response.highlights,
-                    executive_brief: response.executive_brief,
-                    action_items: response.action_items,
-                    policy_recommendations: response.policy_recommendations,
+                    highlights: response.highlights || [],
+                    executive_brief: response.executive_brief || '',
+                    action_items: response.action_items || [],
+                    policy_recommendations: response.policy_recommendations || [],
                     error: null
                 })
             } else {
-                throw new Error(response.error || 'Failed to generate summary')
+                // Handle API error response
+                setInsight({
+                    status: 'error',
+                    insight: null,
+                    highlights: null,
+                    executive_brief: null,
+                    action_items: null,
+                    policy_recommendations: null,
+                    error: response.error || (lang === 'th' ? 'ไม่สามารถสร้างรายงานสรุปได้' : 'Failed to generate summary')
+                })
             }
         } catch (err) {
             console.error('AI Generation failed:', err)
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error'
             setInsight({
                 status: 'error',
                 insight: null,
@@ -270,7 +282,9 @@ const AIExecutiveSummaryPanel: React.FC<AIExecutiveSummaryPanelProps> = ({
                 executive_brief: null,
                 action_items: null,
                 policy_recommendations: null,
-                error: lang === 'th' ? 'ไม่สามารถเชื่อมต่อกับบริการ AI ได้ (Ollama)' : 'AI Service Unavailable (Ollama)'
+                error: lang === 'th'
+                    ? `ไม่สามารถเชื่อมต่อกับบริการ AI ได้: ${errorMessage}`
+                    : `AI Service Error: ${errorMessage}`
             })
         } finally {
             setLoading(false)
@@ -278,12 +292,13 @@ const AIExecutiveSummaryPanel: React.FC<AIExecutiveSummaryPanelProps> = ({
 
     }, [summaryStats, statusDistribution, lang])
 
-    // Generate insight when data changes
+    // Generate insight when data or language changes
     useEffect(() => {
         if (summaryStats && summaryStats.activeStations > 0) {
             generateInsight()
         }
-    }, [summaryStats, statusDistribution, generateInsight])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [summaryStats, statusDistribution, lang])
 
     if (!summaryStats) return null
 
@@ -340,6 +355,23 @@ const AIExecutiveSummaryPanel: React.FC<AIExecutiveSummaryPanelProps> = ({
                             <span className={`ml-3 text-sm ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
                                 {lang === 'th' ? 'กำลังวิเคราะห์ข้อมูล...' : 'Analyzing data...'}
                             </span>
+                        </div>
+                    ) : insight?.status === 'error' ? (
+                        <div className={`text-center py-8 rounded-lg ${isLight ? 'bg-red-50' : 'bg-red-900/20'}`}>
+                            <Icon name="error_outline" size="xl" className="mb-3 text-red-500" />
+                            <p className={`text-sm font-medium ${isLight ? 'text-red-700' : 'text-red-300'}`}>
+                                {insight.error || (lang === 'th' ? 'เกิดข้อผิดพลาด' : 'An error occurred')}
+                            </p>
+                            <p className={`text-xs mt-2 ${isLight ? 'text-red-500' : 'text-red-400'}`}>
+                                {lang === 'th' ? 'กรุณาตรวจสอบว่าบริการ AI (Ollama) กำลังทำงานอยู่' : 'Please ensure the AI service (Ollama) is running'}
+                            </p>
+                            <button
+                                onClick={generateInsight}
+                                className={`mt-4 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isLight ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-red-900/30 text-red-300 hover:bg-red-900/50'}`}
+                            >
+                                <Icon name="refresh" size="xs" className="mr-1" />
+                                {lang === 'th' ? 'ลองอีกครั้ง' : 'Try Again'}
+                            </button>
                         </div>
                     ) : insight?.status === 'success' && insight.insight ? (
                         <div className="space-y-5">
@@ -417,7 +449,14 @@ const AIExecutiveSummaryPanel: React.FC<AIExecutiveSummaryPanelProps> = ({
                     ) : (
                         <div className={`text-center py-8 ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
                             <Icon name="insights" size="xl" className="mb-3" />
-                            <p className="text-sm">{lang === 'th' ? 'ไม่มีข้อมูลสำหรับการวิเคราะห์' : 'No data available for analysis'}</p>
+                            <p className="text-sm">{lang === 'th' ? 'คลิกปุ่มรีเฟรชเพื่อสร้างรายงานสรุป AI' : 'Click refresh to generate AI summary'}</p>
+                            <button
+                                onClick={generateInsight}
+                                className={`mt-4 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isLight ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-indigo-900/30 text-indigo-300 hover:bg-indigo-900/50'}`}
+                            >
+                                <Icon name="auto_awesome" size="xs" className="mr-1" />
+                                {lang === 'th' ? 'สร้างรายงาน AI' : 'Generate AI Summary'}
+                            </button>
                         </div>
                     )}
                 </div>

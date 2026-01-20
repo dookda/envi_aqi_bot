@@ -9,15 +9,28 @@ import { useLanguage, useTheme } from '../../contexts'
 import type { AQIHourlyData, ChartDataResponse, ParameterKey, ParameterConfig } from '@/types'
 
 /**
- * Format date to dd-MM-yyyy HH:mm (24hr format)
+ * Thai month abbreviations
  */
-const formatDateTime = (date: Date | string): string => {
+const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
+
+/**
+ * Format date to dd-MM-yyyy HH:mm (24hr format)
+ * Uses Thai Buddhist Era (+543 years) and Thai month names when lang is 'th'
+ */
+const formatDateTime = (date: Date | string, lang: 'th' | 'en' = 'en'): string => {
     const d = typeof date === 'string' ? new Date(date) : date
     const day = d.getDate().toString().padStart(2, '0')
-    const month = (d.getMonth() + 1).toString().padStart(2, '0')
-    const year = d.getFullYear()
     const hours = d.getHours().toString().padStart(2, '0')
     const minutes = d.getMinutes().toString().padStart(2, '0')
+
+    if (lang === 'th') {
+        const thaiMonth = THAI_MONTHS[d.getMonth()]
+        const thaiYear = d.getFullYear() + 543
+        return `${day} ${thaiMonth} ${thaiYear} ${hours}:${minutes}`
+    }
+
+    const month = (d.getMonth() + 1).toString().padStart(2, '0')
+    const year = d.getFullYear()
     return `${day}-${month}-${year} ${hours}:${minutes}`
 }
 
@@ -544,7 +557,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                 textStyle: { color: textColor },
                 formatter: (params: any) => {
                     if (!params?.length) return ''
-                    const date = formatDateTime(params[0].axisValue)
+                    const date = formatDateTime(params[0].axisValue, lang)
                     let content = `<strong>${date}</strong><br/>`
 
                     params.forEach((param: any) => {

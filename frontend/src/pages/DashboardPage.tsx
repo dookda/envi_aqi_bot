@@ -15,15 +15,28 @@ import type { Station, AQIHourlyData, ParameterStatistics, TableColumn, Language
 // ============== Utility Functions ==============
 
 /**
+ * Thai month abbreviations
+ */
+const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
+
+/**
  * Format date to dd-MM-yyyy HH:mm (24hr format)
+ * Uses Thai Buddhist Era (+543 years) and Thai month names when lang is 'th'
  */
 const formatDateTime = (date: Date | string, lang: Language = 'en'): string => {
     const d = typeof date === 'string' ? new Date(date) : date
     const day = d.getDate().toString().padStart(2, '0')
-    const month = (d.getMonth() + 1).toString().padStart(2, '0')
-    const year = d.getFullYear() + (lang === 'th' ? 543 : 0)
     const hours = d.getHours().toString().padStart(2, '0')
     const minutes = d.getMinutes().toString().padStart(2, '0')
+
+    if (lang === 'th') {
+        const thaiMonth = THAI_MONTHS[d.getMonth()]
+        const thaiYear = d.getFullYear() + 543
+        return `${day} ${thaiMonth} ${thaiYear} ${hours}:${minutes}`
+    }
+
+    const month = (d.getMonth() + 1).toString().padStart(2, '0')
+    const year = d.getFullYear()
     return `${day}-${month}-${year} ${hours}:${minutes}`
 }
 
