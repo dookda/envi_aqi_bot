@@ -8,6 +8,19 @@ import { Card, Spinner, Icon } from '../atoms'
 import { useLanguage, useTheme } from '../../contexts'
 import type { AQIHourlyData, ChartDataResponse, ParameterKey, ParameterConfig } from '@/types'
 
+/**
+ * Format date to dd-MM-yyyy HH:mm (24hr format)
+ */
+const formatDateTime = (date: Date | string): string => {
+    const d = typeof date === 'string' ? new Date(date) : date
+    const day = d.getDate().toString().padStart(2, '0')
+    const month = (d.getMonth() + 1).toString().padStart(2, '0')
+    const year = d.getFullYear()
+    const hours = d.getHours().toString().padStart(2, '0')
+    const minutes = d.getMinutes().toString().padStart(2, '0')
+    return `${day}-${month}-${year} ${hours}:${minutes}`
+}
+
 // Parameter configurations
 const PARAMETERS: Record<ParameterKey, ParameterConfig> = {
     pm25: { label: 'PM2.5', unit: 'µg/m³', color: '#3b82f6', icon: 'blur_on' },
@@ -531,7 +544,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
                 textStyle: { color: textColor },
                 formatter: (params: any) => {
                     if (!params?.length) return ''
-                    const date = new Date(params[0].axisValue).toLocaleString()
+                    const date = formatDateTime(params[0].axisValue)
                     let content = `<strong>${date}</strong><br/>`
 
                     params.forEach((param: any) => {

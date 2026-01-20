@@ -13,8 +13,8 @@ import { useLanguage, useTheme } from '../../contexts'
 const THAILAND_CENTER: [number, number] = [100.5018, 13.7563]
 const THAILAND_ZOOM = 6
 
-// MapLibre style URL - using OpenStreetMap tiles
-const MAP_STYLE: maplibregl.StyleSpecification = {
+// MapLibre style - Light theme using OpenStreetMap tiles
+const MAP_STYLE_LIGHT: maplibregl.StyleSpecification = {
   version: 8,
   sources: {
     'osm-tiles': {
@@ -31,6 +31,30 @@ const MAP_STYLE: maplibregl.StyleSpecification = {
       id: 'osm-tiles-layer',
       type: 'raster',
       source: 'osm-tiles',
+      minzoom: 0,
+      maxzoom: 19,
+    },
+  ],
+}
+
+// MapLibre style - Dark theme using CartoDB Dark Matter tiles
+const MAP_STYLE_DARK: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    'carto-dark': {
+      type: 'raster',
+      tiles: [
+        'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+      ],
+      tileSize: 256,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    },
+  },
+  layers: [
+    {
+      id: 'carto-dark-layer',
+      type: 'raster',
+      source: 'carto-dark',
       minzoom: 0,
       maxzoom: 19,
     },
@@ -100,7 +124,7 @@ const StationMap: React.FC<StationMapProps> = ({
       console.log('StationMap: Creating map instance...')
       map.current = new maplibregl.Map({
         container: mapContainer.current,
-        style: MAP_STYLE,
+        style: isLight ? MAP_STYLE_LIGHT : MAP_STYLE_DARK,
         center: THAILAND_CENTER,
         zoom: THAILAND_ZOOM,
         attributionControl: {},
@@ -268,14 +292,15 @@ const StationMap: React.FC<StationMapProps> = ({
       setMapError((error as Error).message)
     }
 
-    // Cleanup on unmount
+    // Cleanup on unmount or theme change
     return () => {
       if (map.current) {
         map.current.remove()
         map.current = null
+        setMapLoaded(false)
       }
     }
-  }, [onStationSelect])
+  }, [onStationSelect, isLight])
 
   // Update station data when stations change
   useEffect(() => {

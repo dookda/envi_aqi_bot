@@ -106,9 +106,8 @@ const AQI_LEVELS: Record<string, AQILevelConfig> = {
 const getAqiLevel = (level: string): AQILevelConfig => AQI_LEVELS[level] || AQI_LEVELS.moderate
 
 export default function Claude(): React.ReactElement {
-    const { messages, loading, lastResponseTime, sendMessage, clearMessages } = useClaude()
+    const { messages, loading, sendMessage, clearMessages } = useClaude()
     const [inputText, setInputText] = useState<string>('')
-    const [showSidebar, setShowSidebar] = useState<boolean>(true)
     const messagesEndRef = useRef<HTMLDivElement | null>(null)
     const inputRef = useRef<HTMLInputElement | null>(null)
 
@@ -176,102 +175,15 @@ export default function Claude(): React.ReactElement {
     return (
         <div className="min-h-screen gradient-dark">
 
-            <main className="max-w-7xl mx-auto px-4 py-6">
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                    {/* Sidebar - Info Panel */}
-                    <div className={`lg:col-span-1 space-y-4 ${showSidebar ? '' : 'hidden lg:block'}`}>
-                        {/* Model B AI Assistant Card */}
-                        <Card className="p-4 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-purple-500/20 to-transparent rounded-bl-full" />
-                            <div className="relative z-10">
-                                <div className="flex items-center gap-3 mb-3">
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isLight ? 'bg-purple-100' : 'bg-purple-900/50'}`}>
-                                        <Icon name="psychology" size="lg" className="text-purple-500" />
-                                    </div>
-                                    <div>
-                                        <h3 className={`font-semibold ${isLight ? 'text-gray-800' : 'text-white'}`}>
-                                            Model B
-                                        </h3>
-                                        <p className={`text-xs ${isLight ? 'text-gray-500' : 'text-dark-400'}`}>
-                                            {language === 'th' ? 'ตอบเร็ว 1-3 วินาที' : 'Fast 1-3s response'}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="flex gap-2 flex-wrap">
-                                    <Badge variant="success" size="sm">
-                                        <Icon name="check_circle" size="xs" /> Online
-                                    </Badge>
-                                    <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30" size="sm">
-                                        🧠 Model B
-                                    </Badge>
-                                    {lastResponseTime && (
-                                        <Badge variant="default" size="sm">
-                                            ⚡ {lastResponseTime}ms
-                                        </Badge>
-                                    )}
-                                </div>
-                            </div>
-                        </Card>
-
-                        {/* Quick Actions */}
-                        <Card className="p-4">
-                            <h4 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isLight ? 'text-gray-700' : 'text-dark-200'}`}>
-                                <Icon name="bolt" size="sm" color="warning" />
-                                {language === 'th' ? 'การดำเนินการด่วน' : 'Quick Actions'}
-                            </h4>
-                            <div className="space-y-2">
-                                {quickActions.map((action, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => handleQuickAction(action.query)}
-                                        className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition flex items-center gap-2 group ${isLight
-                                            ? 'bg-gray-50 hover:bg-purple-50 text-gray-700 hover:text-purple-700'
-                                            : 'bg-dark-800 hover:bg-dark-700 text-dark-300 hover:text-white'
-                                            }`}
-                                    >
-                                        <Icon name={action.icon} size="sm" className="group-hover:scale-110 transition-transform" />
-                                        {action.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </Card>
-
-                        {/* Performance Card */}
-                        <Card className={`p-4 ${isLight ? 'bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200' : 'bg-gradient-to-br from-purple-900/20 to-indigo-900/20 border-purple-800/30'}`}>
-                            <h4 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isLight ? 'text-purple-800' : 'text-purple-300'}`}>
-                                <Icon name="speed" size="sm" />
-                                {language === 'th' ? 'ประสิทธิภาพ' : 'Performance'}
-                            </h4>
-                            <ul className={`text-xs space-y-2 ${isLight ? 'text-purple-700' : 'text-purple-300/80'}`}>
-                                <li className="flex items-start gap-2">
-                                    <Icon name="bolt" size="xs" />
-                                    {language === 'th' ? 'เร็วกว่า Ollama 3-5 เท่า' : '3-5x faster than Ollama'}
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <Icon name="cloud" size="xs" />
-                                    {language === 'th' ? 'ประมวลผลบน Cloud' : 'Cloud-based processing'}
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <Icon name="language" size="xs" />
-                                    {language === 'th' ? 'รองรับภาษาไทย-อังกฤษ' : 'Thai & English support'}
-                                </li>
-                            </ul>
-                        </Card>
-                    </div>
-
+            <main className="max-w-4xl mx-auto px-4 py-6">
+                <div className="flex flex-col">
                     {/* Main Chat Area */}
-                    <div className="lg:col-span-3 flex flex-col">
+                    <div className="flex flex-col">
                         {/* Messages Container */}
                         <Card className={`flex-1 flex flex-col overflow-hidden ${isLight ? 'bg-white' : 'bg-dark-900/50'}`}>
                             {/* Chat Header */}
                             <div className={`px-4 py-3 border-b flex items-center justify-between ${isLight ? 'bg-purple-50 border-purple-200' : 'bg-purple-900/20 border-purple-800/30'}`}>
                                 <div className="flex items-center gap-2">
-                                    <button
-                                        className="lg:hidden"
-                                        onClick={() => setShowSidebar(!showSidebar)}
-                                    >
-                                        <Icon name="menu" size="sm" />
-                                    </button>
                                     <Icon name="psychology" className="text-purple-500" />
                                     <span className={`font-medium ${isLight ? 'text-gray-700' : 'text-white'}`}>
                                         {language === 'th' ? 'สนทนากับ Model B' : 'Model B Conversation'}

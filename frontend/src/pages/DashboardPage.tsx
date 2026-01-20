@@ -12,6 +12,21 @@ import { useStations, useChartData } from '../hooks'
 import { useLanguage, useTheme } from '../contexts'
 import type { Station, AQIHourlyData, ParameterStatistics, TableColumn, Language, ParameterKey, ChartDataResponse } from '../types'
 
+// ============== Utility Functions ==============
+
+/**
+ * Format date to dd-MM-yyyy HH:mm (24hr format)
+ */
+const formatDateTime = (date: Date | string, lang: Language = 'en'): string => {
+    const d = typeof date === 'string' ? new Date(date) : date
+    const day = d.getDate().toString().padStart(2, '0')
+    const month = (d.getMonth() + 1).toString().padStart(2, '0')
+    const year = d.getFullYear() + (lang === 'th' ? 543 : 0)
+    const hours = d.getHours().toString().padStart(2, '0')
+    const minutes = d.getMinutes().toString().padStart(2, '0')
+    return `${day}-${month}-${year} ${hours}:${minutes}`
+}
+
 // ============== Type Definitions ==============
 
 interface AQILevelConfig {
@@ -61,10 +76,11 @@ interface DataTableViewProps {
     // Date filter props (controlled from parent)
     startDate: string
     endDate: string
+    negativeThreshold?: number
 }
 
 type AQILevelKey = 'excellent' | 'good' | 'moderate' | 'unhealthySensitive' | 'unhealthy'
-type TabId = 'overview' | 'charts' | 'map'
+type TabId = 'charts' | 'map'
 
 // ============== Constants ==============
 
@@ -350,7 +366,8 @@ const DataTableView: React.FC<DataTableViewProps> = ({
     totalRecords,
     consecutiveEqualThreshold = 3,
     startDate,
-    endDate
+    endDate,
+    negativeThreshold = -3
 }) => {
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
@@ -400,26 +417,11 @@ const DataTableView: React.FC<DataTableViewProps> = ({
         return indices
     }, [data, selectedParam, consecutiveEqualThreshold])
 
-    // Filter data based on date range and status
+    // Filter data based on status (date filtering is now handled by parent via filteredFullData)
     const filteredData = useMemo(() => {
         if (!data) return []
 
         return data.filter((row, idx) => {
-            // Date range filter
-            if (startDate || endDate) {
-                const rowDate = new Date(row.datetime)
-                if (startDate) {
-                    const start = new Date(startDate)
-                    start.setHours(0, 0, 0, 0)
-                    if (rowDate < start) return false
-                }
-                if (endDate) {
-                    const end = new Date(endDate)
-                    end.setHours(23, 59, 59, 999)
-                    if (rowDate > end) return false
-                }
-            }
-
             // Status filter
             const value = row[selectedParam as keyof AQIHourlyData] as number | null | undefined
             const isImputed = row.is_imputed || row[`${selectedParam}_imputed` as keyof AQIHourlyData]
@@ -434,7 +436,7 @@ const DataTableView: React.FC<DataTableViewProps> = ({
                 return value === null || value === undefined
             }
             if (statusFilter === 'negative') {
-                return value !== null && value !== undefined && value < 0
+                return value !== null && value !== undefined && value < negativeThreshold
             }
             if (statusFilter === 'stuck') {
                 return stuckIndices.has(idx)
@@ -442,7 +444,7 @@ const DataTableView: React.FC<DataTableViewProps> = ({
 
             return true
         })
-    }, [data, startDate, endDate, statusFilter, selectedParam, stuckIndices])
+    }, [data, statusFilter, selectedParam, stuckIndices, negativeThreshold])
 
     // Define columns dynamically based on language and selected parameter
     const columns: TableColumn<AQIHourlyData>[] = [
@@ -455,10 +457,7 @@ const DataTableView: React.FC<DataTableViewProps> = ({
         {
             header: lang === 'th' ? 'วัน-เวลา' : 'Date-Time',
             accessor: 'datetime',
-            render: (row) => {
-                const date = new Date(row.datetime)
-                return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-            }
+            render: (row) => formatDateTime(row.datetime, lang)
         },
         {
             header: selectedParam.toUpperCase(),
@@ -1156,15 +1155,6 @@ export default function Dashboard(): React.ReactElement {
         localStorage.setItem('consecutiveEqualThreshold', consecutiveEqualThreshold.toString())
     }, [consecutiveEqualThreshold])
 
-    // Calculate spike detection (compare latest with previous data point)
-    const previousData = useMemo(() => {
-        if (!fullData?.data?.length || fullData.data.length < 2) return null
-        const sorted = [...fullData.data].sort((a, b) =>
-            new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
-        )
-        return sorted[1] // Second most recent
-    }, [fullData?.data])
-
     // Fetch the latest data point for the station (always most recent)
     const fetchLatestData = useCallback(async (): Promise<void> => {
         if (!selectedStation) return
@@ -1243,20 +1233,6 @@ export default function Dashboard(): React.ReactElement {
     const stats = chartData?.statistics || {}
     const currentStation = stations.find(s => s.station_id === selectedStation)
 
-    // Get the latest data point (prefer dedicated /latest endpoint, fallback to fullData)
-    const latestData = useMemo(() => {
-        // Prefer the dedicated latest data from /latest endpoint
-        if (latestStationData) return latestStationData
-
-        // Fallback to most recent from fullData
-        if (!fullData?.data?.length) return {} as AQIHourlyData
-        // Sort by datetime descending and get the first (latest) entry
-        const sorted = [...fullData.data].sort((a, b) =>
-            new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
-        )
-        return sorted[0]
-    }, [latestStationData, fullData?.data])
-
     // Filter fullData based on custom date range (filterStartDate, filterEndDate)
     const filteredFullData = useMemo((): FullDataResponse | null => {
         if (!fullData) return null
@@ -1306,6 +1282,34 @@ export default function Dashboard(): React.ReactElement {
             total_records: filteredData.length
         }
     }, [fullData, filterStartDate, filterEndDate])
+
+    // Calculate spike detection (compare latest with previous data point)
+    // Uses filtered data when custom date range is applied
+    const previousData = useMemo(() => {
+        // filteredFullData handles both filtered and unfiltered (full) data cases
+        if (!filteredFullData?.data?.length || filteredFullData.data.length < 2) return null
+
+        // API ensures data is sorted by datetime descending, so index 1 is the previous record
+        // We avoid re-sorting here to ensure consistency with the table view
+        return filteredFullData.data[1]
+    }, [filteredFullData])
+
+    // Get the latest data point
+    // When custom date range is applied, use latest from filtered data
+    // Otherwise, use fullData (more complete than /latest endpoint)
+    const latestData = useMemo(() => {
+        // filteredFullData handles both filtered and unfiltered (full) data cases
+        if (filteredFullData?.data?.length) {
+            // API ensures data is sorted by datetime descending, so index 0 is the latest record
+            // We avoid re-sorting here to ensure consistency with the table view
+            return filteredFullData.data[0]
+        }
+
+        // Fallback to /latest endpoint if fullData not available
+        if (latestStationData) return latestStationData
+
+        return {} as AQIHourlyData
+    }, [filteredFullData, latestStationData])
 
     const currentPm25 = latestData.pm25 || (stats as any).mean
     const aqiLevel = getAqiLevel(currentPm25)
@@ -1435,13 +1439,7 @@ export default function Dashboard(): React.ReactElement {
                                         <Icon name="schedule" size="sm" />
                                         <span>
                                             {lang === 'th' ? 'ข้อมูลล่าสุด:' : 'Latest data:'}{' '}
-                                            {new Date(latestData.datetime).toLocaleString(lang === 'th' ? 'th-TH' : 'en-US', {
-                                                day: 'numeric',
-                                                month: 'short',
-                                                year: 'numeric',
-                                                hour: '2-digit',
-                                                minute: '2-digit'
-                                            })}
+                                            {formatDateTime(latestData.datetime, lang)}
                                         </span>
                                     </div>
                                 )}
@@ -1705,21 +1703,22 @@ export default function Dashboard(): React.ReactElement {
                     </Card>
                 </section>
 
-                {/* Tab Navigation - Now only Charts and Data */}
-                <section className="mb-6">
-                    <div className={`flex gap-2 p-1 rounded-xl ${isLight ? 'bg-gray-100' : 'bg-dark-800'}`}>
+                {/* Tab Navigation - Compact Switcher & Settings */}
+                <section className="mb-6 flex flex-wrap items-center justify-between gap-4">
+                    {/* View Switcher */}
+                    <div className={`inline-flex p-1 rounded-lg ${isLight ? 'bg-gray-100' : 'bg-dark-800'}`}>
                         {([
                             { id: 'charts' as TabId, label: lang === 'th' ? 'กราฟ' : 'Charts', icon: 'show_chart' },
-                            { id: 'map' as TabId, label: lang === 'th' ? 'ข้อมูล' : 'Data', icon: 'table_chart' },
+                            { id: 'map' as TabId, label: lang === 'th' ? 'ตาราง' : 'Table', icon: 'table_chart' },
                         ]).map(tab => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${activeTab === tab.id
-                                    ? 'bg-primary-500 text-white shadow-lg'
+                                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === tab.id
+                                    ? 'bg-primary-500 text-white shadow-sm'
                                     : isLight
-                                        ? 'text-gray-600 hover:bg-gray-200'
-                                        : 'text-dark-400 hover:bg-dark-700'
+                                        ? 'text-gray-600 hover:text-gray-900 bg-transparent hover:bg-gray-200/50'
+                                        : 'text-dark-400 hover:text-dark-200 bg-transparent hover:bg-dark-700/50'
                                     }`}
                             >
                                 <Icon name={tab.icon} size="sm" />
@@ -1727,6 +1726,18 @@ export default function Dashboard(): React.ReactElement {
                             </button>
                         ))}
                     </div>
+
+                    {/* Settings Button - Global Scope */}
+                    <button
+                        onClick={() => setShowThresholdSettings(true)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isLight
+                            ? 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300'
+                            : 'bg-dark-800 border border-dark-600 text-dark-200 hover:bg-dark-700'
+                            }`}
+                    >
+                        <Icon name="settings" size="sm" />
+                        {lang === 'th' ? 'ตั้งค่าความผิดปกติ' : 'View Settings'}
+                    </button>
                 </section>
 
                 {/* Tab Content - Charts tab is now the default */}
@@ -1740,9 +1751,8 @@ export default function Dashboard(): React.ReactElement {
                             height={500}
                             selectedParam={selectedParam}
                             onParamChange={setSelectedParam}
-                            externalData={fullData as ChartDataResponse | null}
+                            externalData={filteredFullData as ChartDataResponse | null}
                             loading={fullDataLoading}
-                            onSettingsClick={() => setShowThresholdSettings(true)}
                             spikeMultiplier={spikeMultiplier}
                             negativeThreshold={pollutantThresholds[selectedParam] ?? (selectedParam === 'co' ? -0.3 : -3)}
                             consecutiveEqualThreshold={consecutiveEqualThreshold}
@@ -1754,8 +1764,8 @@ export default function Dashboard(): React.ReactElement {
                             stationName={currentStation?.name_th || currentStation?.name_en || null}
                             parameter={selectedParam}
                             timePeriod={timePeriod}
-                            statistics={fullData?.statistics}
-                            dataPoints={fullData?.total_records}
+                            statistics={filteredFullData?.statistics}
+                            dataPoints={filteredFullData?.total_records}
                             isLight={isLight}
                             lang={lang}
                         />
@@ -1765,7 +1775,7 @@ export default function Dashboard(): React.ReactElement {
 
                 {activeTab === 'map' && ( // "map" is the ID for "Data" tab now
                     <DataTableView
-                        data={fullData?.data}
+                        data={filteredFullData?.data}
                         loading={fullDataLoading}
                         selectedParam={selectedParam}
                         selectedStation={selectedStation}
@@ -1773,11 +1783,12 @@ export default function Dashboard(): React.ReactElement {
                         lang={lang}
                         isLight={isLight}
                         onParamChange={setSelectedParam}
-                        totalRecords={fullData?.total_records}
+                        totalRecords={filteredFullData?.total_records}
                         latestUpdate={latestData?.datetime}
                         consecutiveEqualThreshold={consecutiveEqualThreshold}
                         startDate={filterStartDate}
                         endDate={filterEndDate}
+                        negativeThreshold={pollutantThresholds[selectedParam] ?? (selectedParam === 'co' ? -0.3 : -3)}
                     />
                 )}
 
@@ -1795,12 +1806,12 @@ export default function Dashboard(): React.ReactElement {
                             </div>
                             <div className="flex items-center gap-2">
                                 <Icon name="science" size="sm" />
-                                <span>{fullData?.total_records || 0} {lang === 'th' ? 'จุดข้อมูล' : 'data points'}</span>
+                                <span>{filteredFullData?.total_records || 0} {lang === 'th' ? 'จุดข้อมูล' : 'data points'}</span>
                             </div>
                             {latestData?.datetime && (
                                 <div className="flex items-center gap-2">
                                     <Icon name="update" size="sm" />
-                                    <span>{lang === 'th' ? 'ล่าสุด:' : 'Latest:'} {new Date(latestData.datetime).toLocaleString()}</span>
+                                    <span>{lang === 'th' ? 'ล่าสุด:' : 'Latest:'} {formatDateTime(latestData.datetime, lang)}</span>
                                 </div>
                             )}
                         </div>

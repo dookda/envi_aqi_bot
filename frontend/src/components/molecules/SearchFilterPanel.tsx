@@ -5,6 +5,19 @@
 import { Card, Icon, Badge } from '../atoms'
 import type { Station, Language, ParameterKey } from '@/types'
 
+/**
+ * Format date to dd-MM-yyyy HH:mm (24hr format)
+ */
+const formatDateTime = (date: Date | string): string => {
+    const d = typeof date === 'string' ? new Date(date) : date
+    const day = d.getDate().toString().padStart(2, '0')
+    const month = (d.getMonth() + 1).toString().padStart(2, '0')
+    const year = d.getFullYear()
+    const hours = d.getHours().toString().padStart(2, '0')
+    const minutes = d.getMinutes().toString().padStart(2, '0')
+    return `${day}-${month}-${year} ${hours}:${minutes}`
+}
+
 interface TimePeriodOption {
     value: number
     label: string
@@ -237,12 +250,7 @@ const SearchFilterPanel: React.FC<SearchFilterPanelProps> = ({
                             {latestDataTime && (
                                 <Badge variant="success" size="sm">
                                     <Icon name="update" size="xs" />
-                                    {new Date(latestDataTime).toLocaleString(lang === 'th' ? 'th-TH' : 'en-US', {
-                                        day: 'numeric',
-                                        month: 'short',
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                    })}
+                                    {formatDateTime(latestDataTime)}
                                 </Badge>
                             )}
                         </div>
