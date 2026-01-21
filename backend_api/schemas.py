@@ -3,7 +3,7 @@ Pydantic schemas for API request/response validation
 """
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field
 
 
@@ -27,7 +27,7 @@ class StationResponse(StationBase):
     """Schema for station response"""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -58,7 +58,7 @@ class AQIHourlyResponse(AQIHourlyBase):
     """Schema for AQI measurement response"""
     model_version: Optional[str] = None
     created_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -91,7 +91,7 @@ class ImputationLogResponse(BaseModel):
     model_version: str
     rmse_score: Optional[float] = None
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -117,7 +117,7 @@ class IngestionLogResponse(BaseModel):
     error_message: Optional[str] = None
     started_at: datetime
     completed_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -144,7 +144,7 @@ class ModelTrainingLogResponse(BaseModel):
     epochs_completed: int
     training_duration_seconds: float
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -205,7 +205,8 @@ class AQIHistoryDataPoint(BaseModel):
 class AQIHistoryRequest(BaseModel):
     """Request for AQI history data"""
     station_id: str
-    pollutant: str = Field(default="pm25", description="pm25 | pm10 | aqi | o3 | no2 | so2 | co | nox")
+    pollutant: str = Field(
+        default="pm25", description="pm25 | pm10 | aqi | o3 | no2 | so2 | co | nox")
     start_date: datetime
     end_date: datetime
     interval: str = Field(default="15min", description="15min | hour | day")
@@ -214,39 +215,52 @@ class AQIHistoryRequest(BaseModel):
 # AI Chat Schemas
 class ChatQueryRequest(BaseModel):
     """Natural language query for air quality data"""
-    query: str = Field(..., max_length=300, description="Natural language query in Thai or English")
+    query: str = Field(..., max_length=300,
+                       description="Natural language query in Thai or English")
 
 
 class ChatIntent(BaseModel):
     """Parsed intent from LLM - supports both data queries and search queries"""
-    intent_type: Optional[str] = Field(default="get_data", description="search_stations | get_data")
+    intent_type: Optional[str] = Field(
+        default="get_data", description="search_stations | get_data")
     # For search_stations intent
-    search_query: Optional[str] = Field(default=None, description="Location search query")
+    search_query: Optional[str] = Field(
+        default=None, description="Location search query")
     # For get_data intent
-    station_id: Optional[str] = Field(default=None, description="Station ID or name")
-    pollutant: Optional[str] = Field(default=None, description="pm25 | pm10 | aqi | o3 | no2 | so2 | co | nox")
-    start_date: Optional[str] = Field(default=None, description="ISO-8601 datetime")
-    end_date: Optional[str] = Field(default=None, description="ISO-8601 datetime")
-    interval: Optional[str] = Field(default=None, description="15min | hour | day")
-    output_type: Optional[str] = Field(default=None, description="text | chart | map | infographic")
+    station_id: Optional[str] = Field(
+        default=None, description="Station ID or name")
+    pollutant: Optional[str] = Field(
+        default=None, description="pm25 | pm10 | aqi | o3 | no2 | so2 | co | nox")
+    start_date: Optional[str] = Field(
+        default=None, description="ISO-8601 datetime")
+    end_date: Optional[str] = Field(
+        default=None, description="ISO-8601 datetime")
+    interval: Optional[str] = Field(
+        default=None, description="15min | hour | day")
+    output_type: Optional[str] = Field(
+        default=None, description="text | chart | map | infographic")
 
 
 class ChatResponse(BaseModel):
     """Response from AI chat endpoint"""
     status: str  # success | out_of_scope | invalid_request | error
     message: Optional[str] = None
-    intent: Optional[dict] = None  # Changed to dict to support both intent types
-    data: Optional[List] = None  # Changed to generic List to support both data types
+    # Changed to dict to support both intent types
+    intent: Optional[dict] = None
+    # Support both list and dict for multi-param queries
+    data: Optional[Union[List, Dict[str, Any]]] = None
     summary: Optional[dict] = None
     output_type: Optional[str] = None
-
+    station_name: Optional[str] = None  # Added for multi-param responses
 
 
 # Station Search Schemas
 class StationSearchRequest(BaseModel):
     """Request to search for stations by name or location"""
-    query: str = Field(..., max_length=100, description="Search query (e.g., 'Chiang Mai', 'เชียงใหม่')")
-    include_summary: bool = Field(default=True, description="Include recent AQI summary for each station")
+    query: str = Field(..., max_length=100,
+                       description="Search query (e.g., 'Chiang Mai', 'เชียงใหม่')")
+    include_summary: bool = Field(
+        default=True, description="Include recent AQI summary for each station")
 
 
 class StationSummary(BaseModel):
@@ -263,7 +277,7 @@ class StationSummary(BaseModel):
     avg_pm25_24h: Optional[float] = None
     avg_pm25_7d: Optional[float] = None
     min_pm25_7d: Optional[float] = None
-    max_pm25_7d: Optional[float] = None  
+    max_pm25_7d: Optional[float] = None
     aqi_level: Optional[str] = None
     trend_7d: Optional[str] = None
     data_completeness_7d: Optional[float] = None
@@ -284,12 +298,15 @@ class UserBase(BaseModel):
     username: str
     full_name: Optional[str] = None
 
+
 class UserCreate(UserBase):
     password: str
+
 
 class UserLogin(BaseModel):
     username: str
     password: str
+
 
 class UserResponse(UserBase):
     id: int
@@ -297,13 +314,15 @@ class UserResponse(UserBase):
     is_active: bool
     created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
+
 
 class Token(BaseModel):
     access_token: str
     token_type: str
+
 
 class TokenData(BaseModel):
     username: Optional[str] = None
@@ -313,12 +332,18 @@ class TokenData(BaseModel):
 class ChartInsightRequest(BaseModel):
     """Request for AI-generated chart insights"""
     station_id: str = Field(..., description="Station ID to analyze")
-    station_name: Optional[str] = Field(None, description="Station name for display")
-    parameter: str = Field(default="pm25", description="Parameter to analyze: pm25, pm10, o3, co, no2, so2, nox")
-    time_period_days: int = Field(default=7, ge=1, le=365, description="Number of days to analyze")
-    statistics: Optional[dict] = Field(None, description="Pre-calculated statistics from chart data")
-    data_points: Optional[int] = Field(None, description="Number of data points in chart")
-    lang: str = Field(default="th", description="Language for AI response: th or en")
+    station_name: Optional[str] = Field(
+        None, description="Station name for display")
+    parameter: str = Field(
+        default="pm25", description="Parameter to analyze: pm25, pm10, o3, co, no2, so2, nox")
+    time_period_days: int = Field(
+        default=7, ge=1, le=365, description="Number of days to analyze")
+    statistics: Optional[dict] = Field(
+        None, description="Pre-calculated statistics from chart data")
+    data_points: Optional[int] = Field(
+        None, description="Number of data points in chart")
+    lang: str = Field(
+        default="th", description="Language for AI response: th or en")
 
 
 class ChartInsightResponse(BaseModel):
@@ -328,5 +353,6 @@ class ChartInsightResponse(BaseModel):
     highlights: Optional[List[str]] = None  # Key points as bullet list
     health_advice: Optional[str] = None  # Health recommendations if applicable
     trend_summary: Optional[str] = None  # Brief trend description
-    ai_description: Optional[str] = None  # Ollama-generated detailed description
+    # Ollama-generated detailed description
+    ai_description: Optional[str] = None
     error: Optional[str] = None

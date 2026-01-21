@@ -386,11 +386,22 @@ function ChatMessage({ message, isLight, language }: ChatMessageProps): React.Re
                     )}
 
                     {/* Chart Visualization */}
-                    {message.status === 'success' && hasData && !isStationSearch && (
+                    {message.status === 'success' && hasData && !isStationSearch && message.output_type !== 'multi_chart' && (
                         <div className={`mt-4 pt-4 border-t ${isLight ? 'border-gray-200' : 'border-dark-700'}`}>
                             <EnhancedChart
                                 data={message.data}
                                 summary={message.summary}
+                                isLight={isLight}
+                                language={language}
+                            />
+                        </div>
+                    )}
+
+                    {/* Multi-Parameter Chart */}
+                    {message.status === 'success' && message.output_type === 'multi_chart' && message.data && (
+                        <div className={`mt-4 pt-4 border-t ${isLight ? 'border-gray-200' : 'border-dark-700'}`}>
+                            <MultiLineChart
+                                data={message.data}
                                 isLight={isLight}
                                 language={language}
                             />
@@ -597,6 +608,132 @@ interface EnhancedChartProps {
     language: Language
 }
 
+// Helper function to generate smooth SVG path using Catmull-Rom spline
+function generateSmoothPath(points: { x: number; y: number }[], tension: number = 0.3): string {
+    if (points.length < 2) return ''
+    if (points.length === 2) {
+        return `M ${points[0].x},${points[0].y} L ${points[1].x},${points[1].y}`
+    }
+
+    let path = `M ${points[0].x},${points[0].y}`
+
+    for (let i = 0; i < points.length - 1; i++) {
+        const p0 = points[Math.max(0, i - 1)]
+        const p1 = points[i]
+        const p2 = points[i + 1]
+        const p3 = points[Math.min(points.length - 1, i + 2)]
+
+        // Calculate control points
+        const cp1x = p1.x + (p2.x - p0.x) * tension
+        const cp1y = p1.y + (p2.y - p0.y) * tension
+        const cp2x = p2.x - (p3.x - p1.x) * tension
+        const cp2y = p2.y - (p3.y - p1.y) * tension
+
+        path += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`
+    }
+
+    return path
+}
+
+function MultiLineChart({ data, isLight, language }: { data: Record<string, DataPoint[]>, isLight: boolean, language: Language }): React.ReactElement | null {
+    const pollutants = Object.keys(data)
+    if (pollutants.length === 0) return null
+
+    // Flatten all values to find global min/max for scaling
+    const allValues: number[] = []
+    let allTimes: string[] = []
+
+    pollutants.forEach(p => {
+        data[p].forEach(d => {
+            if (d.value !== null) allValues.push(d.value)
+            if (d.time) allTimes.push(d.time)
+        })
+    })
+
+    if (allValues.length === 0) return null
+
+    const max = Math.max(...allValues)
+    const min = Math.min(...allValues)
+    const range = max - min || 1
+
+    // Sort times to find range (assuming all datasets roughly align)
+    allTimes.sort()
+    const firstTime = allTimes[0] ? new Date(allTimes[0]) : null
+    const lastTime = allTimes[allTimes.length - 1] ? new Date(allTimes[allTimes.length - 1]) : null
+
+    // Colors for different pollutants
+    const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+
+    return (
+        <div className="space-y-3">
+            <div className={`text-xs font-medium flex items-center justify-between ${isLight ? 'text-gray-600' : 'text-dark-300'}`}>
+                <div className="flex items-center gap-1">
+                    <Icon name="show_chart" size="sm" color="primary" />
+                    {language === 'th' ? 'การเปรียบเทียบ' : 'Comparison'}
+                </div>
+                <div className="flex gap-2">
+                    {pollutants.map((p, i) => (
+                        <div key={p} className="flex items-center gap-1">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: colors[i % colors.length] }} />
+                            <span className="uppercase">{p}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div className="flex">
+                {/* Y-axis */}
+                <div className={`flex flex-col justify-between text-[10px] pr-2 ${isLight ? 'text-gray-400' : 'text-dark-500'}`} style={{ minWidth: '35px' }}>
+                    <span className="text-right">{max.toFixed(0)}</span>
+                    <span className="text-right">{((max + min) / 2).toFixed(0)}</span>
+                    <span className="text-right">{min.toFixed(0)}</span>
+                </div>
+
+                {/* Chart Area */}
+                <div className="flex-1">
+                    <div className={`relative h-24 border-l border-b rounded-bl-lg ${isLight ? 'border-gray-300' : 'border-dark-600'}`}>
+                        <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" className="overflow-visible">
+                            <line x1="0" y1="50" x2="100" y2="50" stroke={isLight ? '#e5e7eb' : '#374151'} strokeWidth="1" strokeDasharray="4 4" opacity="0.5" vectorEffect="non-scaling-stroke" />
+
+                            {pollutants.map((pollutant, idx) => {
+                                const seriesData = data[pollutant].filter(d => d.value !== null)
+                                const color = colors[idx % colors.length]
+                                if (seriesData.length === 0) return null
+
+                                const points = seriesData.map((point, index) => ({
+                                    x: (index / Math.max(seriesData.length - 1, 1)) * 100,
+                                    y: 100 - ((point.value! - min) / range) * 100
+                                }))
+
+                                return (
+                                    <g key={pollutant}>
+                                        <path
+                                            d={generateSmoothPath(points, 0.2)}
+                                            fill="none"
+                                            stroke={color}
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            opacity="0.8"
+                                            vectorEffect="non-scaling-stroke"
+                                        />
+                                    </g>
+                                )
+                            })}
+                        </svg>
+                    </div>
+                    {/* X-axis */}
+                    <div className={`flex justify-between text-[10px] mt-1 ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
+                        {firstTime && <span>{firstTime.toLocaleDateString(language === 'th' ? 'th-TH' : 'en-US', { day: '2-digit', month: 'short' })}</span>}
+                        <span className="flex-1 text-center">→</span>
+                        {lastTime && <span>{lastTime.toLocaleDateString(language === 'th' ? 'th-TH' : 'en-US', { day: '2-digit', month: 'short' })}</span>}
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 function EnhancedChart({ data, summary, isLight, language }: EnhancedChartProps): React.ReactElement | null {
     if (!data || data.length === 0) return null
 
@@ -669,23 +806,26 @@ function EnhancedChart({ data, summary, isLight, language }: EnhancedChartProps)
                 {/* Chart Area - Line Chart */}
                 <div className="flex-1">
                     <div className={`relative h-24 border-l border-b rounded-bl-lg ${isLight ? 'border-gray-300' : 'border-dark-600'}`}>
-                        <svg width="100%" height="100%" className="overflow-visible">
+                        <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" className="overflow-visible">
                             {/* Background grid */}
-                            <line x1="0" y1="50%" x2="100%" y2="50%" stroke={isLight ? '#e5e7eb' : '#374151'} strokeWidth="1" strokeDasharray="4 4" opacity="0.5" />
+                            <line x1="0" y1="50" x2="100" y2="50" stroke={isLight ? '#e5e7eb' : '#374151'} strokeWidth="1" strokeDasharray="4 4" opacity="0.5" vectorEffect="non-scaling-stroke" />
 
-                            {/* Line path */}
-                            <polyline
-                                points={validData.slice(-60).map((point, index) => {
-                                    const x = (index / Math.max(validData.slice(-60).length - 1, 1)) * 100
-                                    const y = 100 - ((point.value! - min) / range) * 100
-                                    return `${x}%,${y}%`
-                                }).join(' ')}
+                            {/* Smooth Line path */}
+                            <path
+                                d={generateSmoothPath(
+                                    validData.slice(-60).map((point, index) => ({
+                                        x: (index / Math.max(validData.slice(-60).length - 1, 1)) * 100,
+                                        y: 100 - ((point.value! - min) / range) * 100
+                                    })),
+                                    0.2
+                                )}
                                 fill="none"
                                 stroke="url(#lineGradient)"
                                 strokeWidth="2.5"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                                 className="transition-all duration-300"
+                                vectorEffect="non-scaling-stroke"
                             />
 
                             {/* Gradient definition */}
@@ -696,26 +836,27 @@ function EnhancedChart({ data, summary, isLight, language }: EnhancedChartProps)
                                     <stop offset="100%" stopColor="#ec4899" />
                                 </linearGradient>
                             </defs>
-
-                            {/* Data points */}
-                            {validData.slice(-60).map((point, index) => {
-                                const x = (index / Math.max(validData.slice(-60).length - 1, 1)) * 100
-                                const y = 100 - ((point.value! - min) / range) * 100
-                                const color = point.value! <= 50 ? '#10b981' : point.value! <= 100 ? '#f59e0b' : '#ef4444'
-                                return (
-                                    <circle
-                                        key={index}
-                                        cx={`${x}%`}
-                                        cy={`${y}%`}
-                                        r="3"
-                                        fill={color}
-                                        className="opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
-                                    >
-                                        <title>{`${point.value?.toFixed(1)} μg/m³\n${point.time ? new Date(point.time).toLocaleString() : ''}`}</title>
-                                    </circle>
-                                )
-                            })}
                         </svg>
+
+                        {/* Data points - separate layer to keep circles round */}
+                        {validData.slice(-60).map((point, index) => {
+                            const x = (index / Math.max(validData.slice(-60).length - 1, 1)) * 100
+                            const y = 100 - ((point.value! - min) / range) * 100
+                            const color = point.value! <= 50 ? '#10b981' : point.value! <= 100 ? '#f59e0b' : '#ef4444'
+                            return (
+                                <div
+                                    key={index}
+                                    className="absolute w-2 h-2 rounded-full opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
+                                    style={{
+                                        left: `${x}%`,
+                                        top: `${y}%`,
+                                        backgroundColor: color,
+                                        transform: 'translate(-50%, -50%)'
+                                    }}
+                                    title={`${point.value?.toFixed(1)} μg/m³\n${point.time ? new Date(point.time).toLocaleString() : ''}`}
+                                />
+                            )
+                        })}
                     </div>
 
                     {/* X-axis */}

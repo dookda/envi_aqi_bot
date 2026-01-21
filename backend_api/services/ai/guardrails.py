@@ -27,7 +27,7 @@ AIR_QUALITY_KEYWORDS = [
     "co", "carbon monoxide", "carbon",
     "dust", "particulate", "particle", "particles",
     "smog", "haze", "smoke",
-    
+
     # === Weather Parameters (English) ===
     "temperature", "temp", "celsius",
     "humidity", "rh", "relative humidity",
@@ -35,7 +35,7 @@ AIR_QUALITY_KEYWORDS = [
     "pressure", "barometric", "bp",
     "rain", "rainfall", "precipitation",
     "weather",
-    
+
     # === Actions/Queries ===
     "station", "stations", "monitoring",
     "search", "find", "list", "show", "display", "view", "get",
@@ -46,13 +46,13 @@ AIR_QUALITY_KEYWORDS = [
     "compare", "comparison",
     "current", "now", "latest", "recent",
     "forecast", "predict", "prediction",
-    
+
     # === Chart/Visualization Keywords ===
     "chart", "charts", "graph", "graphs", "plot",
     "visualization", "visualize", "visual",
     "line chart", "bar chart", "time series",
     "กราฟ", "แผนภูมิ", "กราฟเส้น", "แสดงกราฟ",
-    
+
     # === Locations (Thai Provinces) ===
     "chiang mai", "chiangmai", "เชียงใหม่",
     "bangkok", "กรุงเทพ", "กรุงเทพฯ", "กทม",
@@ -78,7 +78,7 @@ AIR_QUALITY_KEYWORDS = [
     "tak", "ตาก", "แม่สอด",
     "phayao", "พะเยา",
     "uttaradit", "อุตรดิตถ์",
-    
+
     # === Thai Common Words ===
     "คุณภาพอากาศ", "คุณภาพ อากาศ",
     "ฝุ่น", "ฝุ่นละออง", "ฝุ่นพิษ",
@@ -88,7 +88,7 @@ AIR_QUALITY_KEYWORDS = [
     "ค่า pm", "ค่าpm",
     "พีเอ็ม", "พี เอ็ม",
     "ควัน", "หมอก", "หมอกควัน",
-    
+
     # === Thai Weather Parameters ===
     "อุณหภูมิ", "อุณห", "เซลเซียส", "องศา",
     "ความชื้น", "ชื้น",
@@ -96,7 +96,7 @@ AIR_QUALITY_KEYWORDS = [
     "ความกดอากาศ", "ความดัน",
     "ฝน", "ฝนตก", "ปริมาณฝน",
     "สภาพอากาศ",
-    
+
     # === Thai Actions ===
     "สถานี", "สถานีตรวจวัด", "ตรวจวัด",
     "ค้นหา", "หา", "หาสถานี",
@@ -108,7 +108,7 @@ AIR_QUALITY_KEYWORDS = [
     "แนวโน้ม", "เปรียบเทียบ",
     "ปัจจุบัน", "ล่าสุด", "ตอนนี้",
     "อันตราย", "ปลอดภัย", "สุขภาพ",
-    
+
     # === General health keywords ===
     "health", "healthy", "safe", "unsafe", "danger", "dangerous",
     "mask", "n95", "indoor", "outdoor",
@@ -133,7 +133,8 @@ def keyword_filter(query: str) -> Dict[str, Any]:
     query_lower = query.lower()
 
     # Check if any keyword is present
-    has_keyword = any(keyword in query_lower for keyword in AIR_QUALITY_KEYWORDS)
+    has_keyword = any(
+        keyword in query_lower for keyword in AIR_QUALITY_KEYWORDS)
 
     if not has_keyword:
         logger.info(f"Keyword filter rejected: {query[:50]}")
@@ -148,78 +149,64 @@ def keyword_filter(query: str) -> Dict[str, Any]:
 
 
 # Layer 2: Domain-Restricted LLM System Prompt
-SYSTEM_PROMPT = """You are an Air Quality Assistant for Thailand. Parse user queries to JSON.
+SYSTEM_PROMPT = """You are an expert Air Quality and Environmental Data Assistant for Thailand. Your role is to provide comprehensive, educational, and actionable information about air quality from our monitoring database.
 
-**CRITICAL RULE:**
-You ONLY answer questions about:
-1. Air Quality (PM2.5, PM10, AQI, O3, NO2, SO2, CO, NOx)
-2. Meteorology/Weather (Temperature, Humidity, Wind, Pressure, Rain)
-3. Station locations and monitoring data
+**YOUR EXPERTISE AREAS:**
+1. Air Quality Monitoring (PM2.5, PM10, AQI, O3, NO2, SO2, CO, NOx)
+2. Meteorological Data (Temperature, Humidity, Wind, Pressure, Rainfall)
+3. Health Impact Assessment and Recommendations
+4. Environmental Policy Guidance
+5. Data Interpretation and Trend Analysis
 
-If the query is NOT about these topics, return:
-{{"status": "out_of_scope"}}
+**DATABASE CAPABILITIES:**
+Our system monitors air quality across Thailand with:
+- Real-time data from monitoring stations nationwide
+- Historical data for trend analysis
+- Multiple pollutant parameters (PM2.5, PM10, O3, CO, NO2, SO2, NOx)
+- Weather parameters (temperature, humidity, wind speed/direction, pressure, rainfall)
+- Hourly, daily, and weekly aggregations
 
 **SUPPORTED PARAMETERS:**
 - Pollutants: pm25, pm10, o3 (ozone), co (carbon monoxide), no2 (nitrogen dioxide), so2 (sulfur dioxide), nox (nitrogen oxides)
 - Weather: temp (temperature), rh (humidity), ws (wind speed), wd (wind direction), bp (pressure), rain
 - Default: pm25 if not specified
 
-**IMPORTANT: Determine intent_type FIRST:**
+**CRITICAL RULE:**
+You ONLY answer questions about Air Quality, Environment, and Meteorology. For unrelated topics, return:
+{{"status": "out_of_scope"}}
+
+**DETERMINE INTENT TYPE:**
 
 1. **search_stations** - User wants to FIND/LIST stations:
    - Keywords: "ค้นหา", "หา", "แสดงสถานี", "สถานีใน", "สถานีใดบ้าง", "สถานีไหน", "search", "find", "list stations", "where", "which stations", "สถานีตรวจวัด"
    - Example: "ค้นหาสถานีเชียงใหม่" → search for Chiang Mai stations
    - Example: "สถานีใดบ้างที่มีข้อมูล o3" → search stations with O3 data
-   - Example: "สถานีไหนมี pm10 ล่าสุด" → search stations with PM10 data
-   - Example: "ค้นหาสถานีใน กทม" → search stations in Bangkok
-   - Example: "สถานีตรวจวัดในภูเก็ต" → search stations in Phuket
 
    Return:
    {{"intent_type": "search_stations", "search_query": "<location or 'all'>", "output_type": "text"}}
 
-2. **get_data** - User wants AIR QUALITY DATA over time OR EXECUTIVE REPORT:
-   - Keywords: "PM2.5", "PM10", "O3", "CO", "NO2", "SO2", "NOx", "ค่าฝุ่น", "ค่า", "ย้อนหลัง", "วันนี้", "ตอนนี้", "ปัจจุบัน", "last week", "chart", "กราฟ", "report", "summary", "รายงาน", "ผู้บริหาร", "policy", "recommendation", "temperature", "อุณหภูมิ", "ความชื้น", "ลม"
-   - Example: "PM2.5 เชียงใหม่ ย้อนหลัง 7 วัน" → get PM2.5 data
-   - Example: "CO เชียงใหม่ วันนี้" → get CO data
-   - Example: "O3 กรุงเทพ สัปดาห์นี้" → get Ozone data (pollutant: "o3")
-   - Example: "ค่า o3 ตอนนี้ ที่กรุงเทพ" → get current O3 (pollutant: "o3", output_type: "text")
-   - Example: "ค่า co ที่เชียงใหม่" → get current CO (pollutant: "co")
-   - Example: "ขอดูกราฟ pm10 ย้อนหลัง 7 วัน ที่ลำปาง" → get PM10 chart
-   - Example: "กราฟ no2 ย้อนหลัง ที่กรุงเทพ" → get NO2 chart (pollutant: "no2")
-   - Example: "อุณหภูมิ เชียงใหม่" → get temperature data (pollutant: "temp")
-   - Example: "ขอรายงานสรุปผู้บริหาร เชียงใหม่" → get executive report
-   - Example: "ขอดูกราฟ PM2.5 ย้อนหลัง 7 วันของสถานีเชียงใหม่" → get PM2.5 chart
-   - Example: "แสดงกราฟฝุ่น PM2.5 ที่ลำปาง" → get PM2.5 chart
-
+2. **get_data** - User wants AIR QUALITY DATA, ANALYSIS, or REPORT:
+   - Keywords: "PM2.5", "PM10", "O3", "CO", "NO2", "SO2", "NOx", "ค่าฝุ่น", "ค่า", "ย้อนหลัง", "วันนี้", "ตอนนี้", "ปัจจุบัน", "last week", "chart", "กราฟ", "report", "summary", "รายงาน", "ผู้บริหาร", "policy", "recommendation", "temperature", "อุณหภูมิ", "ความชื้น", "ลม", "วิเคราะห์", "analyze", "compare", "เปรียบเทียบ", "สถานการณ์", "situation", "quality", "คุณภาพ"
+   
    Return:
    {{"intent_type": "get_data", "station_id": "<location>", "pollutant": "<pm25|pm10|o3|co|no2|so2|nox|temp|rh|ws|wd|bp|rain>", "start_date": "<ISO-8601>", "end_date": "<ISO-8601>", "interval": "hour", "output_type": "chart"}}
 
-3. **needs_clarification** - Query is UNCLEAR or AMBIGUOUS:
-   - Missing location/station name
-   - Missing time period (for data queries)
-   - Vague questions like "how is the air?" without location
-   - Incomplete requests
+3. **get_multi_param_data** - User wants MULTIPLE pollutants comparison:
+   - Keywords: "และ", "กับ", "เปรียบเทียบ", "compare", "and", "both", "ทั้ง"
+   - Example: "กราฟ PM2.5 และ O3 ที่เชียงใหม่" → compare PM2.5 and O3
    
    Return:
+   {{"intent_type": "get_multi_param_data", "station_id": "<location>", "pollutants": ["pm25", "o3"], "start_date": "<ISO-8601>", "end_date": "<ISO-8601>", "interval": "hour", "output_type": "multi_chart"}}
+
+4. **needs_clarification** - Query is UNCLEAR or AMBIGUOUS:
+   Return:
    {{"intent_type": "needs_clarification", "missing_info": "<what's missing>", "clarification_question": "<question to ask user>"}}
-   
-   Examples of unclear queries:
-   - "PM2.5 ย้อนหลัง" → missing location → Ask: "กรุณาระบุจังหวัดหรือสถานีที่ต้องการดูข้อมูล"
-   - "Air quality" → missing location → Ask: "Which location would you like to check?"
-   - "ค่าฝุ่น" → missing location and time → Ask: "กรุณาระบุจังหวัดและช่วงเวลาที่ต้องการดูข้อมูล เช่น 'ค่าฝุ่น เชียงใหม่ วันนี้'"
-   - "เชียงใหม่" → just location, unclear intent → Ask: "ต้องการค้นหาสถานี หรือดูข้อมูลคุณภาพอากาศที่เชียงใหม่?"
-   - "อากาศเป็นอย่างไร", "อากาศดีไหม" → missing location → Ask: "ช่วยระบุสถานที่ที่คุณต้องการทราบสภาพอากาศหน่อยครับ"
-   - "How is the air?", "Is it safe?" → missing location → Ask: "Please specify the location you want to check."
 
 **RULES:**
-- STRICTLY limit answers to Air Quality and Meteorology.
-- "ค้นหาสถานี" = search_stations (NOT get_data)
-- "หาสถานี" = search_stations
-- output_type="chart" if user wants: chart/graph/กราฟ/trend/ย้อนหลัง
-- output_type="report" if user wants: report/summary/รายงาน/ผู้บริหาร/policy
-- Date examples: "ย้อนหลัง 7 วัน"=7 days ago to now, "วันนี้"=today
-- If query is about air quality BUT missing key info → use needs_clarification
-- ALWAYS prefer asking for clarification over making wrong assumptions
+- output_type="chart" for: chart/graph/กราฟ/trend/ย้อนหลัง
+- output_type="report" for: report/summary/รายงาน/ผู้บริหาร/policy/วิเคราะห์
+- output_type="text" for: simple questions, current values, comparisons
+- Date: "ย้อนหลัง 7 วัน"=7 days ago to now, "วันนี้"=today
 - Map pollutant names: "ozone"→"o3", "carbon monoxide"→"co", "nitrogen dioxide"→"no2", "sulfur dioxide"→"so2"
 
 Current time: {current_datetime}
@@ -257,6 +244,7 @@ POLLUTANT_ALIASES = {
     "rainfall": "rain", "ฝน": "rain", "ปริมาณฝน": "rain",
 }
 
+
 def normalize_pollutant(pollutant: Optional[str]) -> Optional[str]:
     """Normalize pollutant name to valid code"""
     if not pollutant:
@@ -267,6 +255,7 @@ def normalize_pollutant(pollutant: Optional[str]) -> Optional[str]:
         return pollutant_lower
     # Check aliases
     return POLLUTANT_ALIASES.get(pollutant_lower, pollutant_lower)
+
 
 # Supported pollutants and weather parameters
 VALID_POLLUTANTS = [
@@ -314,8 +303,9 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
         Dict with validation result and parsed intent (if valid)
     """
     # Log raw output for debugging
-    logger.debug(f"Raw LLM output: {llm_output[:200] if llm_output else 'None'}...")
-    
+    logger.debug(
+        f"Raw LLM output: {llm_output[:200] if llm_output else 'None'}...")
+
     if not llm_output or not llm_output.strip():
         logger.error("Intent validation failed - empty LLM output")
         return {
@@ -323,10 +313,10 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
             "status": "error",
             "message": "AI service temporarily unavailable. Please try again."
         }
-    
+
     # Clean up the output
     llm_output = llm_output.strip()
-    
+
     # Remove markdown code blocks if present
     if llm_output.startswith("```"):
         # Extract JSON from markdown code block
@@ -340,17 +330,19 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
             if in_code_block:
                 json_lines.append(line)
         llm_output = "\n".join(json_lines).strip()
-    
+
     # Try to extract JSON from mixed content
     # Look for JSON object pattern
     if not llm_output.startswith("{"):
         # Try to find JSON object in the output
         import re
-        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', llm_output, re.DOTALL)
+        json_match = re.search(
+            r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', llm_output, re.DOTALL)
         if json_match:
             llm_output = json_match.group()
         else:
-            logger.error(f"Intent validation failed - no JSON found in output: {llm_output[:100]}")
+            logger.error(
+                f"Intent validation failed - no JSON found in output: {llm_output[:100]}")
             return {
                 "valid": False,
                 "status": "invalid_request",
@@ -361,7 +353,8 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
     try:
         intent = json.loads(llm_output)
     except json.JSONDecodeError as e:
-        logger.error(f"Intent validation failed - invalid JSON: {e}, output: {llm_output[:100]}")
+        logger.error(
+            f"Intent validation failed - invalid JSON: {e}, output: {llm_output[:100]}")
         return {
             "valid": False,
             "status": "invalid_request",
@@ -378,10 +371,12 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
         }
 
     # Check for SQL injection attempts early
-    dangerous_keywords = ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "EXEC", "EXECUTE", "--", ";"]
+    dangerous_keywords = ["DROP", "DELETE", "UPDATE",
+                          "INSERT", "ALTER", "EXEC", "EXECUTE", "--", ";"]
     intent_str = json.dumps(intent).upper()
     if any(keyword in intent_str for keyword in dangerous_keywords):
-        logger.error("Intent validation failed - potential SQL injection detected")
+        logger.error(
+            "Intent validation failed - potential SQL injection detected")
         return {
             "valid": False,
             "status": "invalid_request",
@@ -390,16 +385,16 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
 
     # Determine intent type (default to get_data for backward compatibility)
     intent_type = intent.get("intent_type", "get_data")
-    
+
     # ============ HANDLE NEEDS_CLARIFICATION INTENT ============
     if intent_type == "needs_clarification":
         clarification_question = intent.get("clarification_question", "")
         missing_info = intent.get("missing_info", "")
-        
+
         if not clarification_question:
             # Generate default clarification question
             clarification_question = "Could you please provide more details? For example, specify a location or time period."
-        
+
         logger.info(f"Intent needs clarification: {missing_info}")
         return {
             "valid": True,
@@ -409,7 +404,7 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
                 "missing_info": missing_info
             }
         }
-    
+
     # Validate intent_type
     if intent_type not in VALID_INTENT_TYPES:
         # Try to infer intent type from fields
@@ -425,15 +420,17 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
 
     # ============ VALIDATE SEARCH_STATIONS INTENT ============
     if intent_type == "search_stations":
-        missing_fields = [field for field in REQUIRED_SEARCH_FIELDS if field not in intent or not intent[field]]
+        missing_fields = [
+            field for field in REQUIRED_SEARCH_FIELDS if field not in intent or not intent[field]]
         if missing_fields:
-            logger.error(f"Intent validation failed - missing search fields: {missing_fields}")
+            logger.error(
+                f"Intent validation failed - missing search fields: {missing_fields}")
             return {
                 "valid": False,
                 "status": "invalid_request",
                 "message": "Please specify a location to search for stations."
             }
-        
+
         # Validate search_query is not empty
         if not intent["search_query"] or not intent["search_query"].strip():
             return {
@@ -441,11 +438,11 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
                 "status": "invalid_request",
                 "message": "Please specify a location to search for stations."
             }
-        
+
         # Set default output_type for search
         if "output_type" not in intent or intent["output_type"] not in VALID_OUTPUT_TYPES:
             intent["output_type"] = "text"
-        
+
         logger.info(f"Intent validation passed (search_stations): {intent}")
         return {
             "valid": True,
@@ -462,33 +459,35 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
         original_pollutant = intent["pollutant"]
         intent["pollutant"] = normalize_pollutant(intent["pollutant"])
         if intent["pollutant"] != original_pollutant.lower():
-            logger.info(f"Normalized pollutant '{original_pollutant}' to '{intent['pollutant']}'")
+            logger.info(
+                f"Normalized pollutant '{original_pollutant}' to '{intent['pollutant']}'")
 
     # Set defaults for optional fields before validation
     if "pollutant" not in intent or not intent["pollutant"]:
         intent["pollutant"] = "pm25"
         logger.info("Defaulting pollutant to pm25")
-    
+
     if "interval" not in intent or not intent["interval"]:
         intent["interval"] = "hour"
         logger.info("Defaulting interval to hour")
-    
+
     if "output_type" not in intent or not intent["output_type"]:
         intent["output_type"] = "chart"
         logger.info("Defaulting output_type to chart")
-    
+
     # Set defaults for dates if missing (default to today)
     now = datetime.now(timezone.utc)
     if "start_date" not in intent or not intent["start_date"] or intent["start_date"] in ["None", "null", ""]:
         # Default to start of today
-        intent["start_date"] = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        intent["start_date"] = now.replace(
+            hour=0, minute=0, second=0, microsecond=0).isoformat()
         logger.info(f"Defaulting start_date to today: {intent['start_date']}")
-    
+
     if "end_date" not in intent or not intent["end_date"] or intent["end_date"] in ["None", "null", ""]:
         # Default to now
         intent["end_date"] = now.isoformat()
         logger.info(f"Defaulting end_date to now: {intent['end_date']}")
-    
+
     # Check for truly required field only (station_id)
     if "station_id" not in intent or not intent["station_id"]:
         logger.error("Intent validation failed - missing station_id")
@@ -500,7 +499,8 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
 
     # Validate pollutant
     if intent["pollutant"] not in VALID_POLLUTANTS:
-        logger.error(f"Intent validation failed - invalid pollutant: {intent['pollutant']}")
+        logger.error(
+            f"Intent validation failed - invalid pollutant: {intent['pollutant']}")
         return {
             "valid": False,
             "status": "invalid_request",
@@ -509,7 +509,8 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
 
     # Validate interval
     if intent["interval"] not in VALID_INTERVALS:
-        logger.error(f"Intent validation failed - invalid interval: {intent['interval']}")
+        logger.error(
+            f"Intent validation failed - invalid interval: {intent['interval']}")
         return {
             "valid": False,
             "status": "invalid_request",
@@ -518,7 +519,8 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
 
     # Validate output_type
     if intent["output_type"] not in VALID_OUTPUT_TYPES:
-        logger.error(f"Intent validation failed - invalid output_type: {intent['output_type']}")
+        logger.error(
+            f"Intent validation failed - invalid output_type: {intent['output_type']}")
         return {
             "valid": False,
             "status": "invalid_request",
@@ -535,17 +537,20 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
 
     # If start_date is None/null/empty, default to today
     if not start_date or start_date == "None" or (isinstance(start_date, str) and not start_date.strip()):
-        start_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        logger.info(f"Defaulting start_date to today: {start_date.isoformat()}")
+        start_date = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0)
+        logger.info(
+            f"Defaulting start_date to today: {start_date.isoformat()}")
     else:
         # Handle natural language dates that LLM might return
         start_date_lower = str(start_date).lower().strip()
         now = datetime.now(timezone.utc)
-        
+
         if start_date_lower in ["today", "วันนี้"]:
             start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
         elif start_date_lower in ["yesterday", "เมื่อวาน"]:
-            start_date = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            start_date = (now - timedelta(days=1)).replace(hour=0,
+                                                           minute=0, second=0, microsecond=0)
         elif "7 days" in start_date_lower or "7 วัน" in start_date_lower or "week" in start_date_lower:
             start_date = now - timedelta(days=7)
         elif "30 days" in start_date_lower or "month" in start_date_lower or "เดือน" in start_date_lower:
@@ -559,8 +564,10 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
                 if start_date.tzinfo is None:
                     start_date = start_date.replace(tzinfo=timezone.utc)
             except (ValueError, TypeError) as e:
-                logger.warning(f"Could not parse start_date '{start_date}', defaulting to today: {e}")
-                start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                logger.warning(
+                    f"Could not parse start_date '{start_date}', defaulting to today: {e}")
+                start_date = now.replace(
+                    hour=0, minute=0, second=0, microsecond=0)
 
     # If end_date is None/null/empty, default to now
     if not end_date or end_date == "None" or (isinstance(end_date, str) and not end_date.strip()):
@@ -570,11 +577,12 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
         # Handle natural language dates that LLM might return
         end_date_lower = str(end_date).lower().strip()
         now = datetime.now(timezone.utc)
-        
+
         if end_date_lower in ["now", "today", "วันนี้", "ตอนนี้"]:
             end_date = now
         elif end_date_lower in ["yesterday", "เมื่อวาน"]:
-            end_date = (now - timedelta(days=1)).replace(hour=23, minute=59, second=59)
+            end_date = (now - timedelta(days=1)
+                        ).replace(hour=23, minute=59, second=59)
         else:
             # Try to parse the datetime string
             try:
@@ -582,7 +590,8 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
                 if end_date.tzinfo is None:
                     end_date = end_date.replace(tzinfo=timezone.utc)
             except (ValueError, TypeError) as e:
-                logger.warning(f"Could not parse end_date '{end_date}', defaulting to now: {e}")
+                logger.warning(
+                    f"Could not parse end_date '{end_date}', defaulting to now: {e}")
                 end_date = now
 
     # Update intent with normalized ISO-8601 format
@@ -595,4 +604,3 @@ def validate_intent(llm_output: str) -> Dict[str, Any]:
         "valid": True,
         "intent": intent
     }
-

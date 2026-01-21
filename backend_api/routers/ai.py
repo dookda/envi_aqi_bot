@@ -63,70 +63,26 @@ async def generate_executive_summary(request: SummaryStatsRequest):
         logger.info(f"Generating executive summary - lang={request.lang}, is_thai={is_thai}")
 
         if is_thai:
-            prompt = f"""
-วิเคราะห์ข้อมูลดัชนีคุณภาพอากาศ (AQI) ต่อไปนี้ และสร้างรายงานสรุปสำหรับผู้บริหาร เป็นภาษาไทยทั้งหมด
+            prompt = f"""วิเคราะห์ข้อมูล AQI และสร้างรายงานสรุป ตอบเป็น JSON ภาษาไทย:
 
-ข้อมูลสถิติ:
-- จำนวนสถานีทั้งหมด: {request.totalStations}
-- สถานีที่ทำงานอยู่: {request.activeStations}
-- ค่า AQI เฉลี่ย: {request.avgAqi}
-- ค่า AQI สูงสุด: {request.maxAqi}
-- ค่า AQI ต่ำสุด: {request.minAqi}
-- จำนวนการแจ้งเตือน (AQI > 100): {request.alertCount}
-- การกระจายตัวของสถานะ: {json.dumps(request.statusDistribution)}
+สถิติ: สถานี {request.activeStations} แห่ง, AQI เฉลี่ย {request.avgAqi}, สูงสุด {request.maxAqi}, ต่ำสุด {request.minAqi}, แจ้งเตือน {request.alertCount} ครั้ง
 
-ข้อกำหนด (ตอบเป็นภาษาไทยทั้งหมด):
-1. "insight": สรุปสถานการณ์ 2-3 ย่อหน้า ใช้ **ตัวหนา** สำหรับตัวเลขสำคัญ
-2. "highlights": 3-4 ข้อสังเกตสำคัญสั้นๆ
-3. "executive_brief": ประโยคเดียวสรุปสถานะโดยรวมสำหรับแดชบอร์ด
-4. "action_items": 3-4 ข้อเสนอแนะเชิงปฏิบัติการสำหรับเจ้าหน้าที่
-5. "policy_recommendations": 2-3 ข้อเสนอแนะเชิงนโยบายตามระดับความรุนแรง
-
-รูปแบบ JSON (ตอบเป็น JSON เท่านั้น):
-{{
-    "insight": "...",
-    "highlights": ["...", "..."],
-    "executive_brief": "...",
-    "action_items": ["...", "..."],
-    "policy_recommendations": ["...", "..."]
-}}
-"""
+ตอบเป็น JSON เท่านั้น:
+{{"insight": "สรุป 1-2 ประโยค", "highlights": ["ข้อ 1", "ข้อ 2", "ข้อ 3"], "executive_brief": "สรุปสั้นๆ 1 ประโยค"}}"""
         else:
-            prompt = f"""
-Analyze the following Air Quality Index (AQI) data and generate an executive summary in English.
+            prompt = f"""Analyze AQI data and generate executive summary. Respond in JSON only.
 
-DATA STATISTICS:
-- Total Stations: {request.totalStations}
-- Active Stations: {request.activeStations}
-- Average AQI: {request.avgAqi}
-- Max AQI: {request.maxAqi}
-- Min AQI: {request.minAqi}
-- Alert Count (AQI > 100): {request.alertCount}
-- Status Distribution: {json.dumps(request.statusDistribution)}
+Stats: {request.activeStations} stations, Avg AQI {request.avgAqi}, Max {request.maxAqi}, Min {request.minAqi}, {request.alertCount} alerts
 
-REQUIREMENTS (respond in English only):
-1. "insight": A detailed 2-3 paragraph summary of the situation. Use formatting like **bold** for key metrics.
-2. "highlights": 3-4 short, bullet-point key observations.
-3. "executive_brief": A single, punchy sentence summarizing the overall status for a dashboard header.
-4. "action_items": 3-4 specific operational recommendations for officials.
-5. "policy_recommendations": 2-3 high-level policy suggestions based on the severity.
-
-OUTPUT FORMAT (return ONLY valid JSON):
-{{
-    "insight": "...",
-    "highlights": ["...", "..."],
-    "executive_brief": "...",
-    "action_items": ["...", "..."],
-    "policy_recommendations": ["...", "..."]
-}}
-"""
+Return JSON only:
+{{"insight": "1-2 sentence summary", "highlights": ["point 1", "point 2", "point 3"], "executive_brief": "one short sentence"}}"""
 
         # Generate response with language-specific system prompt
         response_text = await adapter.generate(
             prompt=prompt,
             system_prompt=get_system_prompt(request.lang),
             temperature=0.3,  # Low temp for consistent JSON
-            max_tokens=1024
+            max_tokens=512  # Reduced for faster response
         )
 
         if not response_text:
@@ -136,7 +92,43 @@ OUTPUT FORMAT (return ONLY valid JSON):
         try:
             # Clean up potential markdown code blocks
             clean_text = response_text.replace("```json", "").replace("```", "").strip()
-            data = json.loads(clean_text)
+            
+            # Try to fix common JSON issues from AI output
+            import re
+            # Fix missing commas between fields
+            clean_text = re.sub(r'"\s*\n\s*"', '",\n"', clean_text)
+            clean_text = re.sub(r'(\]|\})\s*\n\s*"', r'\1,\n"', clean_text)
+            
+            # Try to extract just the JSON object
+            json_match = re.search(r'\{[\s\S]*\}', clean_text)
+            if json_match:
+                clean_text = json_match.group(0)
+            
+            try:
+                data = json.loads(clean_text)
+            except json.JSONDecodeError:
+                # Try to extract fields manually from truncated JSON
+                logger.warning("JSON decode failed, trying manual extraction")
+                data = {}
+                
+                # Extract insight
+                insight_match = re.search(r'"insight"\s*:\s*"([^"]*(?:\\"[^"]*)*)"', clean_text)
+                if insight_match:
+                    data["insight"] = insight_match.group(1).replace('\\"', '"')
+                
+                # Extract highlights as array
+                highlights_match = re.search(r'"highlights"\s*:\s*\[(.*?)\]', clean_text, re.DOTALL)
+                if highlights_match:
+                    highlights_str = highlights_match.group(1)
+                    data["highlights"] = re.findall(r'"([^"]*)"', highlights_str)
+                
+                # Extract executive_brief
+                brief_match = re.search(r'"executive_brief"\s*:\s*"([^"]*(?:\\"[^"]*)*)"', clean_text)
+                if brief_match:
+                    data["executive_brief"] = brief_match.group(1).replace('\\"', '"')
+                
+                if not data:
+                    raise json.JSONDecodeError("No fields extracted", clean_text, 0)
             
             return ExecutiveSummaryResponse(
                 status="success",
@@ -146,13 +138,13 @@ OUTPUT FORMAT (return ONLY valid JSON):
                 action_items=data.get("action_items"),
                 policy_recommendations=data.get("policy_recommendations")
             )
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse AI response: {response_text}")
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse AI response: {response_text[:500]}... Error: {e}")
             error_msg = "ไม่สามารถแปลงผลลัพธ์จาก AI ได้" if is_thai else "Failed to parse AI response"
             return ExecutiveSummaryResponse(
                 status="error",
                 error=error_msg,
-                insight=clean_text  # Fallback: return raw text as insight if slightly malformed
+                insight=clean_text  # Fallback: return raw text as insight
             )
 
     except Exception as e:

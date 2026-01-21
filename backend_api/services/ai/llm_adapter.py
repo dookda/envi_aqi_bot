@@ -22,8 +22,8 @@ class OllamaAdapter:
     def __init__(
         self,
         base_url: str = "http://ollama:11434",
-        model: str = "qwen2.5:7b",
-        timeout: float = 30.0
+        model: str = "qwen3:1.7b",
+        timeout: float = 90.0
     ):
         """
         Initialize Ollama adapter
@@ -148,8 +148,8 @@ def get_ollama_adapter() -> OllamaAdapter:
     if _ollama_adapter is None:
         # Get configuration from environment
         ollama_url = getattr(settings, "ollama_url", "http://ollama:11434")
-        ollama_model = getattr(settings, "ollama_model", "qwen2.5:1.5b")
-        ollama_timeout = getattr(settings, "ollama_timeout", 60.0)
+        ollama_model = getattr(settings, "ollama_model", "qwen3:1.7b")
+        ollama_timeout = getattr(settings, "ollama_timeout", 90.0)
 
         _ollama_adapter = OllamaAdapter(
             base_url=ollama_url,

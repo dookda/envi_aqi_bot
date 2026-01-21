@@ -11,7 +11,7 @@ import type {
 
 // Get base URL from Vite config (uses BASE_URL from vite.config.ts)
 const BASE_URL = `${import.meta.env.BASE_URL}api`.replace(/\/+/g, '/').replace(/\/$/, '')
-const TIMEOUT = 30000
+const TIMEOUT = 120000  // 120 seconds for AI requests (CPU inference is slow)
 
 interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined | null>

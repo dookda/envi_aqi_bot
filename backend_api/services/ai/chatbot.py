@@ -50,6 +50,23 @@ class AirQualityChatbotService:
         # Fast patterns that bypass LLM
         self._fast_patterns = [
             # (regex_pattern, intent_template)
+            
+            # === MULTI-PARAMETER CHART QUERIES ===
+            # "กราฟ PM2.5 และ O3 ที่เชียงใหม่" or "chart PM2.5 and O3 at Chiang Mai"
+            (r"(?:กราฟ|chart|แผนภูมิ)\s+(.+?)(?:\s+และ\s*|\s*,\s*|\s+and\s+)(.+?)\s+(?:ที่|ใน|at|in|of)\s*(.+)", 
+             self._make_multi_param_chart_intent),
+            # "กราฟ PM2.5, O3 เชียงใหม่" - comma separated without explicit location marker
+            (r"(?:กราฟ|chart|แผนภูมิ)\s+(.+?)(?:\s*,\s*|\s+และ\s*)(.+?)\s+(?!และ|and|,)(\S.+)", 
+             self._make_multi_param_chart_intent),
+            
+            # === SINGLE PARAMETER CHART QUERY ===
+            # "กราฟ PM2.5 ที่เชียงใหม่" or "chart PM2.5 at Chiang Mai"
+            (r"(?:กราฟ|chart|แผนภูมิ)\s+" + self._pollutant_pattern + r"\s+(?:ที่|ใน|at|in|of)\s*(.+)",
+             self._make_chart_intent),
+            # "กราฟ PM2.5 เชียงใหม่" - without explicit location marker
+            (r"(?:กราฟ|chart|แผนภูมิ)\s+" + self._pollutant_pattern + r"\s+(\S.+)",
+             self._make_chart_intent),
+            
             # "[pollutant] [station] ขณะนี้/ในขณะนี้/ในตอนนี้/ตอนนี้" - current value with station
             (r"" + self._pollutant_pattern +
              r"\s+(.+?)\s+(?:ขณะนี้|ในขณะนี้|ในตอนนี้|ตอนนี้|now)$", self._make_now_intent),
@@ -63,16 +80,6 @@ class AirQualityChatbotService:
             (r"ค่า\s*" + self._pollutant_pattern +
              r"\s+(?:ตอนนี้|ขณะนี้|ในขณะนี้|ในตอนนี้|ปัจจุบัน|ล่าสุด|เท่าไหร่|ที่|ใน)\s*(.+)?", self._make_current_value_intent),
              
-            # === COMMENTED OUT TO LET LLM HANDLE COMPLEX CHART QUERIES ===
-            # "ขอดูกราฟ x ย้อนหลัง" or "กราฟ x ย้อนหลัง 7 วัน"
-            # (r"(?:ขอดู|ดู|แสดง)?\s*กราฟ\s*" + self._pollutant_pattern +
-            #  r"\s*(?:ย้อนหลัง|ที่|ใน)?\s*(.+)?", self._make_chart_intent),
-            # "chart [pollutant] [location]" or "chart for [location]"
-            # (r"chart\s+" + self._pollutant_pattern +
-            #  r"\s*(?:for|at|in)?\s*(.+)?", self._make_chart_intent),
-            # (r"chart\s+(?:for|at|in)\s*(.+)",
-            #  self._make_chart_location_only_intent),
-            
             # "ข้อมูลย้อนหลัง [pollutant] [location]" or "ข้อมูลย้อนหลัง [location]"
             (r"ข้อมูลย้อนหลัง\s*" + self._pollutant_pattern +
              r"?\s*(?:ที่|ใน|ของ)?\s*(.+)?", self._make_historical_data_intent),
@@ -80,9 +87,6 @@ class AirQualityChatbotService:
             (r"(?:ค่า\s*)?" + self._pollutant_pattern +
              r"\s*(?:ที่ผ่านมา|ในช่วง)\s*(\d+)\s*(?:วัน|day)\s*(?:ที่|ใน|ของ)?\s*(.+)?", self._make_past_days_intent),
              
-            # "กราฟ [location] ย้อนหลัง x วัน" - location first, then time
-            # (r"กราฟ\s*(.+?)\s*(?:ย้อนหลัง|ที่ผ่านมา)\s*(\d+)?\s*(?:วัน|day|สัปดาห์|week|เดือน|month)?",
-            #  self._make_chart_location_time_intent),
             # "สถานีใดบ้างที่มีข้อมูล x" or "สถานีที่มี x"
             (r"สถานี(?:ใด|ไหน)?(?:บ้าง)?(?:ที่)?(?:มี)?\s*(?:ข้อมูล)?\s*" + self._pollutant_pattern +
              r"\s*(?:ล่าสุด|ใน|ที่)?\s*(.+)?", self._make_station_search_by_param_intent),
@@ -143,7 +147,10 @@ class AirQualityChatbotService:
 
     def _make_search_intent(self, match) -> Dict[str, Any]:
         """Create intent for search queries"""
+        import re
         location = match.group(1).strip()
+        # Remove common Thai prepositions from the beginning
+        location = re.sub(r'^(?:ใน|ที่|ของ|ที|หา)\s*', '', location).strip()
         return {
             "intent_type": "search_stations",
             "search_query": location,
@@ -252,6 +259,56 @@ class AirQualityChatbotService:
             "intent_type": "get_data",
             "station_id": location,
             "pollutant": pollutant,
+            "start_date": (now - timedelta(days=days)).isoformat(),
+            "end_date": now.isoformat(),
+            "interval": "hour",
+            "output_type": "chart"
+        }
+
+    def _make_multi_param_chart_intent(self, match) -> Dict[str, Any]:
+        """Create intent for multi-parameter chart queries like 'กราฟ PM2.5 และ O3 ที่เชียงใหม่'"""
+        from datetime import datetime, timedelta
+        from .guardrails import normalize_pollutant
+        import re
+        
+        param1_raw = match.group(1).strip()
+        param2_raw = match.group(2).strip()
+        location = match.group(3).strip() if match.group(3) else None
+        
+        # Normalize pollutant names
+        pollutant1 = normalize_pollutant(param1_raw) or param1_raw.lower()
+        pollutant2 = normalize_pollutant(param2_raw) or param2_raw.lower()
+        
+        # Clean up pollutant2 if it has location prefix
+        if pollutant2 and any(loc_prefix in pollutant2 for loc_prefix in ['ที่', 'ใน', 'at', 'in']):
+            parts = re.split(r'(?:ที่|ใน|at|in)\s*', pollutant2)
+            if len(parts) >= 2:
+                pollutant2 = normalize_pollutant(parts[0].strip()) or parts[0].strip().lower()
+                if not location:
+                    location = parts[1].strip()
+        
+        pollutants = [pollutant1, pollutant2]
+        
+        # If no location specified, ask for clarification
+        if not location:
+            return {
+                "intent_type": "needs_clarification",
+                "missing_info": "location",
+                "clarification_question": f"กรุณาระบุสถานีหรือจังหวัดที่ต้องการดูกราฟ {param1_raw} และ {param2_raw} เช่น 'กราฟ {param1_raw} และ {param2_raw} ที่เชียงใหม่'"
+            }
+        
+        # Remove common Thai prepositions from location
+        location = re.sub(r'^(?:ใน|ที่|ของ)\s*', '', location).strip()
+        
+        now = datetime.now()
+        days = 7  # Default to 7 days
+        
+        logger.info(f"Multi-param chart: pollutants={pollutants}, location={location}")
+        
+        return {
+            "intent_type": "get_multi_param_data",
+            "station_id": location,
+            "pollutants": pollutants,
             "start_date": (now - timedelta(days=days)).isoformat(),
             "end_date": now.isoformat(),
             "interval": "hour",
@@ -612,6 +669,8 @@ class AirQualityChatbotService:
             response = await self._handle_needs_clarification(intent, language)
         elif intent_type == "search_stations":
             response = await self._handle_search_stations(intent, language)
+        elif intent_type == "get_multi_param_data":
+            response = await self._handle_get_multi_param_data(intent, language)
         else:
             response = await self._handle_get_data(intent, language)
 
@@ -690,6 +749,87 @@ class AirQualityChatbotService:
             "data": search_result.get("stations", []),
             "summary": response["summary"],
             "output_type": intent.get("output_type", "text")
+        }
+
+    async def _handle_get_multi_param_data(
+        self,
+        intent: Dict[str, Any],
+        language: str = "en"
+    ) -> Dict[str, Any]:
+        """
+        Handle multi-parameter air quality data retrieval
+
+        Args:
+            intent: Validated intent with station_id, pollutants array
+            language: Response language (th/en)
+        """
+        from .response_composer import compose_error_response, compose_data_response
+        
+        # === RESOLVE STATION ID ===
+        resolved_station_id = self.orchestrator.resolve_station_id(intent["station_id"])
+        if not resolved_station_id:
+            error_response = compose_error_response(
+                "invalid_station",
+                details=intent["station_id"],
+                language=language
+            )
+            return {
+                "status": "invalid_request",
+                "message": error_response["message"],
+                "intent": intent,
+                "data": None,
+                "summary": None,
+                "output_type": intent.get("output_type")
+            }
+
+        intent["station_id"] = resolved_station_id
+        pollutants = intent.get("pollutants", [])
+        
+        multi_data = {}
+        successful_pollutants = []
+        
+        # Fetch data for each pollutant
+        for pollutant in pollutants:
+            data = await self.orchestrator.get_aqi_history(
+                station_id=resolved_station_id,
+                pollutant=pollutant,
+                start_date=intent["start_date"],
+                end_date=intent["end_date"],
+                interval=intent["interval"]
+            )
+            if data:
+                multi_data[pollutant] = data
+                successful_pollutants.append(pollutant)
+
+        if not successful_pollutants:
+            error_response = compose_error_response("no_data", language=language)
+            return {
+                "status": "error",
+                "message": error_response["message"],
+                "intent": intent,
+                "data": None,
+                "summary": None,
+                "output_type": intent.get("output_type")
+            }
+
+        # Get station name
+        station_name = self.orchestrator.get_station_name(
+            resolved_station_id, prefer_thai=True)
+
+        # Create a simple summary message
+        if language == "th":
+            msg = f"นี่คือข้อมูลกราฟเปรียบเทียบ {', '.join([p.upper() for p in successful_pollutants])} ที่ {station_name}"
+        else:
+            msg = f"Here is the comparison chart for {', '.join([p.upper() for p in successful_pollutants])} at {station_name}"
+
+        return {
+            "status": "success",
+            "message": msg,
+            "intent": intent,
+            "data": multi_data, # Dictionary of pollutant -> data array
+            "station_name": station_name,
+            "summary": {"count": len(successful_pollutants)},
+            "output_type": "multi_chart" # New output type for frontend
         }
 
     async def _handle_get_data(

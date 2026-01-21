@@ -18,10 +18,13 @@ PARAMETER_THRESHOLDS = {
     "pm25": {
         "unit": "μg/m³",
         "levels": [
-            {"max": 25, "level": "excellent", "label_en": "Excellent", "label_th": "ดีมาก"},
+            {"max": 25, "level": "excellent",
+                "label_en": "Excellent", "label_th": "ดีมาก"},
             {"max": 50, "level": "good", "label_en": "Good", "label_th": "ดี"},
-            {"max": 100, "level": "moderate", "label_en": "Moderate", "label_th": "ปานกลาง"},
-            {"max": 200, "level": "unhealthy_sensitive", "label_en": "Unhealthy for Sensitive", "label_th": "มีผลต่อกลุ่มเสี่ยง"},
+            {"max": 100, "level": "moderate",
+                "label_en": "Moderate", "label_th": "ปานกลาง"},
+            {"max": 200, "level": "unhealthy_sensitive",
+                "label_en": "Unhealthy for Sensitive", "label_th": "มีผลต่อกลุ่มเสี่ยง"},
         ],
         "critical": 200,  # Above this is critical
     },
@@ -29,8 +32,10 @@ PARAMETER_THRESHOLDS = {
         "unit": "μg/m³",
         "levels": [
             {"max": 50, "level": "good", "label_en": "Good", "label_th": "ดี"},
-            {"max": 80, "level": "moderate", "label_en": "Moderate", "label_th": "ปานกลาง"},
-            {"max": 120, "level": "unhealthy_sensitive", "label_en": "Unhealthy", "label_th": "มีผลต่อสุขภาพ"},
+            {"max": 80, "level": "moderate",
+                "label_en": "Moderate", "label_th": "ปานกลาง"},
+            {"max": 120, "level": "unhealthy_sensitive",
+                "label_en": "Unhealthy", "label_th": "มีผลต่อสุขภาพ"},
         ],
         "critical": 120,
     },
@@ -38,8 +43,10 @@ PARAMETER_THRESHOLDS = {
         "unit": "ppb",
         "levels": [
             {"max": 70, "level": "good", "label_en": "Good", "label_th": "ดี"},
-            {"max": 120, "level": "moderate", "label_en": "Moderate", "label_th": "ปานกลาง"},
-            {"max": 200, "level": "unhealthy", "label_en": "Unhealthy", "label_th": "มีผลต่อสุขภาพ"},
+            {"max": 120, "level": "moderate",
+                "label_en": "Moderate", "label_th": "ปานกลาง"},
+            {"max": 200, "level": "unhealthy",
+                "label_en": "Unhealthy", "label_th": "มีผลต่อสุขภาพ"},
         ],
         "critical": 200,
     },
@@ -47,8 +54,10 @@ PARAMETER_THRESHOLDS = {
         "unit": "ppm",
         "levels": [
             {"max": 6.4, "level": "good", "label_en": "Good", "label_th": "ดี"},
-            {"max": 9.0, "level": "moderate", "label_en": "Moderate", "label_th": "ปานกลาง"},
-            {"max": 15, "level": "unhealthy", "label_en": "Unhealthy", "label_th": "มีผลต่อสุขภาพ"},
+            {"max": 9.0, "level": "moderate",
+                "label_en": "Moderate", "label_th": "ปานกลาง"},
+            {"max": 15, "level": "unhealthy",
+                "label_en": "Unhealthy", "label_th": "มีผลต่อสุขภาพ"},
         ],
         "critical": 15,
     },
@@ -56,8 +65,10 @@ PARAMETER_THRESHOLDS = {
         "unit": "ppb",
         "levels": [
             {"max": 106, "level": "good", "label_en": "Good", "label_th": "ดี"},
-            {"max": 170, "level": "moderate", "label_en": "Moderate", "label_th": "ปานกลาง"},
-            {"max": 340, "level": "unhealthy", "label_en": "Unhealthy", "label_th": "มีผลต่อสุขภาพ"},
+            {"max": 170, "level": "moderate",
+                "label_en": "Moderate", "label_th": "ปานกลาง"},
+            {"max": 340, "level": "unhealthy",
+                "label_en": "Unhealthy", "label_th": "มีผลต่อสุขภาพ"},
         ],
         "critical": 340,
     },
@@ -65,8 +76,10 @@ PARAMETER_THRESHOLDS = {
         "unit": "ppb",
         "levels": [
             {"max": 200, "level": "good", "label_en": "Good", "label_th": "ดี"},
-            {"max": 350, "level": "moderate", "label_en": "Moderate", "label_th": "ปานกลาง"},
-            {"max": 500, "level": "unhealthy", "label_en": "Unhealthy", "label_th": "มีผลต่อสุขภาพ"},
+            {"max": 350, "level": "moderate",
+                "label_en": "Moderate", "label_th": "ปานกลาง"},
+            {"max": 500, "level": "unhealthy",
+                "label_en": "Unhealthy", "label_th": "มีผลต่อสุขภาพ"},
         ],
         "critical": 500,
     },
@@ -150,7 +163,6 @@ AQI_LEVELS = {
 }
 
 
-
 def get_aqi_level_from_pm25(pm25_value: float) -> str:
     """Determine AQI level from PM2.5 value"""
     if pm25_value is None:
@@ -198,7 +210,8 @@ def check_parameter_threshold(parameter: str, value: float) -> Dict[str, Any]:
             level_label_en = "Critical"
             level_label_th = "วิกฤติ"
 
-    exceeds_standard = value > threshold_config["levels"][0]["max"]  # Exceeds "good" level
+    # Exceeds "good" level
+    exceeds_standard = value > threshold_config["levels"][0]["max"]
     is_critical = value > critical
 
     return {
@@ -299,38 +312,44 @@ def compose_search_response(
 ) -> Dict[str, Any]:
     """
     Compose rich response for station search queries
-    
+
     Args:
         search_query: Original search query
         search_result: Results from orchestrator.search_stations_with_summary
         language: Response language (en/th)
-        
+
     Returns:
         Formatted response dict
     """
     stations = search_result.get("stations", [])
     total_found = search_result.get("total_found", 0)
-    
+
     if total_found == 0:
         if language == "th":
             tip1 = "ลองใช้ชื่อภาษาอังกฤษ เช่น Chiang Mai"
             tip2 = "ลองใช้ชื่อจังหวัด ไม่ใช่อำเภอ"
+            tip3 = "ลองพิมพ์แค่ส่วนหนึ่งของชื่อ เช่น 'เชียง' แทน 'เชียงใหม่'"
             message = (
                 f"🔍 **ไม่พบสถานี**\n\n"
                 f"ไม่พบสถานีตรวจวัดที่ตรงกับ '{search_query}'.\n\n"
                 f"💡 **คำแนะนำ:**\n"
                 f"• {tip1}\n"
                 f"• {tip2}\n"
+                f"• {tip3}\n\n"
+                f"📡 ระบบมีสถานีตรวจวัดคุณภาพอากาศครอบคลุมทั่วประเทศไทย รวมถึงจังหวัดหลักๆ เช่น เชียงใหม่ กรุงเทพ ภูเก็ต ขอนแก่น"
             )
         else:
             tip1 = "Try English names like Chiang Mai"
             tip2 = "Try province names instead of districts"
+            tip3 = "Try partial names like 'Chiang' instead of 'Chiang Mai'"
             message = (
                 f"🔍 **No stations found**\n\n"
                 f"No monitoring stations found matching '{search_query}'.\n\n"
                 f"💡 **Suggestions:**\n"
                 f"• {tip1}\n"
                 f"• {tip2}\n"
+                f"• {tip3}\n\n"
+                f"📡 Our system monitors air quality across Thailand, covering major provinces like Chiang Mai, Bangkok, Phuket, Khon Kaen."
             )
         return {
             "message": message,
@@ -341,47 +360,80 @@ def compose_search_response(
                 "search_summary": ""
             }
         }
-    
+
     # Calculate overall statistics
-    avg_values = [s.get("avg_pm25_7d") for s in stations if s.get("avg_pm25_7d")]
-    overall_avg = round(sum(avg_values) / len(avg_values), 1) if avg_values else None
-    overall_level = get_aqi_level_from_pm25(overall_avg) if overall_avg else "unknown"
+    avg_values = [s.get("avg_pm25_7d")
+                  for s in stations if s.get("avg_pm25_7d")]
+    overall_avg = round(sum(avg_values) / len(avg_values),
+                        1) if avg_values else None
+    overall_level = get_aqi_level_from_pm25(
+        overall_avg) if overall_avg else "unknown"
     level_config = AQI_LEVELS.get(overall_level, {})
-    
-    # Build station list
-    station_names = [
-        s.get("name_en") or s.get("name_th") or s.get("station_id") 
-        for s in stations[:5]
-    ]
-    
+
+    # Get min/max across stations
+    min_values = [s.get("min_pm25_7d")
+                  for s in stations if s.get("min_pm25_7d")]
+    max_values = [s.get("max_pm25_7d")
+                  for s in stations if s.get("max_pm25_7d")]
+    min_pm25 = min(min_values) if min_values else None
+    max_pm25 = max(max_values) if max_values else None
+
+    # Build station list with details
+    station_details = []
+    for s in stations[:5]:
+        name = s.get("name_th") or s.get("name_en") or s.get("station_id")
+        latest = s.get("latest_pm25")
+        if latest:
+            station_details.append(f"• {name}: {latest} μg/m³")
+        else:
+            station_details.append(f"• {name}")
+
     # Compose message
     if language == "th":
         message = (
-            f"🔍 **พบ {total_found} สถานีใน {search_query}**\n\n"
-            f"📍 **สถานี:** {', '.join(station_names)}\n"
+            f"🔍 **พบ {total_found} สถานีตรวจวัดใน {search_query}**\n\n"
+            f"📍 **รายชื่อสถานี:**\n"
+            f"{chr(10).join(station_details)}\n"
         )
         if overall_avg:
             message += (
-                f"\n📊 **ค่าเฉลี่ย PM2.5 (7 วัน):** {overall_avg} μg/m³\n"
-                f"{level_config.get('emoji', '')} **ระดับคุณภาพอากาศ:** {level_config.get('label_th', 'ไม่ทราบ')}\n"
+                f"\n📊 **สรุปภาพรวมคุณภาพอากาศ (7 วัน):**\n"
+                f"• ค่าเฉลี่ย PM2.5: **{overall_avg}** μg/m³\n"
             )
-            message += f"\n💡 **คำแนะนำ:** {level_config.get('advice_th', '')}"
+            if min_pm25 and max_pm25:
+                message += f"• ช่วงค่า: {min_pm25} - {max_pm25} μg/m³\n"
+            message += (
+                f"{level_config.get('emoji', '')} **ระดับคุณภาพอากาศ:** {level_config.get('label_th', 'ไม่ทราบ')}\n\n"
+                f"🏥 **คำแนะนำสุขภาพ:**\n{level_config.get('advice_th', '')}\n\n"
+                f"💡 **ต้องการดูข้อมูลเพิ่มเติม?** ลองถาม:\n"
+                f"• \"PM2.5 {search_query} ย้อนหลัง 7 วัน\"\n"
+                f"• \"กราฟ PM2.5 และ O3 ที่ {search_query}\""
+            )
     else:
         message = (
-            f"🔍 **Found {total_found} station(s) in {search_query}**\n\n"
-            f"📍 **Stations:** {', '.join(station_names)}\n"
+            f"🔍 **Found {total_found} monitoring station(s) in {search_query}**\n\n"
+            f"📍 **Stations:**\n"
+            f"{chr(10).join(station_details)}\n"
         )
         if overall_avg:
             message += (
-                f"\n📊 **7-day Average PM2.5:** {overall_avg} μg/m³\n"
-                f"{level_config.get('emoji', '')} **Air Quality Level:** {level_config.get('label_en', 'Unknown')}\n"
+                f"\n📊 **Air Quality Overview (7-day):**\n"
+                f"• Average PM2.5: **{overall_avg}** μg/m³\n"
             )
-            message += f"\n💡 **Advice:** {level_config.get('advice_en', '')}"
-    
+            if min_pm25 and max_pm25:
+                message += f"• Range: {min_pm25} - {max_pm25} μg/m³\n"
+            message += (
+                f"{level_config.get('emoji', '')} **Air Quality Level:** {level_config.get('label_en', 'Unknown')}\n\n"
+                f"🏥 **Health Advice:**\n{level_config.get('advice_en', '')}\n\n"
+                f"💡 **Want more details?** Try asking:\n"
+                f"• \"PM2.5 {search_query} last 7 days\"\n"
+                f"• \"Compare PM2.5 and O3 chart for {search_query}\""
+            )
+
     if len(stations) > 5:
         more_count = len(stations) - 5
-        message += f"\n\n{'และอีก' if language == 'th' else '... and'} {more_count} {'สถานี' if language == 'th' else 'more stations'}"
-    
+        message += f"\n\n{'และอีก' if language == 'th' else '... and'} {more_count} {'สถานี' if language == 'th' else 'more station(s)'}"
+
     return {
         "message": message,
         "summary": {
@@ -405,7 +457,7 @@ def compose_data_response(
 ) -> Dict[str, Any]:
     """
     Compose rich response for data retrieval queries
-    
+
     Args:
         station_id: Station identifier
         data: Time series data
@@ -413,13 +465,13 @@ def compose_data_response(
         summary: Data summary statistics
         language: Response language (en/th)
         station_name: Optional station name (Thai/English) for display
-        
+
     Returns:
         Formatted response dict with message and enhanced summary
     """
     # Use station_name if provided, otherwise fall back to station_id
     display_name = station_name or station_id
-    
+
     if not data:
         if language == "th":
             message = (
@@ -434,7 +486,7 @@ def compose_data_response(
                 f"💡 Try a different time range or station."
             )
         return {"message": message, "summary": summary}
-    
+
     # Get AQI level from average
     avg_pm25 = summary.get("mean")
     aqi_level = get_aqi_level_from_pm25(avg_pm25) if avg_pm25 else "unknown"
@@ -442,7 +494,7 @@ def compose_data_response(
 
     # Get the actual pollutant from intent
     pollutant = intent.get("pollutant", "pm25")
-    
+
     # Map pollutant to display name and unit
     pollutant_display = {
         # Air quality pollutants
@@ -461,8 +513,9 @@ def compose_data_response(
         "bp": {"name": "Pressure", "unit": "mmHg"},
         "rain": {"name": "Rainfall", "unit": "mm"},
     }
-    
-    pollutant_info = pollutant_display.get(pollutant, {"name": pollutant.upper(), "unit": ""})
+
+    pollutant_info = pollutant_display.get(
+        pollutant, {"name": pollutant.upper(), "unit": ""})
     pollutant_name = pollutant_info["name"]
     pollutant_unit = pollutant_info["unit"]
 
@@ -485,16 +538,18 @@ def compose_data_response(
         }.get(trend, "❓ Insufficient data")
 
     # Determine if this is an Executive Report request
-    is_report = intent.get("output_type") == "report" or "policy" in str(intent).lower()
+    is_report = intent.get(
+        "output_type") == "report" or "policy" in str(intent).lower()
 
     # Policy Recommendations (TOR 16.7)
     policy_recs_th = ""
     policy_recs_en = ""
-    
+
     # Check if policy recommendations should be shown
-    is_critical = aqi_level in ["unhealthy", "hazardous", "unhealthy_sensitive"]
+    is_critical = aqi_level in ["unhealthy",
+                                "hazardous", "unhealthy_sensitive"]
     exceeds_standard = avg_pm25 is not None and avg_pm25 > 50  # Thailand standard
-    
+
     if is_report or is_critical or exceeds_standard:
         if aqi_level in ["unhealthy", "hazardous", "unhealthy_sensitive"]:
             policy_recs_th = (
@@ -524,6 +579,49 @@ def compose_data_response(
     # Build response message
     warning_prefix = f"{threshold_warning}\n\n{'─' * 40}\n\n" if threshold_warning else ""
 
+    # Additional context about the pollutant
+    pollutant_context = {
+        "pm25": {
+            "th": "ฝุ่นละเอียด PM2.5 คือฝุ่นที่มีขนาดเล็กกว่า 2.5 ไมครอน สามารถเข้าสู่ระบบทางเดินหายใจส่วนลึกและกระแสเลือดได้",
+            "en": "PM2.5 (fine particulate matter) are particles smaller than 2.5 micrometers that can penetrate deep into lungs and bloodstream."
+        },
+        "pm10": {
+            "th": "ฝุ่นหยาบ PM10 คือฝุ่นที่มีขนาดเล็กกว่า 10 ไมครอน มักมาจากการก่อสร้าง ถนน และฝุ่นธรรมชาติ",
+            "en": "PM10 (coarse particles) are particles smaller than 10 micrometers, often from construction, roads, and natural dust."
+        },
+        "o3": {
+            "th": "โอโซน (O₃) ในระดับพื้นดินเกิดจากปฏิกิริยาของมลพิษกับแสงแดด ส่งผลต่อระบบทางเดินหายใจ",
+            "en": "Ground-level ozone (O₃) forms when pollutants react with sunlight. It can cause respiratory issues."
+        },
+        "co": {
+            "th": "คาร์บอนมอนอกไซด์ (CO) เป็นก๊าซไม่มีสี ไม่มีกลิ่น เกิดจากการเผาไหม้ไม่สมบูรณ์ อันตรายต่อระบบไหลเวียนโลหิต",
+            "en": "Carbon monoxide (CO) is a colorless, odorless gas from incomplete combustion. It affects blood oxygen levels."
+        },
+        "no2": {
+            "th": "ไนโตรเจนไดออกไซด์ (NO₂) มาจากการเผาไหม้ของยานพาหนะและโรงงาน ระคายเคืองระบบทางเดินหายใจ",
+            "en": "Nitrogen dioxide (NO₂) comes from vehicle and industrial combustion. It irritates the respiratory system."
+        },
+        "so2": {
+            "th": "ซัลเฟอร์ไดออกไซด์ (SO₂) มาจากการเผาไหม้เชื้อเพลิงฟอสซิล ทำให้เกิดฝนกรดและปัญหาทางเดินหายใจ",
+            "en": "Sulfur dioxide (SO₂) comes from burning fossil fuels. It causes acid rain and respiratory issues."
+        },
+    }
+
+    # Get pollutant educational context
+    context_info = pollutant_context.get(pollutant, {})
+    context_text = context_info.get(language, context_info.get("en", ""))
+
+    # Data quality indicator
+    valid_points = summary.get("valid_points", 0)
+    total_points = summary.get("data_points", 0)
+    data_quality = "excellent" if valid_points == total_points else "good" if valid_points > total_points * 0.9 else "fair"
+
+    data_quality_text = {
+        "excellent": {"th": "✅ คุณภาพข้อมูล: ดีเยี่ยม (ครบถ้วน)", "en": "✅ Data Quality: Excellent (Complete)"},
+        "good": {"th": "✅ คุณภาพข้อมูล: ดี", "en": "✅ Data Quality: Good"},
+        "fair": {"th": "⚠️ คุณภาพข้อมูล: ปานกลาง (มีข้อมูลขาดหาย)", "en": "⚠️ Data Quality: Fair (Some missing data)"},
+    }
+
     if language == "th":
         message_title = f"📑 **รายงานสรุปผู้บริหาร: สถานี {display_name}**" if is_report else f"📊 **ข้อมูล {pollutant_name} สถานี {display_name}**"
 
@@ -531,15 +629,28 @@ def compose_data_response(
             f"{warning_prefix}"
             f"{message_title}\n\n"
             f"{level_config.get('emoji', '')} **ระดับคุณภาพอากาศ:** {level_config.get('label_th', 'ไม่ทราบ')}\n\n"
+        )
+
+        # Add pollutant context for educational value
+        if context_text:
+            message += f"ℹ️ **ข้อมูลทั่วไป:** {context_text}\n\n"
+
+        message += (
             f"📈 **สถิติช่วงเวลาที่เลือก:**\n"
             f"• ค่าเฉลี่ย: **{summary.get('mean', 'N/A')}** {pollutant_unit}\n"
             f"• ค่าต่ำสุด: {summary.get('min', 'N/A')} {pollutant_unit}\n"
             f"• ค่าสูงสุด: {summary.get('max', 'N/A')} {pollutant_unit}\n"
-            f"• แนวโน้ม: {trend_desc}\n\n"
+            f"• แนวโน้ม: {trend_desc}\n"
+            f"• จำนวนข้อมูล: {valid_points}/{total_points} จุด\n"
+            f"{data_quality_text.get(data_quality, {}).get('th', '')}\n\n"
             f"🏥 **คำแนะนำสุขภาพ:**\n{level_config.get('advice_th', 'ไม่มีข้อมูล')}\n\n"
-            f"😷 **สำหรับกลุ่มเสี่ยง:**\n{level_config.get('sensitive_advice_th', 'ไม่มีข้อมูล')}"
+            f"😷 **สำหรับกลุ่มเสี่ยง (เด็ก ผู้สูงอายุ ผู้มีโรคประจำตัว):**\n{level_config.get('sensitive_advice_th', 'ไม่มีข้อมูล')}"
             f"{policy_recs_th if is_report or exceeds_standard else ''}"
         )
+
+        # Add data source attribution
+        message += "\n\n📡 **แหล่งข้อมูล:** กรมควบคุมมลพิษ และระบบตรวจวัดอัตโนมัติ"
+
     else:
         message_title = f"📑 **Executive Summary: {display_name}**" if is_report else f"📊 **{pollutant_name} Data for {display_name}**"
 
@@ -547,16 +658,28 @@ def compose_data_response(
             f"{warning_prefix}"
             f"{message_title}\n\n"
             f"{level_config.get('emoji', '')} **Air Quality Level:** {level_config.get('label_en', 'Unknown')}\n\n"
+        )
+
+        # Add pollutant context for educational value
+        if context_text:
+            message += f"ℹ️ **About this pollutant:** {context_text}\n\n"
+
+        message += (
             f"📈 **Statistics for Selected Period:**\n"
             f"• Average: **{summary.get('mean', 'N/A')}** {pollutant_unit}\n"
             f"• Minimum: {summary.get('min', 'N/A')} {pollutant_unit}\n"
             f"• Maximum: {summary.get('max', 'N/A')} {pollutant_unit}\n"
-            f"• Trend: {trend_desc}\n\n"
+            f"• Trend: {trend_desc}\n"
+            f"• Data Points: {valid_points}/{total_points}\n"
+            f"{data_quality_text.get(data_quality, {}).get('en', '')}\n\n"
             f"🏥 **Health Advice:**\n{level_config.get('advice_en', 'N/A')}\n\n"
-            f"😷 **For Sensitive Groups:**\n{level_config.get('sensitive_advice_en', 'N/A')}"
+            f"😷 **For Sensitive Groups (children, elderly, those with conditions):**\n{level_config.get('sensitive_advice_en', 'N/A')}"
             f"{policy_recs_en if is_report or exceeds_standard else ''}"
         )
-    
+
+        # Add data source attribution
+        message += "\n\n📡 **Data Source:** Thailand Pollution Control Department & Automated Monitoring System"
+
     # Enhance summary with AQI level
     enhanced_summary = {
         **summary,
@@ -564,7 +687,7 @@ def compose_data_response(
         "health_advice": level_config.get(f"advice_{language}", level_config.get("advice_en", "")),
         "sensitive_advice": level_config.get(f"sensitive_advice_{language}", level_config.get("sensitive_advice_en", "")),
     }
-    
+
     return {
         "message": message,
         "summary": enhanced_summary
@@ -578,12 +701,12 @@ def compose_error_response(
 ) -> Dict[str, Any]:
     """
     Compose user-friendly error response
-    
+
     Args:
         error_type: Type of error (invalid_station, no_data, service_error, etc.)
         details: Additional error details
         language: Response language
-        
+
     Returns:
         Formatted error response
     """
@@ -609,10 +732,11 @@ def compose_error_response(
             "th": f"🔄 **กรุณาระบุรายละเอียดเพิ่มเติม**\n\n{details or 'ต้องการข้อมูลเพิ่มเติมเพื่อช่วยคุณ'}\n\n💡 **ตัวอย่างคำถาม:**\n• 'ค่า PM2.5 กรุงเทพ ย้อนหลัง 7 วัน'\n• 'ค้นหาสถานีเชียงใหม่'"
         }
     }
-    
-    error_config = error_messages.get(error_type, error_messages["service_error"])
+
+    error_config = error_messages.get(
+        error_type, error_messages["service_error"])
     message = error_config.get(language, error_config.get("en"))
-    
+
     return {
         "message": message,
         "status": error_type
@@ -626,12 +750,12 @@ def compose_clarification_response(
 ) -> Dict[str, Any]:
     """
     Compose a friendly clarification request when query is unclear
-    
+
     Args:
         clarification_question: The question to ask the user
         missing_info: Description of what information is missing
         language: Response language (en/th)
-        
+
     Returns:
         Formatted clarification response
     """
@@ -639,7 +763,7 @@ def compose_clarification_response(
     if language == "th":
         prefix = "🤔 **ขอข้อมูลเพิ่มเติม**\n\n"
         question = clarification_question
-        
+
         # Add helpful examples based on missing info
         examples = "\n\n📝 **ตัวอย่างคำถาม:**"
         if "location" in missing_info.lower() or "จังหวัด" in missing_info or "สถานี" in missing_info:
@@ -653,12 +777,12 @@ def compose_clarification_response(
         else:
             examples += "\n• 'ค่าฝุ่น เชียงใหม่ ย้อนหลัง 7 วัน'"
             examples += "\n• 'ค้นหาสถานีภูเก็ต'"
-        
+
         message = prefix + question + examples
     else:
         prefix = "🤔 **Need More Information**\n\n"
         question = clarification_question
-        
+
         # Add helpful examples based on missing info
         examples = "\n\n📝 **Example queries:**"
         if "location" in missing_info.lower() or "station" in missing_info.lower():
@@ -670,12 +794,11 @@ def compose_clarification_response(
         if examples.endswith(":"):
             examples += "\n• 'Show PM2.5 for Chiang Mai last week'"
             examples += "\n• 'Find stations in Phuket'"
-        
+
         message = prefix + question + examples
-    
+
     return {
         "message": message,
         "status": "needs_clarification",
         "missing_info": missing_info
     }
-
