@@ -66,13 +66,13 @@ export default function CCTVPage(): React.ReactElement {
     const [recentDetections, setRecentDetections] = useState<DetectionEvent[]>([])
     const [viewMode, setViewMode] = useState<'single' | 'grid'>('single')
 
-    // LINE Notification state - enabled by default to send notification when objects detected
-    const [notifyEnabled, setNotifyEnabled] = useState<boolean>(true)
+    // LINE Notification state - disabled by default
+    const [notifyEnabled, setNotifyEnabled] = useState<boolean>(false)
     const [hasNotified, setHasNotified] = useState<boolean>(false)
     const [notifyMessage, setNotifyMessage] = useState<string | null>(null)
 
     // Refs to track notification state inside useEffect (avoid stale closures)
-    const notifyEnabledRef = useRef(true)  // Initialize with true since notification is enabled by default
+    const notifyEnabledRef = useRef(false)  // Initialize with false since notification is disabled by default
     const hasNotifiedRef = useRef(hasNotified)
 
     // Keep refs in sync with state
