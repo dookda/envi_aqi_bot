@@ -335,7 +335,7 @@ const ProfilePage: React.FC = () => {
                                 />
                                 {isNotificationLoading && (
                                     <span className="absolute inset-0 flex items-center justify-center">
-                                        <Spinner size="xs" />
+                                        <Spinner size="sm" />
                                     </span>
                                 )}
                             </button>

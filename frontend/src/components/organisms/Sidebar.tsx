@@ -41,7 +41,7 @@ const NAV_GROUPS: NavGroup[] = [
         defaultOpen: true,
         items: [
             { id: 'dashboard', path: '/', icon: 'dashboard', labelEn: 'Dashboard', labelTh: 'แดชบอร์ด' },
-            { id: 'executive-summary', path: '/executive-summary', icon: 'summarize', labelEn: 'Executive Summary', labelTh: 'สรุปผู้บริหาร' },
+            { id: 'executive-summary', path: '/executive-summary', icon: 'summarize', labelEn: 'Executive Summary', labelTh: 'สรุปผู้บริหาร', requiresAuth: true },
             { id: 'cctv', path: '/cctv', icon: 'videocam', labelEn: 'CCTV Monitor', labelTh: 'กล้อง CCTV' },
         ]
     },
@@ -51,9 +51,10 @@ const NAV_GROUPS: NavGroup[] = [
         labelTh: 'AI Chatbot',
         icon: 'smart_toy',
         defaultOpen: true,
+        requiresAuth: true,
         items: [
-            { id: 'chat', path: '/chat', icon: 'smart_toy', labelEn: 'Model A', labelTh: 'Model A', badge: 'Local' },
-            { id: 'claude', path: '/chat/claude', icon: 'psychology', labelEn: 'Model B', labelTh: 'Model B', badge: 'Pro', badgeColor: 'purple' },
+            { id: 'chat', path: '/chat', icon: 'smart_toy', labelEn: 'Model A', labelTh: 'Model A', badge: 'Local', requiresAuth: true },
+            { id: 'claude', path: '/chat/claude', icon: 'psychology', labelEn: 'Model B', labelTh: 'Model B', badge: 'Pro', badgeColor: 'purple', requiresAuth: true },
         ]
     },
     {

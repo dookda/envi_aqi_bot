@@ -1430,8 +1430,6 @@ export default function Dashboard(): React.ReactElement {
                         onEndDateChange={setFilterEndDate}
                         isLight={isLight}
                         lang={lang}
-                        latestDataTime={latestData?.datetime}
-                        totalRecords={filteredFullData?.total_records}
                     />
                 </section>
 
