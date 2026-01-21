@@ -318,13 +318,15 @@ class ChartInsightRequest(BaseModel):
     time_period_days: int = Field(default=7, ge=1, le=365, description="Number of days to analyze")
     statistics: Optional[dict] = Field(None, description="Pre-calculated statistics from chart data")
     data_points: Optional[int] = Field(None, description="Number of data points in chart")
+    lang: str = Field(default="th", description="Language for AI response: th or en")
 
 
 class ChartInsightResponse(BaseModel):
     """Response with AI-generated chart insights"""
     status: str  # success | error
-    insight: Optional[str] = None  # AI-generated text description
+    insight: Optional[str] = None  # Rule-based text description (fast)
     highlights: Optional[List[str]] = None  # Key points as bullet list
     health_advice: Optional[str] = None  # Health recommendations if applicable
     trend_summary: Optional[str] = None  # Brief trend description
+    ai_description: Optional[str] = None  # Ollama-generated detailed description
     error: Optional[str] = None

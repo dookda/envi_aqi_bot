@@ -4,6 +4,11 @@ export interface User {
     username: string;
     full_name?: string;
     role: string;
+    is_active: boolean;
+    line_user_id?: string;
+    receive_notifications: boolean;
+    created_at?: string;
+    last_login?: string;
 }
 
 export interface LoginResponse {

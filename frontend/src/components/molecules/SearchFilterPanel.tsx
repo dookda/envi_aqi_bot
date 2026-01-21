@@ -2,13 +2,8 @@
  * SearchFilterPanel - Consolidated search and filter controls
  * Contains station selector, time period presets, and datetime range filter
  */
-import { Card, Icon, Badge } from '../atoms'
+import { Card, Icon } from '../atoms'
 import type { Station, Language, ParameterKey } from '@/types'
-
-/**
- * Thai month abbreviations
- */
-const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
 
 /**
  * Format date for datetime-local input (YYYY-MM-DDTHH:mm)
@@ -20,27 +15,6 @@ const formatForDateTimeInput = (date: Date): string => {
     const hours = date.getHours().toString().padStart(2, '0')
     const minutes = date.getMinutes().toString().padStart(2, '0')
     return `${year}-${month}-${day}T${hours}:${minutes}`
-}
-
-/**
- * Format date to dd-MM-yyyy HH:mm (24hr format)
- * Uses Thai Buddhist Era (+543 years) and Thai month names when lang is 'th'
- */
-const formatDateTime = (date: Date | string, lang: Language = 'en'): string => {
-    const d = typeof date === 'string' ? new Date(date) : date
-    const day = d.getDate().toString().padStart(2, '0')
-    const hours = d.getHours().toString().padStart(2, '0')
-    const minutes = d.getMinutes().toString().padStart(2, '0')
-
-    if (lang === 'th') {
-        const thaiMonth = THAI_MONTHS[d.getMonth()]
-        const thaiYear = d.getFullYear() + 543
-        return `${day} ${thaiMonth} ${thaiYear} ${hours}:${minutes}`
-    }
-
-    const month = (d.getMonth() + 1).toString().padStart(2, '0')
-    const year = d.getFullYear()
-    return `${day}-${month}-${year} ${hours}:${minutes}`
 }
 
 interface TimePeriodOption {
@@ -83,8 +57,6 @@ interface SearchFilterPanelProps {
     lang: Language
 
     // Additional
-    latestDataTime?: string
-    totalRecords?: number
     className?: string
 }
 
@@ -103,8 +75,6 @@ const SearchFilterPanel: React.FC<SearchFilterPanelProps> = ({
     onParamChange,
     isLight,
     lang,
-    latestDataTime,
-    totalRecords,
     className = ''
 }) => {
     const currentStation = stations.find(s => s.station_id === selectedStation)
@@ -123,12 +93,6 @@ const SearchFilterPanel: React.FC<SearchFilterPanelProps> = ({
                         <Icon name="filter_list" size="sm" className="text-primary-500" />
                         {lang === 'th' ? 'ตัวกรองข้อมูล' : 'Data Filters'}
                     </h3>
-                    {(startDate || endDate) && (
-                        <Badge variant="info" size="sm">
-                            <Icon name="date_range" size="xs" />
-                            {lang === 'th' ? 'กำหนดช่วงเวลาเอง' : 'Custom Range'}
-                        </Badge>
-                    )}
                 </div>
 
                 {/* Main Filter Row */}
@@ -229,62 +193,41 @@ const SearchFilterPanel: React.FC<SearchFilterPanelProps> = ({
                             <Icon name="calendar_today" size="xs" />
                             {lang === 'th' ? 'กำหนดเอง:' : 'Custom Range:'}
                         </label>
-                        <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <input
-                                    type="datetime-local"
-                                    value={startDate}
-                                    onChange={(e) => onStartDateChange(e.target.value)}
-                                    className={`px-2.5 py-1.5 rounded-lg border text-sm transition-all ${isLight
-                                        ? 'bg-white border-gray-200 text-gray-800 focus:border-primary-400'
-                                        : 'bg-dark-700 border-dark-600 text-white focus:border-primary-500'
-                                        } focus:outline-none focus:ring-1 focus:ring-primary-500/30`}
-                                    title={lang === 'th' ? 'วันเวลาเริ่มต้น' : 'Start date-time'}
-                                />
-                                <span className={`text-xs ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
-                                    {lang === 'th' ? 'ถึง' : 'to'}
-                                </span>
-                                <input
-                                    type="datetime-local"
-                                    value={endDate}
-                                    onChange={(e) => onEndDateChange(e.target.value)}
-                                    className={`px-2.5 py-1.5 rounded-lg border text-sm transition-all ${isLight
-                                        ? 'bg-white border-gray-200 text-gray-800 focus:border-primary-400'
-                                        : 'bg-dark-700 border-dark-600 text-white focus:border-primary-500'
-                                        } focus:outline-none focus:ring-1 focus:ring-primary-500/30`}
-                                    title={lang === 'th' ? 'วันเวลาสิ้นสุด' : 'End date-time'}
-                                />
-                                {(startDate || endDate) && (
-                                    <button
-                                        onClick={clearDateFilter}
-                                        className={`p-1.5 rounded-lg transition-colors ${isLight
-                                            ? 'hover:bg-gray-100 text-gray-400 hover:text-gray-600'
-                                            : 'hover:bg-dark-600 text-dark-400 hover:text-dark-200'
-                                            }`}
-                                        title={lang === 'th' ? 'ล้างตัวกรอง' : 'Clear filter'}
-                                    >
-                                        <Icon name="close" size="sm" />
-                                    </button>
-                                )}
-                            </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <input
+                                type="datetime-local"
+                                value={startDate}
+                                onChange={(e) => onStartDateChange(e.target.value)}
+                                className={`px-2.5 py-1.5 rounded-lg border text-sm transition-all ${isLight
+                                    ? 'bg-white border-gray-200 text-gray-800 focus:border-primary-400'
+                                    : 'bg-dark-700 border-dark-600 text-white focus:border-primary-500'
+                                    } focus:outline-none focus:ring-1 focus:ring-primary-500/30`}
+                                title={lang === 'th' ? 'วันเวลาเริ่มต้น' : 'Start date-time'}
+                            />
                             <span className={`text-xs ${isLight ? 'text-gray-400' : 'text-dark-500'}`}>
-                                {lang === 'th' ? 'รูปแบบ: วว ด.ด. ปปปป ชช:นน (พ.ศ.)' : 'Format: dd-mm-yyyy hh:mm'}
+                                {lang === 'th' ? 'ถึง' : 'to'}
                             </span>
-                        </div>
-
-                        {/* Info badges */}
-                        <div className="flex items-center gap-2 ml-auto">
-                            {totalRecords !== undefined && (
-                                <Badge variant="default" size="sm">
-                                    <Icon name="table_rows" size="xs" />
-                                    {totalRecords.toLocaleString()} {lang === 'th' ? 'รายการ' : 'records'}
-                                </Badge>
-                            )}
-                            {latestDataTime && (
-                                <Badge variant="success" size="sm">
-                                    <Icon name="update" size="xs" />
-                                    {formatDateTime(latestDataTime, lang)}
-                                </Badge>
+                            <input
+                                type="datetime-local"
+                                value={endDate}
+                                onChange={(e) => onEndDateChange(e.target.value)}
+                                className={`px-2.5 py-1.5 rounded-lg border text-sm transition-all ${isLight
+                                    ? 'bg-white border-gray-200 text-gray-800 focus:border-primary-400'
+                                    : 'bg-dark-700 border-dark-600 text-white focus:border-primary-500'
+                                    } focus:outline-none focus:ring-1 focus:ring-primary-500/30`}
+                                title={lang === 'th' ? 'วันเวลาสิ้นสุด' : 'End date-time'}
+                            />
+                            {(startDate || endDate) && (
+                                <button
+                                    onClick={clearDateFilter}
+                                    className={`p-1.5 rounded-lg transition-colors ${isLight
+                                        ? 'hover:bg-gray-100 text-gray-400 hover:text-gray-600'
+                                        : 'hover:bg-dark-600 text-dark-400 hover:text-dark-200'
+                                        }`}
+                                    title={lang === 'th' ? 'ล้างตัวกรอง' : 'Clear filter'}
+                                >
+                                    <Icon name="close" size="sm" />
+                                </button>
                             )}
                         </div>
                     </div>

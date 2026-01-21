@@ -184,6 +184,110 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
     return current_user
 
 
+class LineLoginRequest(BaseModel):
+    """LINE Login request schema"""
+    access_token: str
+    id_token: Optional[str] = None
+
+
+@app.post("/api/auth/line-login", response_model=Token, tags=["Authentication"])
+async def line_login(request: LineLoginRequest, db: Session = Depends(get_db)):
+    """
+    Login with LINE access token.
+
+    Flow:
+    1. Frontend obtains access token from LINE Login SDK
+    2. Backend verifies token with LINE API
+    3. Creates or updates user with LINE profile
+    4. Returns JWT access token
+    """
+    import httpx
+
+    try:
+        # Verify LINE access token and get profile
+        async with httpx.AsyncClient() as client:
+            # Get LINE user profile using access token
+            profile_response = await client.get(
+                "https://api.line.me/v2/profile",
+                headers={"Authorization": f"Bearer {request.access_token}"}
+            )
+
+            if profile_response.status_code != 200:
+                logger.error(f"LINE profile API error: {profile_response.text}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid LINE access token"
+                )
+
+            line_profile = profile_response.json()
+            line_user_id = line_profile.get("userId")
+            display_name = line_profile.get("displayName", "LINE User")
+            picture_url = line_profile.get("pictureUrl")
+
+            if not line_user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Could not retrieve LINE user ID"
+                )
+
+        # Find or create user
+        user = db.query(User).filter(User.line_user_id == line_user_id).first()
+
+        if user:
+            # Update existing user
+            user.full_name = display_name
+            user.last_login = datetime.now()
+            logger.info(f"LINE Login: Existing user {user.username} logged in")
+        else:
+            # Create new user with LINE profile
+            # Generate unique username from LINE user ID
+            username = f"line_{line_user_id[-8:]}"  # Last 8 chars of LINE ID
+
+            # Check if username exists (rare but possible)
+            existing = db.query(User).filter(User.username == username).first()
+            if existing:
+                username = f"line_{line_user_id[-12:]}"
+
+            user = User(
+                username=username,
+                email=f"{username}@line.local",  # Placeholder email for LINE users
+                full_name=display_name,
+                line_user_id=line_user_id,
+                hashed_password="",  # No password for LINE users
+                receive_notifications=True,  # Default to receiving notifications
+                is_active=True,
+                role="user"
+            )
+            db.add(user)
+            logger.info(f"LINE Login: New user {username} created")
+
+        db.commit()
+        db.refresh(user)
+
+        # Create JWT access token
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.username}, expires_delta=access_token_expires
+        )
+
+        return {"access_token": access_token, "token_type": "bearer"}
+
+    except httpx.RequestError as e:
+        logger.error(f"LINE API request error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not connect to LINE API"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"LINE Login error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="LINE Login failed"
+        )
+
+
 # ============== Stations ==============
 
 
@@ -2033,6 +2137,7 @@ async def chat_claude_health_check():
 # ============== Chart AI Insights ==============
 
 from backend_api.schemas import ChartInsightRequest, ChartInsightResponse
+from backend_api.services.ai.llm_adapter import get_ollama_adapter
 
 
 @app.post("/api/chart/insight", response_model=ChartInsightResponse, tags=["AI Chat"])
@@ -2040,12 +2145,9 @@ async def get_chart_insight(request: ChartInsightRequest):
     """
     Generate AI-powered insights for chart data.
 
-    This endpoint analyzes the chart data and returns a natural language description
-    of what the chart shows, including:
-    - Trend analysis (increasing, decreasing, stable)
-    - Notable peaks or anomalies
-    - Health implications based on AQI levels
-    - Comparison to air quality standards
+    This endpoint analyzes the chart data and returns:
+    - Rule-based insights (instant, deterministic)
+    - AI-generated description from Ollama (detailed, natural language)
 
     **Parameters:**
     - station_id: The station to analyze
@@ -2054,19 +2156,35 @@ async def get_chart_insight(request: ChartInsightRequest):
     - time_period_days: Number of days analyzed
     - statistics: Pre-calculated stats (avg, min, max, etc.)
     - data_points: Number of data points in the chart
+    - lang: Language for response (th or en)
 
     **Response:**
-    - insight: Full AI-generated narrative
+    - insight: Rule-based narrative (fast)
     - highlights: Key bullet points
     - health_advice: Health recommendations
     - trend_summary: Brief trend description
+    - ai_description: Ollama-generated detailed analysis
     """
     try:
-        # Build a structured prompt for the AI
         stats = request.statistics or {}
-        
+        is_thai = request.lang == "th"
+
         # Get parameter display name
-        param_names = {
+        param_names_th = {
+            'pm25': 'PM2.5',
+            'pm10': 'PM10',
+            'o3': 'โอโซน (O₃)',
+            'co': 'คาร์บอนมอนอกไซด์ (CO)',
+            'no2': 'ไนโตรเจนไดออกไซด์ (NO₂)',
+            'so2': 'ซัลเฟอร์ไดออกไซด์ (SO₂)',
+            'nox': 'ไนโตรเจนออกไซด์ (NOₓ)',
+            'temp': 'อุณหภูมิ',
+            'rh': 'ความชื้นสัมพัทธ์',
+            'ws': 'ความเร็วลม',
+            'bp': 'ความกดอากาศ',
+            'rain': 'ปริมาณฝน'
+        }
+        param_names_en = {
             'pm25': 'PM2.5',
             'pm10': 'PM10',
             'o3': 'Ozone (O₃)',
@@ -2080,89 +2198,169 @@ async def get_chart_insight(request: ChartInsightRequest):
             'bp': 'Barometric Pressure',
             'rain': 'Rainfall'
         }
-        
+
+        param_names = param_names_th if is_thai else param_names_en
         param_display = param_names.get(request.parameter, request.parameter.upper())
         station_display = request.station_name or request.station_id
-        
+
         # Get AQI health level for PM2.5
         def get_aqi_level(pm25_value):
             if pm25_value is None:
-                return "Unknown"
+                return "Unknown" if not is_thai else "ไม่ทราบ"
             if pm25_value <= 15:
-                return "Excellent (ดีมาก)"
+                return "Excellent" if not is_thai else "ดีมาก"
             elif pm25_value <= 25:
-                return "Good (ดี)"
+                return "Good" if not is_thai else "ดี"
             elif pm25_value <= 37.5:
-                return "Moderate (ปานกลาง)"
+                return "Moderate" if not is_thai else "ปานกลาง"
             elif pm25_value <= 75:
-                return "Unhealthy for Sensitive Groups (เริ่มมีผลต่อสุขภาพ)"
+                return "Unhealthy for Sensitive Groups" if not is_thai else "เริ่มมีผลต่อสุขภาพ"
             else:
-                return "Unhealthy (มีผลต่อสุขภาพ)"
-        
-        # Calculate trends and generate insight without AI for now (faster)
+                return "Unhealthy" if not is_thai else "มีผลต่อสุขภาพ"
+
+        # Calculate trends and generate rule-based insight (fast)
         avg_value = stats.get('avg') or stats.get('mean')
         max_value = stats.get('max')
         min_value = stats.get('min')
-        
-        # Generate insight text
+
+        # Generate insight text based on language
         insights = []
         highlights = []
         health_advice = None
         trend_summary = ""
-        
+
         # Time period description
-        period_text = f"ช่วง {request.time_period_days} วันที่ผ่านมา" if request.time_period_days <= 30 else f"ช่วง {request.time_period_days} วัน"
-        
+        if is_thai:
+            period_text = f"ช่วง {request.time_period_days} วันที่ผ่านมา" if request.time_period_days <= 30 else f"ช่วง {request.time_period_days} วัน"
+        else:
+            period_text = f"the past {request.time_period_days} days" if request.time_period_days <= 30 else f"{request.time_period_days} days"
+
         if avg_value is not None:
             if request.parameter == 'pm25':
                 aqi_level = get_aqi_level(avg_value)
-                insights.append(f"📊 **สถานี {station_display}** มีค่าเฉลี่ย {param_display} อยู่ที่ **{avg_value:.1f} µg/m³** ใน{period_text}")
-                insights.append(f"🏷️ ระดับคุณภาพอากาศ: **{aqi_level}**")
-                
-                highlights.append(f"ค่าเฉลี่ย: {avg_value:.1f} µg/m³")
-                
+                if is_thai:
+                    insights.append(f"📊 **สถานี {station_display}** มีค่าเฉลี่ย {param_display} อยู่ที่ **{avg_value:.1f} µg/m³** ใน{period_text}")
+                    insights.append(f"🏷️ ระดับคุณภาพอากาศ: **{aqi_level}**")
+                    highlights.append(f"ค่าเฉลี่ย: {avg_value:.1f} µg/m³")
+                else:
+                    insights.append(f"📊 **Station {station_display}** has an average {param_display} of **{avg_value:.1f} µg/m³** over {period_text}")
+                    insights.append(f"🏷️ Air Quality Level: **{aqi_level}**")
+                    highlights.append(f"Average: {avg_value:.1f} µg/m³")
+
                 # Health advice based on AQI level
                 if avg_value <= 25:
-                    health_advice = "✅ คุณภาพอากาศดี สามารถทำกิจกรรมกลางแจ้งได้ตามปกติ"
-                    trend_summary = "คุณภาพอากาศอยู่ในเกณฑ์ดี"
+                    health_advice = "✅ คุณภาพอากาศดี สามารถทำกิจกรรมกลางแจ้งได้ตามปกติ" if is_thai else "✅ Good air quality. Outdoor activities are safe."
+                    trend_summary = "คุณภาพอากาศอยู่ในเกณฑ์ดี" if is_thai else "Air quality is good"
                 elif avg_value <= 37.5:
-                    health_advice = "⚠️ กลุ่มเสี่ยง (เด็ก ผู้สูงอายุ ผู้มีโรคทางเดินหายใจ) ควรลดกิจกรรมกลางแจ้งที่ใช้แรงมาก"
-                    trend_summary = "คุณภาพอากาศปานกลาง ควรระวังสำหรับกลุ่มเสี่ยง"
+                    health_advice = "⚠️ กลุ่มเสี่ยง (เด็ก ผู้สูงอายุ ผู้มีโรคทางเดินหายใจ) ควรลดกิจกรรมกลางแจ้งที่ใช้แรงมาก" if is_thai else "⚠️ Sensitive groups (children, elderly, respiratory patients) should reduce strenuous outdoor activities."
+                    trend_summary = "คุณภาพอากาศปานกลาง ควรระวังสำหรับกลุ่มเสี่ยง" if is_thai else "Moderate air quality. Caution for sensitive groups."
                 elif avg_value <= 75:
-                    health_advice = "🟠 ประชาชนทั่วไปควรลดกิจกรรมกลางแจ้ง กลุ่มเสี่ยงควรอยู่ในอาคาร"
-                    trend_summary = "คุณภาพอากาศเริ่มมีผลต่อสุขภาพ"
+                    health_advice = "🟠 ประชาชนทั่วไปควรลดกิจกรรมกลางแจ้ง กลุ่มเสี่ยงควรอยู่ในอาคาร" if is_thai else "🟠 General public should reduce outdoor activities. Sensitive groups should stay indoors."
+                    trend_summary = "คุณภาพอากาศเริ่มมีผลต่อสุขภาพ" if is_thai else "Air quality is starting to affect health"
                 else:
-                    health_advice = "🔴 ทุกคนควรหลีกเลี่ยงกิจกรรมกลางแจ้ง สวมหน้ากาก N95 หากจำเป็นต้องออกนอกอาคาร"
-                    trend_summary = "คุณภาพอากาศมีผลกระทบต่อสุขภาพ"
+                    health_advice = "🔴 ทุกคนควรหลีกเลี่ยงกิจกรรมกลางแจ้ง สวมหน้ากาก N95 หากจำเป็นต้องออกนอกอาคาร" if is_thai else "🔴 Everyone should avoid outdoor activities. Wear N95 mask if going outside."
+                    trend_summary = "คุณภาพอากาศมีผลกระทบต่อสุขภาพ" if is_thai else "Air quality is affecting health"
             else:
-                insights.append(f"📊 **สถานี {station_display}** มีค่าเฉลี่ย {param_display} อยู่ที่ **{avg_value:.1f}** ใน{period_text}")
-                highlights.append(f"ค่าเฉลี่ย: {avg_value:.1f}")
-                trend_summary = f"ค่า {param_display} เฉลี่ยอยู่ที่ {avg_value:.1f}"
-        
+                if is_thai:
+                    insights.append(f"📊 **สถานี {station_display}** มีค่าเฉลี่ย {param_display} อยู่ที่ **{avg_value:.1f}** ใน{period_text}")
+                    highlights.append(f"ค่าเฉลี่ย: {avg_value:.1f}")
+                    trend_summary = f"ค่า {param_display} เฉลี่ยอยู่ที่ {avg_value:.1f}"
+                else:
+                    insights.append(f"📊 **Station {station_display}** has an average {param_display} of **{avg_value:.1f}** over {period_text}")
+                    highlights.append(f"Average: {avg_value:.1f}")
+                    trend_summary = f"Average {param_display} is {avg_value:.1f}"
+
         if max_value is not None and min_value is not None:
             range_diff = max_value - min_value
-            insights.append(f"📈 ค่าสูงสุด: **{max_value:.1f}** | ค่าต่ำสุด: **{min_value:.1f}** (ช่วงความแตกต่าง: {range_diff:.1f})")
-            highlights.append(f"ค่าสูงสุด: {max_value:.1f}")
-            highlights.append(f"ค่าต่ำสุด: {min_value:.1f}")
-            
+            if is_thai:
+                insights.append(f"📈 ค่าสูงสุด: **{max_value:.1f}** | ค่าต่ำสุด: **{min_value:.1f}** (ช่วงความแตกต่าง: {range_diff:.1f})")
+                highlights.append(f"ค่าสูงสุด: {max_value:.1f}")
+                highlights.append(f"ค่าต่ำสุด: {min_value:.1f}")
+            else:
+                insights.append(f"📈 Max: **{max_value:.1f}** | Min: **{min_value:.1f}** (Range: {range_diff:.1f})")
+                highlights.append(f"Maximum: {max_value:.1f}")
+                highlights.append(f"Minimum: {min_value:.1f}")
+
             if range_diff > avg_value * 0.5 if avg_value else 0:
-                insights.append("⚡ มีความผันผวนค่อนข้างสูงในช่วงเวลานี้")
-                highlights.append("มีความผันผวนสูง")
-        
+                if is_thai:
+                    insights.append("⚡ มีความผันผวนค่อนข้างสูงในช่วงเวลานี้")
+                    highlights.append("มีความผันผวนสูง")
+                else:
+                    insights.append("⚡ High variability observed during this period")
+                    highlights.append("High variability")
+
         if request.data_points:
-            insights.append(f"📋 จำนวนจุดข้อมูล: **{request.data_points}** จุด")
-        
-        # Combine insights
+            if is_thai:
+                insights.append(f"📋 จำนวนจุดข้อมูล: **{request.data_points}** จุด")
+            else:
+                insights.append(f"📋 Data points: **{request.data_points}**")
+
+        # Combine rule-based insights
         full_insight = "\n\n".join(insights)
-        
+
+        # Generate AI description using Ollama
+        ai_description = None
+        try:
+            adapter = get_ollama_adapter()
+            if await adapter.is_healthy():
+                # Build prompt for Ollama
+                if is_thai:
+                    system_prompt = """คุณเป็นผู้เชี่ยวชาญด้านการวิเคราะห์คุณภาพอากาศ
+ให้วิเคราะห์ข้อมูลกราฟคุณภาพอากาศและอธิบายเป็นภาษาไทยที่เข้าใจง่าย
+ตอบสั้นๆ 2-3 ประโยค ไม่ต้องใช้หัวข้อหรือ bullet points"""
+
+                    prompt = f"""วิเคราะห์ข้อมูลคุณภาพอากาศต่อไปนี้:
+สถานี: {station_display}
+พารามิเตอร์: {param_display}
+ช่วงเวลา: {request.time_period_days} วัน
+ค่าเฉลี่ย: {avg_value if avg_value else 'N/A'}
+ค่าสูงสุด: {max_value if max_value else 'N/A'}
+ค่าต่ำสุด: {min_value if min_value else 'N/A'}
+จำนวนข้อมูล: {request.data_points if request.data_points else 'N/A'} จุด
+
+อธิบายแนวโน้มและสรุปสถานการณ์สั้นๆ:"""
+                else:
+                    system_prompt = """You are an air quality analysis expert.
+Analyze the air quality chart data and explain in simple English.
+Keep your response to 2-3 sentences. No headers or bullet points."""
+
+                    prompt = f"""Analyze the following air quality data:
+Station: {station_display}
+Parameter: {param_display}
+Time Period: {request.time_period_days} days
+Average: {avg_value if avg_value else 'N/A'}
+Maximum: {max_value if max_value else 'N/A'}
+Minimum: {min_value if min_value else 'N/A'}
+Data Points: {request.data_points if request.data_points else 'N/A'}
+
+Describe the trend and summarize the situation briefly:"""
+
+                logger.info(f"Generating chart AI description - lang={request.lang}")
+                ai_response = await adapter.generate(
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    temperature=0.3,
+                    max_tokens=256
+                )
+
+                if ai_response:
+                    ai_description = ai_response.strip()
+                    logger.info(f"Ollama chart insight generated: {len(ai_description)} chars")
+            else:
+                logger.warning("Ollama not healthy, skipping AI description")
+        except Exception as ollama_err:
+            logger.warning(f"Ollama chart insight failed (non-critical): {ollama_err}")
+            # Don't fail the whole request if Ollama fails
+
         return ChartInsightResponse(
             status="success",
             insight=full_insight,
             highlights=highlights,
             health_advice=health_advice,
-            trend_summary=trend_summary
+            trend_summary=trend_summary,
+            ai_description=ai_description
         )
-        
+
     except Exception as e:
         logger.error(f"Chart insight error: {e}")
         import traceback

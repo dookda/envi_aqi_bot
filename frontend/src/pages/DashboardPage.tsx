@@ -40,6 +40,30 @@ const formatDateTime = (date: Date | string, lang: Language = 'en'): string => {
     return `${day}-${month}-${year} ${hours}:${minutes}`
 }
 
+/**
+ * Format date for datetime-local input (YYYY-MM-DDTHH:mm)
+ */
+const formatForDateTimeInput = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = (date.getMonth() + 1).toString().padStart(2, '0')
+    const day = date.getDate().toString().padStart(2, '0')
+    const hours = date.getHours().toString().padStart(2, '0')
+    const minutes = date.getMinutes().toString().padStart(2, '0')
+    return `${year}-${month}-${day}T${hours}:${minutes}`
+}
+
+/**
+ * Get default date range based on time period (in days)
+ */
+const getDefaultDateRange = (days: number): { start: string; end: string } => {
+    const now = new Date()
+    const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+    return {
+        start: formatForDateTimeInput(start),
+        end: formatForDateTimeInput(now)
+    }
+}
+
 // ============== Type Definitions ==============
 
 interface AQILevelConfig {
@@ -145,6 +169,7 @@ interface ChartAIInsight {
     highlights: string[] | null
     health_advice: string | null
     trend_summary: string | null
+    ai_description: string | null
     error: string | null
 }
 
@@ -190,7 +215,8 @@ const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({
                     parameter: parameter,
                     time_period_days: timePeriod,
                     statistics: paramStats,
-                    data_points: dataPoints
+                    data_points: dataPoints,
+                    lang: lang
                 })
             })
 
@@ -204,6 +230,7 @@ const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({
                     highlights: null,
                     health_advice: null,
                     trend_summary: null,
+                    ai_description: null,
                     error: 'Failed to fetch insights'
                 })
             }
@@ -215,19 +242,20 @@ const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({
                 highlights: null,
                 health_advice: null,
                 trend_summary: null,
+                ai_description: null,
                 error: 'Network error'
             })
         } finally {
             setLoading(false)
         }
-    }, [stationId, stationName, parameter, timePeriod, statistics, dataPoints])
+    }, [stationId, stationName, parameter, timePeriod, statistics, dataPoints, lang])
 
-    // Fetch insight when dependencies change
+    // Fetch insight when dependencies change (including language)
     useEffect(() => {
         if (stationId && statistics && Object.keys(statistics).length > 0) {
             fetchInsight()
         }
-    }, [stationId, parameter, timePeriod, fetchInsight])
+    }, [stationId, parameter, timePeriod, lang, fetchInsight])
 
     return (
         <Card className="p-0 overflow-hidden">
@@ -336,6 +364,19 @@ const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({
                                     </h4>
                                     <p className={`text-sm ${isLight ? 'text-gray-700' : 'text-dark-200'}`}>
                                         {insight.health_advice}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* AI Description from Ollama */}
+                            {insight.ai_description && (
+                                <div className={`rounded-lg p-3 ${isLight ? 'bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200' : 'bg-gradient-to-r from-violet-900/20 to-purple-900/20 border border-violet-800'}`}>
+                                    <h4 className={`text-xs font-semibold mb-2 flex items-center gap-1 ${isLight ? 'text-violet-700' : 'text-violet-400'}`}>
+                                        <Icon name="smart_toy" size="xs" />
+                                        {lang === 'th' ? '🤖 การวิเคราะห์จาก AI' : '🤖 AI Analysis'}
+                                    </h4>
+                                    <p className={`text-sm leading-relaxed ${isLight ? 'text-gray-700' : 'text-dark-200'}`}>
+                                        {insight.ai_description}
                                     </p>
                                 </div>
                             )}
@@ -1115,9 +1156,9 @@ export default function Dashboard(): React.ReactElement {
     const [activeTab, setActiveTab] = useState<TabId>('map')
     const [selectedParam, setSelectedParam] = useState<ParameterKey>('pm25')
     const [latestStationData, setLatestStationData] = useState<AQIHourlyData | null>(null)
-    // Date filter state (controlled from SearchFilterPanel)
-    const [filterStartDate, setFilterStartDate] = useState<string>('')
-    const [filterEndDate, setFilterEndDate] = useState<string>('')
+    // Date filter state (controlled from SearchFilterPanel) - initialized with default 7-day range
+    const [filterStartDate, setFilterStartDate] = useState<string>(() => getDefaultDateRange(7).start)
+    const [filterEndDate, setFilterEndDate] = useState<string>(() => getDefaultDateRange(7).end)
 
     // Pollutant threshold configuration with localStorage persistence
     const [showThresholdSettings, setShowThresholdSettings] = useState<boolean>(false)
