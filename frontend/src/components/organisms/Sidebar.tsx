@@ -54,7 +54,6 @@ const NAV_GROUPS: NavGroup[] = [
         requiresAuth: true,
         items: [
             { id: 'chat', path: '/chat', icon: 'smart_toy', labelEn: 'Model A', labelTh: 'Model A', badge: 'Local', requiresAuth: true },
-            { id: 'claude', path: '/chat/claude', icon: 'psychology', labelEn: 'Model B', labelTh: 'Model B', badge: 'Pro', badgeColor: 'purple', requiresAuth: true },
         ]
     },
     {

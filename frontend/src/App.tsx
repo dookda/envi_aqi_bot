@@ -3,7 +3,7 @@
  * Analytics and Settings pages require authentication
  */
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import { Dashboard, Models, Chat, Claude, Admin, DataUpload, DataPreparation, CCTV, Stations, Info, ExecutiveSummary, Login, Register, Profile, Users, LiffProfile } from './pages'
+import { Dashboard, Models, Chat, Admin, DataUpload, DataPreparation, CCTV, Stations, Info, ExecutiveSummary, Login, Register, Profile, Users, LiffProfile } from './pages'
 import { LanguageProvider, ThemeProvider, ToastProvider, AuthProvider } from './contexts'
 import { Layout } from './components/organisms'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -32,11 +32,6 @@ const App: React.FC = () => {
                       <Route path="/chat" element={
                         <ProtectedRoute>
                           <Chat />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/chat/claude" element={
-                        <ProtectedRoute>
-                          <Claude />
                         </ProtectedRoute>
                       } />
                       <Route path="/cctv" element={<CCTV />} />
