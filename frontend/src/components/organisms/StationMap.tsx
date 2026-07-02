@@ -62,7 +62,6 @@ const MAP_STYLE_DARK: maplibregl.StyleSpecification = {
 }
 
 interface StationWithPM25 extends Station {
-  latest_pm25?: number
   longitude?: number
   latitude?: number
 }
