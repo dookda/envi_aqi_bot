@@ -173,6 +173,10 @@ const WEATHER_CONFIG: Record<string, WeatherConfigItem> = {
 
 const API_BASE = '/api'
 
+// Auto-refresh cadence: the backend scheduler ingests new hourly data, so an open
+// dashboard polls to pick it up without a manual reload
+const POLL_INTERVAL_MS = 5 * 60 * 1000
+
 // ============== Components ==============
 
 // AI Insights Panel Types
@@ -1155,7 +1159,7 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
 // ============== Main Dashboard Component ==============
 
 export default function Dashboard(): React.ReactElement {
-    const { stations, loading: stationsLoading } = useStations()
+    const { stations, loading: stationsLoading, refetch: refetchStations } = useStations()
     const { data: chartData, fetchChartData } = useChartData()
     const { t, lang } = useLanguage()
     const { isLight } = useTheme()
@@ -1174,6 +1178,28 @@ export default function Dashboard(): React.ReactElement {
     // Date filter state (controlled from SearchFilterPanel) - initialized with default 7-day range
     const [filterStartDate, setFilterStartDate] = useState<string>(() => getDefaultDateRange(7).start)
     const [filterEndDate, setFilterEndDate] = useState<string>(() => getDefaultDateRange(7).end)
+    // True once the user manually edits the custom datetime inputs; while false, the
+    // window follows the selected preset and slides forward on every refresh so newly
+    // ingested data is never cut off by a stale end date
+    const isCustomRangeRef = useRef<boolean>(false)
+
+    const handleTimePeriodChange = useCallback((period: number) => {
+        isCustomRangeRef.current = false
+        setTimePeriod(period)
+        const range = getDefaultDateRange(period)
+        setFilterStartDate(range.start)
+        setFilterEndDate(range.end)
+    }, [])
+
+    const handleFilterStartDateChange = useCallback((date: string) => {
+        isCustomRangeRef.current = true
+        setFilterStartDate(date)
+    }, [])
+
+    const handleFilterEndDateChange = useCallback((date: string) => {
+        isCustomRangeRef.current = true
+        setFilterEndDate(date)
+    }, [])
 
     // Pollutant threshold configuration with localStorage persistence
     const [showThresholdSettings, setShowThresholdSettings] = useState<boolean>(false)
@@ -1239,9 +1265,10 @@ export default function Dashboard(): React.ReactElement {
     }, [selectedStation])
 
     // Fetch full environmental data
-    const fetchFullData = useCallback(async (): Promise<void> => {
+    // background=true keeps the current chart on screen while refreshing (no spinner swap)
+    const fetchFullData = useCallback(async (background = false): Promise<void> => {
         if (!selectedStation) return
-        setFullDataLoading(true)
+        if (!background) setFullDataLoading(true)
         try {
             const endDate = new Date().toISOString()
             const startDate = new Date(Date.now() - timePeriod * 24 * 60 * 60 * 1000).toISOString()
@@ -1284,8 +1311,34 @@ export default function Dashboard(): React.ReactElement {
             fetchChartData(selectedStation, timePeriod)
             fetchFullData()
             fetchLatestData()  // Always fetch latest data point
+            // Keep the preset window anchored to "now" so fresh data isn't filtered out
+            if (!isCustomRangeRef.current) {
+                const range = getDefaultDateRange(timePeriod)
+                setFilterStartDate(range.start)
+                setFilterEndDate(range.end)
+            }
         }
     }, [selectedStation, timePeriod, fetchChartData, fetchFullData, fetchLatestData])
+
+    // Auto-refresh: poll for newly ingested data while the dashboard stays open
+    useEffect(() => {
+        if (!selectedStation) return
+
+        const timer = setInterval(() => {
+            fetchChartData(selectedStation, timePeriod)
+            fetchFullData(true)
+            fetchLatestData()
+            refetchStations(true)  // silent: refresh map colors without flickering the UI
+            // Slide the preset window forward; otherwise new points fall past the old end date
+            if (!isCustomRangeRef.current) {
+                const range = getDefaultDateRange(timePeriod)
+                setFilterStartDate(range.start)
+                setFilterEndDate(range.end)
+            }
+        }, POLL_INTERVAL_MS)
+
+        return () => clearInterval(timer)
+    }, [selectedStation, timePeriod, fetchChartData, fetchFullData, fetchLatestData, refetchStations])
 
     // Stations that currently have a PM2.5 reading for today
     const stationsWithTodayData = useMemo(
@@ -1451,11 +1504,11 @@ export default function Dashboard(): React.ReactElement {
                         onStationChange={setSelectedStation}
                         stationsLoading={stationsLoading}
                         timePeriod={timePeriod}
-                        onTimePeriodChange={setTimePeriod}
+                        onTimePeriodChange={handleTimePeriodChange}
                         startDate={filterStartDate}
                         endDate={filterEndDate}
-                        onStartDateChange={setFilterStartDate}
-                        onEndDateChange={setFilterEndDate}
+                        onStartDateChange={handleFilterStartDateChange}
+                        onEndDateChange={handleFilterEndDateChange}
                         isLight={isLight}
                         lang={lang}
                         filterTodayOnly={filterTodayOnly}

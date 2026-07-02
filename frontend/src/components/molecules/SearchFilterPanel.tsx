@@ -5,18 +5,6 @@
 import { Card, Icon } from '../atoms'
 import type { Station, Language, ParameterKey } from '@/types'
 
-/**
- * Format date for datetime-local input (YYYY-MM-DDTHH:mm)
- */
-const formatForDateTimeInput = (date: Date): string => {
-    const year = date.getFullYear()
-    const month = (date.getMonth() + 1).toString().padStart(2, '0')
-    const day = date.getDate().toString().padStart(2, '0')
-    const hours = date.getHours().toString().padStart(2, '0')
-    const minutes = date.getMinutes().toString().padStart(2, '0')
-    return `${year}-${month}-${day}T${hours}:${minutes}`
-}
-
 interface TimePeriodOption {
     value: number
     label: string
@@ -173,14 +161,9 @@ const SearchFilterPanel: React.FC<SearchFilterPanelProps> = ({
                             {TIME_PERIODS.map(p => (
                                 <button
                                     key={p.value}
-                                    onClick={() => {
-                                        onTimePeriodChange(p.value)
-                                        // Set datetime inputs based on selected period
-                                        const now = new Date()
-                                        const start = new Date(now.getTime() - p.value * 24 * 60 * 60 * 1000)
-                                        onStartDateChange(formatForDateTimeInput(start))
-                                        onEndDateChange(formatForDateTimeInput(now))
-                                    }}
+                                    // Parent owns the date window: it slides the range on
+                                    // preset change and keeps it anchored to "now" on refresh
+                                    onClick={() => onTimePeriodChange(p.value)}
                                     className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-all ${timePeriod === p.value
                                         ? 'bg-primary-500 text-white shadow-sm'
                                         : isLight

@@ -56,7 +56,9 @@ const AQIStatusChart: React.FC<AQIStatusChartProps> = ({
     if (!chartRef.current || total === 0) return
 
     const theme = isLight ? null : 'dark'
-    if (!chartInstance.current) {
+    // Re-init if the container was remounted (total 0 -> N swaps the placeholder for the div)
+    if (!chartInstance.current || chartInstance.current.getDom() !== chartRef.current) {
+      chartInstance.current?.dispose()
       chartInstance.current = echarts.init(chartRef.current, theme)
     }
 

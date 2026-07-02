@@ -414,7 +414,10 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
         const paramConfig = PARAMETERS[selectedParam]
         const theme = isLight ? null : 'dark'
 
-        if (!chartInstance.current) {
+        // Re-init if the container was remounted (e.g. after the loading spinner swap):
+        // a stale instance bound to a detached node would silently render nothing
+        if (!chartInstance.current || chartInstance.current.getDom() !== chartRef.current) {
+            chartInstance.current?.dispose()
             chartInstance.current = echarts.init(chartRef.current, theme)
         }
 

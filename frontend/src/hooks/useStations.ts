@@ -11,9 +11,9 @@ export default function useStations(): UseStationsReturn {
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchStations = useCallback(async () => {
+  const fetchStations = useCallback(async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) setLoading(true)
       setError(null)
       const data = await stationService.getAll()
       setStations(data)
@@ -21,7 +21,7 @@ export default function useStations(): UseStationsReturn {
       setError((err as Error).message || 'Failed to fetch stations')
       console.error('Error fetching stations:', err)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 

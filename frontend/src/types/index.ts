@@ -219,7 +219,7 @@ export interface UseStationsReturn {
   stations: Station[]
   loading: boolean
   error: string | null
-  refetch: () => Promise<void>
+  refetch: (silent?: boolean) => Promise<void>
   sync: () => Promise<void>
 }
 
