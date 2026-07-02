@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import { Card, Icon, Badge, Spinner } from '../components/atoms'
+import { AQIStatusChart } from '../components/organisms'
 import { useStations } from '../hooks'
 import { useLanguage, useTheme } from '../contexts'
 import { aqiService, aiService } from '../services/api'
@@ -141,60 +142,6 @@ const MetricCard: React.FC<MetricCardProps> = ({
                 )}
             </div>
         </Card>
-    )
-}
-
-// Status Distribution Bar
-interface StatusBarProps {
-    excellent: number
-    good: number
-    moderate: number
-    unhealthy: number
-    veryUnhealthy: number
-    total: number
-}
-
-const StatusBar: React.FC<StatusBarProps> = ({
-    excellent, good, moderate, unhealthy, veryUnhealthy, total
-}) => {
-    const { lang } = useLanguage()
-    const { isLight } = useTheme()
-
-    if (total === 0) return null
-
-    const getWidth = (count: number) => `${(count / total) * 100}%`
-
-    const segments = [
-        { count: excellent, color: 'bg-sky-500', label: lang === 'th' ? 'ดีมาก' : 'Excellent' },      // Blue
-        { count: good, color: 'bg-green-500', label: lang === 'th' ? 'ดี' : 'Good' },                // Green
-        { count: moderate, color: 'bg-yellow-400', label: lang === 'th' ? 'ปานกลาง' : 'Moderate' }, // Yellow
-        { count: unhealthy, color: 'bg-orange-500', label: lang === 'th' ? 'เริ่มมีผลกระทบต่อสุขภาพ' : 'Unhealthy' }, // Orange
-        { count: veryUnhealthy, color: 'bg-red-500', label: lang === 'th' ? 'มีผลกระทบต่อสุขภาพ' : 'Very Unhealthy' }, // Red
-    ]
-
-    return (
-        <div>
-            <div className="flex h-4 rounded-full overflow-hidden">
-                {segments.map((seg, idx) => seg.count > 0 && (
-                    <div
-                        key={idx}
-                        className={`${seg.color} transition-all`}
-                        style={{ width: getWidth(seg.count) }}
-                        title={`${seg.label}: ${seg.count}`}
-                    />
-                ))}
-            </div>
-            <div className="flex flex-wrap gap-4 mt-3">
-                {segments.map((seg, idx) => seg.count > 0 && (
-                    <div key={idx} className="flex items-center gap-2">
-                        <div className={`w-3 h-3 rounded-full ${seg.color}`} />
-                        <span className={`text-sm ${isLight ? 'text-gray-600' : 'text-gray-400'}`}>
-                            {seg.label}: {seg.count}
-                        </span>
-                    </div>
-                ))}
-            </div>
-        </div>
     )
 }
 
@@ -683,7 +630,7 @@ const ExecutiveSummaryPage: React.FC = () => {
                 <h3 className={`text-lg font-semibold mb-4 ${isLight ? 'text-gray-900' : 'text-white'}`}>
                     {lang === 'th' ? 'การกระจายตัวของสถานะคุณภาพอากาศ' : 'Air Quality Status Distribution'}
                 </h3>
-                <StatusBar
+                <AQIStatusChart
                     {...statusDistribution}
                     total={Object.values(statusDistribution).reduce((a, b) => a + b, 0)}
                 />

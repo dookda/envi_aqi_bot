@@ -56,6 +56,12 @@ interface SearchFilterPanelProps {
     isLight: boolean
     lang: Language
 
+    // Filter tool: only show stations with a PM2.5 reading today
+    filterTodayOnly?: boolean
+    onFilterTodayOnlyChange?: (value: boolean) => void
+    totalStationsCount?: number
+    todayStationsCount?: number
+
     // Additional
     className?: string
 }
@@ -75,6 +81,10 @@ const SearchFilterPanel: React.FC<SearchFilterPanelProps> = ({
     onParamChange,
     isLight,
     lang,
+    filterTodayOnly = false,
+    onFilterTodayOnlyChange,
+    totalStationsCount,
+    todayStationsCount,
     className = ''
 }) => {
     const currentStation = stations.find(s => s.station_id === selectedStation)
@@ -88,11 +98,38 @@ const SearchFilterPanel: React.FC<SearchFilterPanelProps> = ({
         <Card className={`p-4 ${className}`}>
             <div className="space-y-4">
                 {/* Header */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                     <h3 className={`text-sm font-semibold flex items-center gap-2 ${isLight ? 'text-gray-700' : 'text-white'}`}>
                         <Icon name="filter_list" size="sm" className="text-primary-500" />
                         {lang === 'th' ? 'ตัวกรองข้อมูล' : 'Data Filters'}
                     </h3>
+
+                    {/* Filter tool: only show stations with PM2.5 data today */}
+                    {onFilterTodayOnlyChange && (
+                        <label
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all select-none ${filterTodayOnly
+                                ? 'bg-primary-500/10 text-primary-600 border border-primary-500/30'
+                                : isLight
+                                    ? 'bg-gray-100 text-gray-600 border border-transparent hover:bg-gray-200'
+                                    : 'bg-dark-700 text-dark-300 border border-transparent hover:bg-dark-600'
+                                }`}
+                            title={lang === 'th' ? 'แสดงเฉพาะสถานีที่มีข้อมูล PM2.5 วันนี้' : 'Show only stations with a PM2.5 reading today'}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={filterTodayOnly}
+                                onChange={(e) => onFilterTodayOnlyChange(e.target.checked)}
+                                className="w-3.5 h-3.5 rounded accent-primary-500"
+                            />
+                            <Icon name="today" size="xs" />
+                            {lang === 'th' ? 'มีข้อมูล PM2.5 วันนี้เท่านั้น' : 'PM2.5 data today only'}
+                            {typeof todayStationsCount === 'number' && typeof totalStationsCount === 'number' && (
+                                <span className={isLight ? 'text-gray-400' : 'text-dark-500'}>
+                                    ({todayStationsCount}/{totalStationsCount})
+                                </span>
+                            )}
+                        </label>
+                    )}
                 </div>
 
                 {/* Main Filter Row */}
@@ -114,6 +151,8 @@ const SearchFilterPanel: React.FC<SearchFilterPanelProps> = ({
                         >
                             {stationsLoading ? (
                                 <option>{lang === 'th' ? 'กำลังโหลด...' : 'Loading...'}</option>
+                            ) : stations.length === 0 ? (
+                                <option>{lang === 'th' ? 'ไม่พบสถานีที่มีข้อมูลวันนี้' : 'No stations match the filter'}</option>
                             ) : (
                                 stations.map(station => (
                                     <option key={station.station_id} value={station.station_id}>

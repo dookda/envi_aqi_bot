@@ -13,6 +13,8 @@ export interface Station {
   station_type?: string
   created_at?: string
   updated_at?: string
+  latest_pm25?: number | null
+  latest_datetime?: string | null
 }
 
 export interface StationWithStats extends Station {

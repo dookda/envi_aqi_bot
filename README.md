@@ -1,379 +1,199 @@
-# AQI Data Pipeline with LSTM-based Imputation
+# Envi AQI Bot
 
-A complete solution for hourly air quality data collection, storage, and intelligent missing value imputation using LSTM deep learning models.
+A full-stack air quality monitoring platform for Thailand (Air4Thai network). It ingests hourly PM2.5/PM10/O3/CO/NO2/SO2 and weather data, fills gaps using per-station LSTM models, detects anomalies, serves a React dashboard, and exposes an AI chatbot (local Ollama or Anthropic Claude) reachable from the web app and a LINE bot.
 
-## 📋 Overview
-
-This project implements the specification defined in `lstm_spec.md`:
-
-- **Data Ingestion**: Fetches PM2.5 data from Air4Thai APIs
-- **Storage**: PostgreSQL with TimescaleDB for time-series data
-- **LSTM Imputation**: Deep learning model for predicting missing values
-- **Automated Pipeline**: Scheduled hourly ingestion and imputation
-- **Validation**: RMSE/MAE metrics with baseline comparison
-
-## 🏗️ Architecture
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        AQI Data Pipeline                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐        │
-│  │  Air4Thai   │────▶│  Ingestion  │────▶│ TimescaleDB │        │
-│  │    APIs     │     │   Service   │     │  (Storage)  │        │
-│  └─────────────┘     └─────────────┘     └──────┬──────┘        │
-│                                                  │               │
-│                      ┌─────────────┐     ┌──────▼──────┐        │
-│                      │    LSTM     │◀────│  Missing    │        │
-│                      │   Model     │     │  Detection  │        │
-│                      └──────┬──────┘     └─────────────┘        │
-│                             │                                    │
-│                      ┌──────▼──────┐     ┌─────────────┐        │
-│                      │ Imputation  │────▶│ Validation  │        │
-│                      │   Service   │     │   Service   │        │
-│                      └─────────────┘     └─────────────┘        │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+┌────────────┐     ┌──────────────┐     ┌──────────────────┐
+│  Air4Thai  │────▶│  Ingestion   │────▶│ PostgreSQL+PostGIS│
+│    APIs    │     │   Service    │     │  (aqi_hourly, ...)│
+└────────────┘     └──────────────┘     └─────────┬─────────┘
+                                                   │
+      ┌────────────────────────────────────────────┼───────────────┐
+      │                                             │               │
+┌─────▼─────┐   ┌───────────────┐   ┌───────────────▼──┐   ┌────────▼───────┐
+│   LSTM     │◀──│ Missing/Gap   │   │ Anomaly Detection │   │  FastAPI (api) │
+│  Training  │   │  Detection    │   └───────────────────┘   │  + AI Chatbot  │
+└─────┬─────┘   └───────────────┘                            │  (Ollama /     │
+      │                                                       │   Claude)     │
+┌─────▼─────┐                                                 └───────┬───────┘
+│ Imputation │                                                        │
+│  Service   │                                          ┌─────────────┼─────────────┐
+└───────────┘                                    ┌───────▼──────┐ ┌───▼───┐ ┌───────▼──────┐
+                                                  │ React Frontend│ │ LINE  │ │ CCTV / YOLO  │
+                                                  │  (Vite, Nginx)│ │ Bot   │ │  Detection   │
+                                                  └───────────────┘ └───────┘ └──────────────┘
 ```
 
-## 🚀 Quick Start
+An `apscheduler`-driven **scheduler** service runs the hourly ingest → detect → impute → quality-check pipeline independently of the API container.
 
-### Prerequisites
+## Services (Docker Compose)
 
-- Docker & Docker Compose
-- Python 3.11+ (for local development)
+| Service | Image / Build | Purpose | Port |
+|---|---|---|---|
+| `postgres` | `postgis/postgis:16-3.4` | Primary datastore (stations, hourly readings, logs, users) | 5433→5432 (internal) |
+| `api` | `./Dockerfile` | FastAPI backend — REST API, auth, AI chat, uploads, CCTV detection | 8000 |
+| `frontend` | `./frontend/Dockerfile` | React SPA built with Vite, served by Nginx | 5800→80 |
+| `scheduler` | `./Dockerfile` (`backend_api.scheduler`) | Runs the automated hourly pipeline | — |
+| `ollama` | `ollama/ollama` | Local LLM (`qwen3:1.7b`) for the AI chatbot | internal only |
+| `data-prep` | `./backend_dataprepare/Dockerfile` | Isolated microservice for CSV preprocessing/upload preview | internal only |
 
-### Running with Docker
+Also present: `nginx/` load-balancer configs (`api-lb.conf`, `frontend-lb.conf`) for a scaled/production topology, and a `.agent/workflows/deploy-production.md` runbook for deploying to `envir-ai.com` with SSL.
 
-1. **Clone and configure**:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your settings
-   ```
+## Repository Layout
 
-2. **Start all services**:
-   ```bash
-   docker-compose up -d
-   ```
+```
+backend_api/            FastAPI app, routers, auth, schemas, business services
+├── main.py             App entrypoint — stations, AQI data, ingestion, training,
+│                        imputation, validation, pipeline, scheduler, AI chat,
+│                        CSV/data upload, CCTV detection endpoints
+├── auth.py              JWT auth (passlib/bcrypt + python-jose)
+├── scheduler.py          Standalone entrypoint for the `scheduler` container
+├── routers/              notifications, LINE webhook, charts, users, LIFF, ai
+├── services/
+│   ├── ai/               chatbot.py, claude_chatbot.py, claude_adapter.py,
+│   │                     llm_adapter.py, orchestrator.py, guardrails.py,
+│   │                     place_matcher.py, region_matcher.py, response_composer.py
+│   ├── ingestion.py, upload.py, chart_generator.py
+│   ├── line_notification.py, notification.py, scheduler.py
+│   └── yolo_detector.py  CCTV image object detection (Ultralytics YOLO)
+└── scripts/              bulk_download_air4thai.py, train_aqi_models.py, ...
 
-3. **Automatic Initialization** (First Startup):
-   The system will automatically:
-   - **Ollama LLM**: Download qwen2.5:1.5b model (5-10 minutes)
-   - **Data**: Download 30-day historical data from Air4Thai
-   - **Models**: Train LSTM models for all stations (10-30 minutes)
-   - **Scheduler**: Start hourly data collection
+backend_model/           Shared domain layer (config, DB, ORM, ML services)
+├── config.py             Pydantic Settings (DB, LSTM hyperparams, Air4Thai API, Ollama)
+├── database.py           SQLAlchemy engine/session
+├── models.py              Station, AQIHourly, ImputationLog, ModelTrainingLog,
+│                          IngestionLog, User, Notification
+└── services/
+    ├── lstm_model.py      LSTM train/predict per station/parameter
+    ├── imputation.py      Gap-filling orchestration (LSTM + linear/forward-fill fallback)
+    ├── anomaly.py         Statistical/threshold/rate-based anomaly detection
+    ├── validation.py      RMSE/MAE model validation vs. baselines
+    └── pipeline.py        Full ingest→impute→validate pipeline runner
 
-   Monitor progress:
-   ```bash
-   # Watch scheduler initialization
-   docker logs -f aqi_scheduler
+backend_dataprepare/     Standalone FastAPI microservice for raw CSV cleanup/preview
+frontend/                React 19 + TypeScript + Vite + Tailwind v4 SPA (Atomic Design)
+models/                  Trained Keras LSTM models + scalers, per pollutant (co, no2, o3, pm10, pm25, so2)
+database/init/           SQL schema init scripts (stations, users, extra parameters)
+alembic/versions/        Incremental schema migrations (Air4Thai params, anomaly columns, NOx)
+tests/                   pytest suite (ingestion, LSTM model, validation)
+nginx/                   Load-balancer configs for scaled deployments
+.agent/workflows/        Deployment runbook(s)
+```
 
-   # Watch Ollama model download
-   docker logs -f aqi_ollama
-   ```
+## Backend (FastAPI)
 
-4. **Access the Application**:
-   - Frontend: http://localhost:5800/ebot/
-   - API: http://localhost:5800/ebot/api/
-   - API Docs: http://localhost:5800/ebot/docs
+**Stack:** FastAPI, SQLAlchemy + GeoAlchemy2 (PostGIS), Pydantic Settings, APScheduler, TensorFlow/Keras (LSTM), scikit-learn, Ultralytics YOLO + OpenCV, `line-bot-sdk`, JWT auth (`python-jose` + `passlib`/`bcrypt`).
 
-### Development Mode with Hot-Reloading
+Key endpoint groups exposed by `backend_api/main.py` and its routers:
 
-For faster development with automatic code reloading:
+- **Auth** — register/login (JWT), `GET /api/auth/me`, LINE Login (`/api/auth/line-login`)
+- **Stations** — CRUD, search (Thai/English), sync from Air4Thai, per-station stats
+- **AQI Data** — historical/latest readings, mockup data generator, full multi-parameter data with per-field imputation flags, history aggregation (hour/day), chart-ready series with gap markers
+- **Anomaly Detection** — statistical/threshold/rate-based detection per station + cross-station summary
+- **Ingestion** — batch (initial 30-day load) and hourly triggers, ingestion logs, live vs. DB freshness check (`/api/admin/data-status`)
+- **Model Training** — train one/all stations, training readiness check, training logs, model status
+- **Imputation** — impute one/all stations, imputation logs, rollback
+- **Validation** — validate LSTM vs. linear/forward-fill baselines
+- **Pipeline** — run the full ingest→impute→validate pipeline on demand
+- **Scheduler** — status, jobs, start/stop, manual triggers (hourly/imputation/quality)
+- **AI Chat** — natural-language queries via local Ollama (`/api/chat/query`) or Claude (`/api/chat/claude/query`), plus chart-insight generation
+- **Data Upload** — CSV/station CSV preview & import, API-source preview/import
+- **CCTV Detection** — YOLO-based detection on camera snapshots + LINE notification hook
+- Routers: **notifications** (in-app alerts), **LINE webhook** (`/webhook`, LIFF chart rendering), **charts** (time series/preview images), **users** (admin user management), **liff** (LINE LIFF profile/notification opt-in)
+
+### Data model highlights (`backend_model/models.py`)
+- `Station` — PostGIS point geometry, Thai/English names
+- `AQIHourly` — composite PK (`station_id`, `datetime`); one column + one `_imputed` flag per parameter (pm25, pm10, o3, co, no2, so2, nox, ws, wd, temp, rh, bp, rain); anomaly flag/type
+- `ImputationLog`, `ModelTrainingLog`, `IngestionLog` — full audit trail
+- `User` — JWT auth + LINE user linkage + notification opt-in
+- `Notification` — in-app alerts
+
+### LSTM pipeline
+- Architecture: `Input(24h) → LSTM(64) → Dropout(0.2) → LSTM(32) → Dropout(0.2) → Dense(1)`
+- One model + scaler per station **per pollutant** (see `models/{pollutant}/lstm_<station>.keras` + `scaler_<station>.pkl`)
+- Trained only on contiguous (gap-free) sequences; early stopping (patience 10)
+- Gap handling: short (1–3h) → forward-fill, medium (4–24h) → linear/LSTM, long (>24h) → flagged only, configurable via `backend_model/config.py`
+- Validated against linear-interpolation and forward-fill baselines (must beat RMSE, no negative PM2.5)
+
+## Frontend (React)
+
+**Stack:** React 19 + TypeScript, Vite 7, Tailwind CSS v4, React Router v7, ECharts, MapLibre GL / Leaflet + react-map-gl, LINE LIFF SDK.
+
+Organized with **Atomic Design** (`components/atoms`, `molecules`, `organisms`) per `.github/copilot-instructions.md` conventions.
+
+Pages (`frontend/src/pages`): Dashboard, Models, Chat (protected), Admin (protected, admin-only), DataUpload, DataPreparation, CCTV, Stations (protected), Info, ExecutiveSummary (protected), Login/Register, Profile, Users (protected, admin-only), LiffProfile (LINE LIFF, no sidebar).
+
+Cross-cutting contexts: `AuthContext`, `LanguageContext` (TH/EN), `ThemeContext`, `ToastContext`. Auth-gated routes wrapped in `ProtectedRoute` (with optional `requireAdmin`).
+
+## Getting Started
 
 ```bash
-# Quick start (recommended for development)
-./dev.sh
-
-# Or manually with docker-compose
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
-
-# Run in background
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
-
-# Stop development services
-./dev-stop.sh
+cp .env.example .env      # edit values as needed
+docker-compose up -d
 ```
 
-**Benefits:**
-- Frontend: Changes to `.tsx`, `.ts`, `.css` files reload automatically
-- Backend: FastAPI auto-reload on Python file changes
-- No need to rebuild Docker images during development
-
-See [DEVELOPMENT.md](DEVELOPMENT.md) for more details.
-
-### Local Development
-
-1. **Create virtual environment**:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
-
-2. **Start PostgreSQL with TimescaleDB**:
-   ```bash
-   docker-compose up -d timescaledb
-   ```
-
-3. **Run the API**:
-   ```bash
-   uvicorn app.main:app --reload
-   ```
-
-4. **Run the scheduler** (in another terminal):
-   ```bash
-   python -m app.scheduler
-   ```
-
-## 📁 Project Structure
-
-```
-envi_aqi_bot/
-├── app/
-│   ├── __init__.py           # Package initialization
-│   ├── config.py             # Configuration management
-│   ├── database.py           # Database connection
-│   ├── logger.py             # Logging configuration
-│   ├── main.py               # FastAPI application
-│   ├── models.py             # SQLAlchemy ORM models
-│   ├── schemas.py            # Pydantic schemas
-│   ├── scheduler.py          # APScheduler for automation
-│   └── services/
-│       ├── __init__.py
-│       ├── ingestion.py      # Data ingestion service
-│       ├── imputation.py     # LSTM imputation service
-│       ├── lstm_model.py     # LSTM model training/prediction
-│       └── validation.py     # Model validation service
-├── database/
-│   └── init/
-│       └── 01_init.sql       # Database initialization
-├── tests/                    # Unit tests
-├── models/                   # Saved LSTM models (generated)
-├── logs/                     # Application logs (generated)
-├── docker-compose.yml
-├── Dockerfile
-├── requirements.txt
-└── README.md
-```
-
-## 🔧 API Endpoints
-
-### Health & Status
-- `GET /health` - Health check
-- `GET /` - API info
-
-### Stations
-- `GET /api/stations` - List all stations
-- `GET /api/stations/{id}` - Get station with stats
-- `POST /api/stations/sync` - Sync from Air4Thai
-
-### AQI Data
-- `GET /api/aqi/{station_id}` - Get AQI data
-- `GET /api/aqi/{station_id}/latest` - Get latest reading
-- `GET /api/aqi/{station_id}/missing` - Analyze missing data
-
-### Ingestion
-- `POST /api/ingest/batch` - Start batch ingestion
-- `POST /api/ingest/hourly` - Trigger hourly update
-- `GET /api/ingest/logs` - Get ingestion logs
-
-### Model Training
-- `POST /api/model/train` - Train model for station
-- `POST /api/model/train-all` - Train all models
-- `GET /api/model/{station_id}/info` - Get model info
-- `GET /api/model/training-logs` - Get training logs
-
-### Imputation
-- `POST /api/impute` - Impute for station
-- `POST /api/impute/all` - Impute all stations
-- `GET /api/impute/logs` - Get imputation logs
-- `POST /api/impute/rollback` - Rollback imputations
-
-### Validation
-- `POST /api/validate/{station_id}` - Validate model
-- `POST /api/validate/all` - Validate all models
-
-### Pipeline
-- `POST /api/pipeline/run` - Run full pipeline
-
-## 💻 Dashboard & Visualization
-
-The application provides a modern, interactive dashboard available at `http://localhost:5800/ebot/`.
-
-### Key Features
-
-1.  **Real-Time Monitoring**:
-    - Interactive map showing all monitoring stations.
-    - Click on any station to view detailed data.
-    - Status indicators for "Measured" vs "Gap-Filled" data.
-
-2.  **Smart Charts**:
-    - **Multi-Parameter Support**: Visualize PM2.5, PM10, O3, CO, NO2, Temperature, Humidity, etc.
-    - **Gap Detection**: Automatically highlights missing data periods.
-    - **Gap Filling Visualization**: Shows imputed values (filled gaps) in a distinct gold color to differentiate from measured data.
-    - **Spike Detection**: Identifies anomalies and sudden spikes in pollutant levels.
-
-3.  **Advanced Data Analysis** ("Data" Tab):
-    - **Detailed Historical Table**: View hour-by-hour readings for any selected parameter.
-    - **Status Tracking**: Clearly marks data as "Measured", "Gap-Filled" (by LSTM), or "Missing".
-    - **Parameter Selection**: Switch between different pollutants and meteorological data.
-
-4.  **AI Integration**:
-    - Built-in AI Chatbot for querying air quality trends and insights.
-
-## 🧠 LSTM Model Architecture
-
-As specified in `lstm_spec.md`:
-
-```
-Input (24 hours) → LSTM(64) → Dropout(0.2) → LSTM(32) → Dropout(0.2) → Dense(1)
-```
-
-- **Sequence Length**: 24 hours
-- **Loss Function**: Mean Squared Error (MSE)
-- **Training**: Only on contiguous sequences (no gaps)
-
-## 📊 Missing Data Classification
-
-| Gap Type | Duration | Action |
-|----------|----------|--------|
-| Short | 1-3 hours | Impute |
-| Medium | 4-24 hours | Impute |
-| Long | >24 hours | Flag only |
-
-## ✅ Validation & Acceptance Criteria
-
-The system validates models against baselines:
-
-1. **LSTM RMSE** < **Linear Interpolation RMSE**
-2. No negative PM2.5 predictions
-
-Baselines compared:
-- Linear interpolation
-- Forward-fill (naive)
-
-## 🔄 Automated Pipeline
-
-The scheduler runs hourly:
-
-1. **Ingest**: Fetch latest data from Air4Thai
-2. **Detect**: Identify missing values
-3. **Impute**: Fill gaps using LSTM (where applicable)
-4. **Commit**: Save to database
-
-Configure schedule in `.env`:
-```
-INGEST_CRON_HOUR=*
-INGEST_CRON_MINUTE=5
-```
-
-## 💾 Data Persistence
-
-### Persistent Volumes
-
-Your data is **automatically persisted** using Docker volumes:
-
-```yaml
-volumes:
-  timescale_data:  # PostgreSQL database data
-  ollama_data:     # Ollama LLM models
-```
-
-**What persists:**
-- ✅ All AQI measurements and station data
-- ✅ Trained LSTM models (in `/app/models`)
-- ✅ Ollama LLM models (no re-download)
-- ✅ Application logs (in `/app/logs`)
-
-**Data survives:**
-- ✅ `docker-compose restart`
-- ✅ `docker-compose down` + `docker-compose up`
-- ✅ Container crashes and restarts
-- ❌ `docker-compose down -v` (WARNING: Deletes all volumes!)
-
-### Backup & Restore
-
-**Backup Database:**
-```bash
-# Create backup
-docker exec aqi_timescaledb pg_dump -U aqi_user aqi_db > backup_$(date +%Y%m%d).sql
-
-# Backup volume directly
-docker run --rm -v envi_aqi_bot_timescale_data:/data -v $(pwd):/backup alpine tar czf /backup/timescaledb_backup_$(date +%Y%m%d).tar.gz -C /data .
-```
-
-**Restore Database:**
-```bash
-# From SQL dump
-cat backup_20231223.sql | docker exec -i aqi_timescaledb psql -U aqi_user aqi_db
-
-# From volume backup
-docker run --rm -v envi_aqi_bot_timescale_data:/data -v $(pwd):/backup alpine tar xzf /backup/timescaledb_backup_20231223.tar.gz -C /data
-```
-
-**View Volume Location:**
-```bash
-docker volume inspect envi_aqi_bot_timescale_data
-# Shows: /var/lib/docker/volumes/envi_aqi_bot_timescale_data/_data
-```
-
-## 📝 Logging & Auditability
-
-All operations are logged:
-
-- **Imputation events**: Station, datetime, value, model version
-- **Training events**: Samples, RMSE, MAE, duration
-- **Ingestion events**: Records fetched/inserted, missing detected
-
-Logs are stored in:
-- `logs/app.log` - All logs
-- `logs/errors.log` - Errors only
-- `logs/ingestion.log` - Ingestion events
-- `logs/imputation.log` - Imputation events
-
-## 🧪 Testing
+On first boot the stack auto-downloads the Ollama model, backfills ~30 days of Air4Thai history, and trains initial LSTM models — watch progress with:
 
 ```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=app tests/
-
-# Run specific test file
-pytest tests/test_lstm_model.py -v
+docker logs -f aqi_scheduler
+docker logs -f aqi_ollama
 ```
 
-## 🔐 Environment Variables
+Access:
+- Frontend: http://localhost:5800/
+- API docs (Swagger): http://localhost:8000/docs
+- Health check: http://localhost:8000/health
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://...` |
-| `SEQUENCE_LENGTH` | LSTM input sequence length | `24` |
-| `LSTM_UNITS_1` | First LSTM layer units | `64` |
-| `LSTM_UNITS_2` | Second LSTM layer units | `32` |
-| `EPOCHS` | Max training epochs | `100` |
-| `EARLY_STOPPING_PATIENCE` | Early stopping patience | `10` |
-| `INGEST_CRON_HOUR` | Cron schedule hour | `*` |
-| `INGEST_CRON_MINUTE` | Cron schedule minute | `5` |
+### Local development (without Docker)
 
-## 📈 Future Extensions
+```bash
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+docker-compose up -d postgres          # DB only
+uvicorn backend_api.main:app --reload
+python -m backend_api.scheduler        # in a second terminal
 
-As noted in the specification, the system is designed to be extendable to:
-- PM10, O3, NO2 parameters
-- Multi-station spatial interpolation
-- Forecasting capabilities
+cd frontend && npm install && npm run dev
+```
 
-## 📄 License
+### Tests
 
-MIT License
+```bash
+pytest                                  # tests/test_ingestion.py, test_lstm_model.py, test_validation.py
+pytest --cov=backend_model tests/
+```
 
-## 🤝 Contributing
+## Configuration
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests
-5. Submit a pull request
+Settings are loaded via `backend_model/config.py` (Pydantic `BaseSettings`, reads `.env`). Notable variables (see `.env.example` for the full list):
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | PostgreSQL/PostGIS connection string |
+| `SEQUENCE_LENGTH`, `LSTM_UNITS_1/2`, `BATCH_SIZE`, `EPOCHS`, `EARLY_STOPPING_PATIENCE` | LSTM hyperparameters |
+| `INGEST_CRON_HOUR`, `INGEST_CRON_MINUTE` | Scheduler cadence |
+| `AIR4THAI_API_KEY` | Air4Thai API access |
+| `ANTHROPIC_API_KEY`, `CLAUDE_MODEL` | Optional Claude-backed chatbot |
+| `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_WEBHOOK_BASE_URL` | LINE Bot/LIFF integration |
+| `OLLAMA_MODEL`, `OLLAMA_TIMEOUT` | Local LLM chatbot |
+| `VITE_API_BASE_URL` | Frontend build-time API base URL |
+
+Data persists in Docker named volumes `postgres_data` (DB) and `ollama_data` (LLM weights); trained models/logs are bind-mounted from `./models` and `./logs`.
+
+## Operational Scripts
+
+- `dev.sh` / `dev-stop.sh` — hot-reload dev stack (`docker-compose.yml` + `docker-compose.dev.yml`)
+- `backup_database.sh`, `database/init/03_restore_backup.sh` — DB backup/restore helpers
+- `migrate_to_postgres.sh` — legacy migration helper
+- `backend_api/scripts/bulk_download_air4thai.py` — historical bulk data download
+- `backend_api/scripts/train_all_aqi_models.sh` / `train_aqi_models.py` — batch model training across pollutants/stations
+- `scripts/prepare_roiet_data.py` — station-specific data prep
+- `alembic/versions/` — run via Alembic to apply incremental schema changes (Air4Thai params, anomaly columns, NOx)
+
+## Notes
+
+- `.github/spec_chatbot.md` and `.github/spec_lstm.md` contain the original detailed specs for the chatbot and LSTM imputation pipeline.
+- `.agent/workflows/deploy-production.md` documents the production deployment path to `envir-ai.com` (rsync + Docker Compose prod overlay + Nginx/Certbot).
+- Frontend dev conventions (Atomic Design, reuse existing components/tokens, MapLibre/Tailwind/React docs as references) are captured in `.github/copilot-instructions.md`.

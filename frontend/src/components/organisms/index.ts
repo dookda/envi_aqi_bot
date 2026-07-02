@@ -6,4 +6,5 @@ export { default as Sidebar } from './Sidebar'
 export { default as Layout } from './Layout'
 export { default as MockupDataChart } from './MockupDataChart'
 export { default as MultiParameterChart } from './MultiParameterChart'
+export { default as AQIStatusChart } from './AQIStatusChart'
 

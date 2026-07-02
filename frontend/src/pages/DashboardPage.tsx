@@ -53,6 +53,19 @@ const formatForDateTimeInput = (date: Date): string => {
 }
 
 /**
+ * Check if an ISO datetime string falls on today's calendar date (local time)
+ */
+const isToday = (dateStr?: string | null): boolean => {
+    if (!dateStr) return false
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return false
+    const now = new Date()
+    return d.getFullYear() === now.getFullYear() &&
+        d.getMonth() === now.getMonth() &&
+        d.getDate() === now.getDate()
+}
+
+/**
  * Get default date range based on time period (in days)
  */
 const getDefaultDateRange = (days: number): { start: string; end: string } => {
@@ -1150,6 +1163,8 @@ export default function Dashboard(): React.ReactElement {
 
     const [selectedStation, setSelectedStation] = useState<string>('')
     const [timePeriod, setTimePeriod] = useState<number>(7)
+    // Filter tool: show only stations that have a PM2.5 reading for today
+    const [filterTodayOnly, setFilterTodayOnly] = useState<boolean>(true)
     const [showAnomalies, setShowAnomalies] = useState<boolean>(true)
     const [fullData, setFullData] = useState<FullDataResponse | null>(null)
     const [fullDataLoading, setFullDataLoading] = useState<boolean>(false)
@@ -1272,20 +1287,33 @@ export default function Dashboard(): React.ReactElement {
         }
     }, [selectedStation, timePeriod, fetchChartData, fetchFullData, fetchLatestData])
 
-    // Auto-select station from URL parameter or first station
+    // Stations that currently have a PM2.5 reading for today
+    const stationsWithTodayData = useMemo(
+        () => stations.filter(s => s.latest_pm25 !== null && s.latest_pm25 !== undefined && isToday(s.latest_datetime)),
+        [stations]
+    )
+    // Stations shown in the selector/map/table, depending on the "today only" filter toggle
+    const displayedStations = filterTodayOnly ? stationsWithTodayData : stations
+
+    // Auto-select station from URL parameter or first station in the displayed (filtered) list.
+    // Also re-selects when the current station drops out of the filtered list (e.g. filter toggled on).
     useEffect(() => {
-        if (stations.length > 0 && !selectedStation) {
-            const stationFromUrl = searchParams.get('station')
-            if (stationFromUrl && stations.find(s => s.station_id === stationFromUrl)) {
+        if (displayedStations.length === 0) return
+
+        const stationFromUrl = searchParams.get('station')
+        if (!selectedStation) {
+            if (stationFromUrl && displayedStations.find(s => s.station_id === stationFromUrl)) {
                 setSelectedStation(stationFromUrl)
             } else {
-                setSelectedStation(stations[0].station_id)
+                setSelectedStation(displayedStations[0].station_id)
             }
+        } else if (!displayedStations.find(s => s.station_id === selectedStation)) {
+            setSelectedStation(displayedStations[0].station_id)
         }
-    }, [stations, selectedStation, searchParams])
+    }, [displayedStations, selectedStation, searchParams])
 
     const stats = chartData?.statistics || {}
-    const currentStation = stations.find(s => s.station_id === selectedStation)
+    const currentStation = displayedStations.find(s => s.station_id === selectedStation)
 
     // Filter fullData based on custom date range (filterStartDate, filterEndDate)
     const filteredFullData = useMemo((): FullDataResponse | null => {
@@ -1418,7 +1446,7 @@ export default function Dashboard(): React.ReactElement {
                 {/* Search & Filter Panel */}
                 <section className="mb-6">
                     <SearchFilterPanel
-                        stations={stations}
+                        stations={displayedStations}
                         selectedStation={selectedStation}
                         onStationChange={setSelectedStation}
                         stationsLoading={stationsLoading}
@@ -1430,6 +1458,10 @@ export default function Dashboard(): React.ReactElement {
                         onEndDateChange={setFilterEndDate}
                         isLight={isLight}
                         lang={lang}
+                        filterTodayOnly={filterTodayOnly}
+                        onFilterTodayOnlyChange={setFilterTodayOnly}
+                        totalStationsCount={stations.length}
+                        todayStationsCount={stationsWithTodayData.length}
                     />
                 </section>
 
@@ -1703,7 +1735,7 @@ export default function Dashboard(): React.ReactElement {
                 <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                     {/* Map */}
                     <StationMap
-                        stations={stations}
+                        stations={displayedStations}
                         selectedStation={selectedStation}
                         onStationSelect={setSelectedStation}
                         loading={stationsLoading}
@@ -1831,7 +1863,7 @@ export default function Dashboard(): React.ReactElement {
                         loading={fullDataLoading}
                         selectedParam={selectedParam}
                         selectedStation={selectedStation}
-                        stations={stations}
+                        stations={displayedStations}
                         lang={lang}
                         isLight={isLight}
                         onParamChange={setSelectedParam}
