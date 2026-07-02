@@ -15,18 +15,6 @@ const colorVariants: Record<StatColor, string> = {
   default: 'text-white',
 }
 
-// Map of icon names for common stat types
-const iconMap: Record<string, string> = {
-  completeness: 'trending_up',
-  average: 'thermostat',
-  imputed: 'auto_fix_high',
-  missing: 'cancel',
-  anomalies: 'warning',
-  stations: 'location_on',
-  models: 'psychology',
-  ready: 'check_circle',
-  coverage: 'bar_chart',
-}
 
 interface StatCardProps {
   label: string

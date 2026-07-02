@@ -26,16 +26,15 @@ const Layout: React.FC<LayoutProps> = ({ children, title, subtitle }) => {
         return saved ? JSON.parse(saved) : false
     })
 
-    // Listen for sidebar collapse changes
+    // Listen for sidebar collapse changes (Sidebar dispatches this event after saving)
     useEffect(() => {
-        const handleStorageChange = () => {
+        const handleCollapseChange = () => {
             const saved = localStorage.getItem('sidebarCollapsed')
             setSidebarCollapsed(saved ? JSON.parse(saved) : false)
         }
 
-        // Check periodically for changes (localStorage doesn't have a reliable event across same-page updates)
-        const interval = setInterval(handleStorageChange, 100)
-        return () => clearInterval(interval)
+        window.addEventListener('sidebar-collapsed-change', handleCollapseChange)
+        return () => window.removeEventListener('sidebar-collapsed-change', handleCollapseChange)
     }, [])
 
     // Sidebar width based on collapsed state

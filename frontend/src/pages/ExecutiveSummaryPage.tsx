@@ -9,6 +9,7 @@ import { useStations } from '../hooks'
 import { useLanguage, useTheme } from '../contexts'
 import { aqiService, aiService } from '../services/api'
 import type { Station, AQIHourlyData } from '../types'
+import { pm25ToAqi } from '../utils/aqi'
 
 // Extended station with latest data
 interface StationWithLatest extends Station {
@@ -34,16 +35,6 @@ interface AQIStatus {
     color: string
     bgColor: string
     icon: string
-}
-
-// Calculate AQI from PM2.5 using Thailand standard
-const calculateAqiFromPm25 = (pm25: number | undefined): number => {
-    if (!pm25 || pm25 <= 0) return 0
-    if (pm25 <= 25) return Math.round((pm25 / 25) * 25)
-    if (pm25 <= 37) return Math.round(25 + ((pm25 - 25) / 12) * 25)
-    if (pm25 <= 50) return Math.round(50 + ((pm25 - 37) / 13) * 50)
-    if (pm25 <= 90) return Math.round(100 + ((pm25 - 50) / 40) * 100)
-    return Math.round(200 + ((pm25 - 90) / 90) * 100)
 }
 
 const getAqiStatus = (value: number, isLight: boolean): AQIStatus => {
@@ -165,7 +156,6 @@ interface AIExecutiveSummaryPanelProps {
         unhealthy: number
         veryUnhealthy: number
     }
-    stationsWithData: StationWithLatest[]
     isLight: boolean
     lang: string
 }
@@ -174,7 +164,6 @@ interface AIExecutiveSummaryPanelProps {
 const AIExecutiveSummaryPanel: React.FC<AIExecutiveSummaryPanelProps> = ({
     summaryStats,
     statusDistribution,
-    stationsWithData,
     isLight,
     lang
 }) => {
@@ -445,7 +434,7 @@ const ExecutiveSummaryPage: React.FC = () => {
                     try {
                         const latestData = await aqiService.getLatest(station.station_id)
                         const pm25 = latestData?.pm25
-                        const aqi = calculateAqiFromPm25(pm25)
+                        const aqi = pm25ToAqi(pm25)
                         stationsData.push({
                             ...station,
                             latestData,
@@ -584,7 +573,6 @@ const ExecutiveSummaryPage: React.FC = () => {
             <AIExecutiveSummaryPanel
                 summaryStats={summaryStats}
                 statusDistribution={statusDistribution}
-                stationsWithData={stationsWithData}
                 isLight={isLight}
                 lang={lang}
             />

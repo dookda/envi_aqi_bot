@@ -8,13 +8,10 @@
  * - Multi-station monitoring
  */
 import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
 import { Card, Icon, Badge, Button } from '../components/atoms'
 import { StationSelector } from '../components/molecules'
-import { Navbar } from '../components/organisms'
 import { useStations } from '../hooks'
 import { useLanguage, useTheme } from '../contexts'
-import type { Station } from '../types'
 
 // Detection types and colors
 const DETECTION_TYPES = {
@@ -47,7 +44,7 @@ interface DetectionEvent {
 
 export default function CCTVPage(): React.ReactElement {
     const { stations, loading: stationsLoading } = useStations()
-    const { t, lang } = useLanguage()
+    const { lang } = useLanguage()
     const { isLight } = useTheme()
 
     const [selectedStation, setSelectedStation] = useState<string>('')
@@ -467,7 +464,6 @@ export default function CCTVPage(): React.ReactElement {
         setNotifyMessage(null)
     }
 
-    const currentStation = stations.find(s => s.station_id === selectedStation)
 
     return (
         <div className={`min-h-screen ${isLight ? 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50' : 'gradient-dark'}`}>

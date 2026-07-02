@@ -7,7 +7,8 @@ import type { Station } from '@/types'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Card, Spinner } from '../atoms'
-import { useLanguage, useTheme } from '../../contexts'
+import { useTheme } from '../../contexts'
+import { getAqiColorFromPm25 } from '../../utils/aqi'
 
 // Thailand center coordinates
 const THAILAND_CENTER: [number, number] = [100.5018, 13.7563]
@@ -66,39 +67,21 @@ interface StationWithPM25 extends Station {
   latitude?: number
 }
 
-// Get marker color based on PM2.5 value (AQI standard colors)
-function getMarkerColor(pm25: number | null | undefined): string {
-  if (pm25 === null || pm25 === undefined) return '#64748b' // Gray for no data
-  if (pm25 <= 25) return '#009966'   // Good (green)
-  if (pm25 <= 50) return '#00e400'   // Moderate (yellow-green)
-  if (pm25 <= 100) return '#ffff00'  // Unhealthy for sensitive (yellow)
-  if (pm25 <= 200) return '#ff7e00'  // Unhealthy (orange)
-  if (pm25 <= 300) return '#ff0000'  // Very unhealthy (red)
-  return '#8f3f97'                   // Hazardous (purple)
-}
-
 interface StationMapProps {
   stations?: StationWithPM25[]
   selectedStation?: string
   onStationSelect?: (stationId: string) => void
-  loading?: boolean
   height?: number
   className?: string
-  showAnomalies?: boolean
-  onShowAnomaliesChange?: (show: boolean) => void
 }
 
 const StationMap: React.FC<StationMapProps> = ({
   stations = [],
   selectedStation,
   onStationSelect,
-  loading = false,
   height = 500,
   className = '',
-  showAnomalies = true,
-  onShowAnomaliesChange,
 }) => {
-  const { t } = useLanguage()
   const { isLight } = useTheme()
   const mapContainer = useRef<HTMLDivElement | null>(null)
   const map = useRef<maplibregl.Map | null>(null)
@@ -258,7 +241,7 @@ const StationMap: React.FC<StationMapProps> = ({
             const props = feature.properties
 
             const pm25 = props?.pm25 !== null ? parseFloat(props?.pm25) : null
-            const color = getMarkerColor(pm25)
+            const color = getAqiColorFromPm25(pm25)
 
             popup.setLngLat(coords)
               .setHTML(`
@@ -288,7 +271,9 @@ const StationMap: React.FC<StationMapProps> = ({
 
     } catch (error) {
       console.error('StationMap: Initialization error:', error)
-      setMapError((error as Error).message)
+      // Defer so the error state isn't set synchronously inside the effect body
+      const message = (error as Error).message
+      queueMicrotask(() => setMapError(message))
     }
 
     // Cleanup on unmount or theme change
@@ -319,7 +304,7 @@ const StationMap: React.FC<StationMapProps> = ({
         const lon = station.lon ?? station.longitude
         const lat = station.lat ?? station.latitude
         const pm25 = station.latest_pm25
-        const color = getMarkerColor(pm25)
+        const color = getAqiColorFromPm25(pm25)
         const name = station.name_en || station.name_th || station.station_id
 
         return {

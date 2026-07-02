@@ -4,7 +4,7 @@
  * Support for collapsible menu groups
  * Protected routes show lock icon for unauthenticated users
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Icon } from '../atoms'
 import { useLanguage, useTheme, useAuth } from '../../contexts'
@@ -128,11 +128,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
     // Hovered item for tooltip in collapsed mode
     const [hoveredItem, setHoveredItem] = useState<string | null>(null)
-    const [hoveredGroup, setHoveredGroup] = useState<string | null>(null)
 
-    // Save collapsed state to localStorage
+    // Save collapsed state to localStorage and notify listeners (e.g. Layout)
     useEffect(() => {
         localStorage.setItem('sidebarCollapsed', JSON.stringify(isCollapsed))
+        window.dispatchEvent(new Event('sidebar-collapsed-change'))
     }, [isCollapsed])
 
     // Save expanded groups state to localStorage
@@ -140,20 +140,20 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         localStorage.setItem('sidebarExpandedGroups', JSON.stringify(expandedGroups))
     }, [expandedGroups])
 
+    const isActive = useCallback((path: string) => {
+        if (path === '/') return location.pathname === '/'
+        return location.pathname.startsWith(path)
+    }, [location.pathname])
+
     // Auto-expand group if current path is in it
     useEffect(() => {
         NAV_GROUPS.forEach(group => {
             const hasActiveItem = group.items.some(item => isActive(item.path))
-            if (hasActiveItem && !expandedGroups[group.id]) {
-                setExpandedGroups(prev => ({ ...prev, [group.id]: true }))
+            if (hasActiveItem) {
+                setExpandedGroups(prev => prev[group.id] ? prev : { ...prev, [group.id]: true })
             }
         })
-    }, [location.pathname])
-
-    const isActive = (path: string) => {
-        if (path === '/') return location.pathname === '/'
-        return location.pathname.startsWith(path)
-    }
+    }, [isActive])
 
     const toggleCollapse = () => {
         setIsCollapsed(!isCollapsed)

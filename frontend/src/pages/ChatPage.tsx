@@ -9,9 +9,7 @@
  * - Quick action buttons
  */
 import { useState, useRef, useEffect } from 'react'
-import { Link } from 'react-router-dom'
 import { Button, Card, Icon, Badge } from '../components/atoms'
-import { Navbar } from '../components/organisms'
 import { useChat } from '../hooks'
 import { useLanguage, useTheme } from '../contexts'
 import type { ChatMessage as ChatMessageType, Language } from '../types'
@@ -110,7 +108,7 @@ export default function Chat(): React.ReactElement {
     const messagesEndRef = useRef<HTMLDivElement | null>(null)
     const inputRef = useRef<HTMLInputElement | null>(null)
 
-    const { t, language } = useLanguage()
+    const { language } = useLanguage()
     const { isLight } = useTheme()
 
     // Auto-scroll to bottom when new messages arrive
@@ -136,28 +134,6 @@ export default function Chat(): React.ReactElement {
         inputRef.current?.focus()
     }
 
-    const quickActions = [
-        {
-            icon: 'search',
-            label: language === 'th' ? 'ค้นหาสถานี' : 'Search Stations',
-            query: language === 'th' ? 'ค้นหาสถานีเชียงใหม่' : 'Search stations in Chiang Mai'
-        },
-        {
-            icon: 'show_chart',
-            label: language === 'th' ? 'ดูกราฟ PM2.5' : 'PM2.5 Chart',
-            query: language === 'th' ? 'ขอดูค่า PM2.5 ย้อนหลัง 7 วันของเชียงใหม่' : 'Show PM2.5 chart for Bangkok last week'
-        },
-        {
-            icon: 'air',
-            label: language === 'th' ? 'คุณภาพอากาศวันนี้' : 'Today\'s Air Quality',
-            query: language === 'th' ? 'คุณภาพอากาศวันนี้ที่กรุงเทพ' : 'Air quality today in Bangkok'
-        },
-        {
-            icon: 'compare_arrows',
-            label: language === 'th' ? 'เปรียบเทียบสถานี' : 'Compare Stations',
-            query: language === 'th' ? 'ค้นหาสถานีในภาคเหนือ' : 'Find stations in Northern Thailand'
-        }
-    ]
 
     const exampleQueries = language === 'th' ? [
         'ขอดูค่า PM2.5 ย้อนหลัง 7 วันของสถานีเชียงใหม่',
@@ -752,14 +728,6 @@ function EnhancedChart({ data, summary, isLight, language }: EnhancedChartProps)
     const firstTime = validData[0]?.time ? new Date(validData[0].time as string) : null
     const lastTime = validData[validData.length - 1]?.time ? new Date(validData[validData.length - 1].time as string) : null
 
-    // Determine bar color based on average
-    const getBarColor = (value: number): string => {
-        if (value <= 25) return 'from-green-400 to-green-500'
-        if (value <= 50) return 'from-emerald-400 to-emerald-500'
-        if (value <= 100) return 'from-yellow-400 to-yellow-500'
-        if (value <= 200) return 'from-orange-400 to-orange-500'
-        return 'from-red-400 to-red-500'
-    }
 
     return (
         <div className="space-y-3">

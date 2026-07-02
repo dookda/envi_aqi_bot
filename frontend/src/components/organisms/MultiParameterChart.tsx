@@ -51,20 +51,6 @@ const PARAMETERS: Record<ParameterKey, ParameterConfig> = {
     rain: { label: 'Rainfall', unit: 'mm', color: '#22c55e', icon: 'rainy' },
 }
 
-// Spike detection thresholds (for anomaly highlighting)
-const SPIKE_THRESHOLDS: Record<string, { min: number; max: number; spikeMultiplier: number }> = {
-    pm25: { min: 0, max: 200, spikeMultiplier: 2.5 },
-    pm10: { min: 0, max: 300, spikeMultiplier: 2.5 },
-    o3: { min: 0, max: 200, spikeMultiplier: 2.5 },
-    co: { min: 0, max: 15, spikeMultiplier: 2.5 },
-    no2: { min: 0, max: 300, spikeMultiplier: 3 },
-    so2: { min: 0, max: 400, spikeMultiplier: 3 },
-    nox: { min: 0, max: 600, spikeMultiplier: 3 },
-    temp: { min: -10, max: 50, spikeMultiplier: 1.5 },
-    rh: { min: 0, max: 100, spikeMultiplier: 1.3 },
-    ws: { min: 0, max: 30, spikeMultiplier: 3 },
-    bp: { min: 700, max: 800, spikeMultiplier: 1.2 },
-}
 
 const API_BASE = '/api'
 
@@ -216,8 +202,6 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
     const chartData = useMemo((): ProcessedChartData | null => {
         if (!data?.data?.length) return null
 
-        const paramConfig = PARAMETERS[selectedParam]
-        const thresholds = SPIKE_THRESHOLDS[selectedParam] || SPIKE_THRESHOLDS.pm25
         const imputedField = `${selectedParam}_imputed` as keyof AQIHourlyData
 
         // Sort by datetime
@@ -253,7 +237,7 @@ const MultiParameterChart: React.FC<MultiParameterChartProps> = ({
         let consecutiveValue: number | null = null  // Track the value being repeated
         const consecutivePoints: Array<{ time: string; value: number }> = []  // Track points in current sequence
 
-        sortedData.forEach((d, index) => {
+        sortedData.forEach((d) => {
             const time = d.datetime
             const value = d[selectedParam as keyof AQIHourlyData] as number | null | undefined
             const isImputed = (d[imputedField] as boolean) || d.is_imputed || false

@@ -30,7 +30,6 @@ const LIFF_ID = import.meta.env.VITE_LIFF_ID || ''
 
 export default function LiffProfilePage(): React.ReactElement {
     // State
-    const [liffInitialized, setLiffInitialized] = useState(false)
     const [liffError, setLiffError] = useState<string | null>(null)
     const [profile, setProfile] = useState<LiffProfile | null>(null)
     const [userData, setUserData] = useState<UserData | null>(null)
@@ -47,13 +46,11 @@ export default function LiffProfilePage(): React.ReactElement {
                 if (!LIFF_ID) {
                     // Demo mode without LIFF
                     setLiffError('LIFF ID not configured. Running in demo mode.')
-                    setLiffInitialized(false)
                     setLoading(false)
                     return
                 }
 
                 await liff.init({ liffId: LIFF_ID })
-                setLiffInitialized(true)
 
                 if (!liff.isLoggedIn()) {
                     // Redirect to LINE login

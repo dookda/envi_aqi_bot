@@ -3,14 +3,14 @@
  * Modern air quality monitoring dashboard with full environmental data
  */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import * as echarts from 'echarts'
+import { useSearchParams } from 'react-router-dom'
 import { Card, Icon, Badge, Spinner } from '../components/atoms'
 import { DataTable, SearchFilterPanel } from '../components/molecules'
-import { StationMap, Navbar, MultiParameterChart } from '../components/organisms'
+import { StationMap, MultiParameterChart } from '../components/organisms'
 import { useStations, useChartData } from '../hooks'
 import { useLanguage, useTheme } from '../contexts'
 import type { Station, AQIHourlyData, ParameterStatistics, TableColumn, Language, ParameterKey, ChartDataResponse } from '../types'
+import { AQI_LEVELS, getAqiLevelFromPm25, pm25ToAqi, type AQILevelKey, type AQILevelConfig } from '../utils/aqi'
 
 // ============== Utility Functions ==============
 
@@ -79,17 +79,6 @@ const getDefaultDateRange = (days: number): { start: string; end: string } => {
 
 // ============== Type Definitions ==============
 
-interface AQILevelConfig {
-    min: number
-    max: number
-    color: string
-    label: string
-    labelTh: string
-    icon: string
-}
-
-
-
 interface PollutantConfigItem {
     label: string
     unit: string
@@ -129,28 +118,9 @@ interface DataTableViewProps {
     negativeThreshold?: number
 }
 
-type AQILevelKey = 'excellent' | 'good' | 'moderate' | 'unhealthySensitive' | 'unhealthy'
 type TabId = 'charts' | 'map'
 
 // ============== Constants ==============
-
-// AQI Level configuration (Thailand Standard - ดัชนี AQI ประเทศไทย)
-const AQI_LEVELS: Record<AQILevelKey, AQILevelConfig> = {
-    excellent: { min: 0, max: 25, color: '#00bcd4', label: 'Excellent', labelTh: 'ดีมาก', icon: 'sentiment_very_satisfied' },
-    good: { min: 26, max: 50, color: '#4caf50', label: 'Good', labelTh: 'ดี', icon: 'sentiment_satisfied' },
-    moderate: { min: 51, max: 100, color: '#ffeb3b', label: 'Moderate', labelTh: 'ปานกลาง', icon: 'sentiment_neutral' },
-    unhealthySensitive: { min: 101, max: 200, color: '#ff9800', label: 'Unhealthy', labelTh: 'เริ่มมีผลกระทบ', icon: 'sentiment_dissatisfied' },
-    unhealthy: { min: 201, max: 500, color: '#f44336', label: 'Hazardous', labelTh: 'มีผลกระทบ', icon: 'sentiment_very_dissatisfied' },
-}
-
-const getAqiLevel = (value: number | undefined): AQILevelKey | null => {
-    if (!value || value <= 0) return null
-    if (value <= 25) return 'excellent'
-    if (value <= 50) return 'good'
-    if (value <= 100) return 'moderate'
-    if (value <= 200) return 'unhealthySensitive'
-    return 'unhealthy'
-}
 
 // Pollutant cards configuration (PM2.5 excluded - shown in main AQI card)
 const POLLUTANT_CONFIG: Record<string, PollutantConfigItem> = {
@@ -1161,7 +1131,7 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
 export default function Dashboard(): React.ReactElement {
     const { stations, loading: stationsLoading, refetch: refetchStations } = useStations()
     const { data: chartData, fetchChartData } = useChartData()
-    const { t, lang } = useLanguage()
+    const { lang } = useLanguage()
     const { isLight } = useTheme()
     const [searchParams] = useSearchParams()
 
@@ -1169,7 +1139,6 @@ export default function Dashboard(): React.ReactElement {
     const [timePeriod, setTimePeriod] = useState<number>(7)
     // Filter tool: show only stations that have a PM2.5 reading for today
     const [filterTodayOnly, setFilterTodayOnly] = useState<boolean>(true)
-    const [showAnomalies, setShowAnomalies] = useState<boolean>(true)
     const [fullData, setFullData] = useState<FullDataResponse | null>(null)
     const [fullDataLoading, setFullDataLoading] = useState<boolean>(false)
     const [activeTab, setActiveTab] = useState<TabId>('map')
@@ -1293,7 +1262,7 @@ export default function Dashboard(): React.ReactElement {
                             // We could optionally auto-switch or notify here. 
                             // For now, let's just log it. The 1y option will help find it.
                         }
-                    } catch (e) {
+                    } catch {
                         // ignore
                     }
                 }
@@ -1447,7 +1416,10 @@ export default function Dashboard(): React.ReactElement {
     }, [filteredFullData, latestStationData])
 
     const currentPm25 = latestData.pm25 || (stats as any).mean
-    const aqiLevel = getAqiLevel(currentPm25)
+    // Convert PM2.5 concentration to the Thai AQI index before banding
+    // (previously raw µg/m³ was compared against index thresholds)
+    const currentAqi = pm25ToAqi(currentPm25)
+    const aqiLevel = getAqiLevelFromPm25(currentPm25)
     const aqiConfig = aqiLevel ? AQI_LEVELS[aqiLevel] : null
 
     // Calculate wind direction arrow
@@ -1563,7 +1535,7 @@ export default function Dashboard(): React.ReactElement {
                                             <div className="flex items-center gap-1 mt-2">
                                                 <Icon name={aqiConfig.icon} style={{ color: aqiConfig.color }} />
                                                 <span style={{ color: aqiConfig.color }} className="text-sm font-medium">
-                                                    {lang === 'th' ? aqiConfig.labelTh : aqiConfig.label}
+                                                    {lang === 'th' ? aqiConfig.labelTh : aqiConfig.label} (AQI {currentAqi})
                                                 </span>
                                             </div>
                                         )}
@@ -1791,10 +1763,7 @@ export default function Dashboard(): React.ReactElement {
                         stations={displayedStations}
                         selectedStation={selectedStation}
                         onStationSelect={setSelectedStation}
-                        loading={stationsLoading}
                         height={400}
-                        showAnomalies={showAnomalies}
-                        onShowAnomaliesChange={setShowAnomalies}
                     />
 
                     {/* AQI Guide */}

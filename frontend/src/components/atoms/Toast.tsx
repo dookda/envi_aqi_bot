@@ -2,7 +2,7 @@
  * Toast Component
  * A lightweight notification toast that auto-dismisses
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { Toast as ToastType, Variant } from '@/types'
 import { useTheme } from '../../contexts'
 import Icon from './Icon'
@@ -111,6 +111,13 @@ const Toast: React.FC<ToastProps> = ({
   const [isLeaving, setIsLeaving] = useState(false)
   const config = VARIANTS[variant] || VARIANTS.info
 
+  const handleClose = useCallback(() => {
+    setIsLeaving(true)
+    setTimeout(() => {
+      onClose?.(id)
+    }, 300) // Match animation duration
+  }, [id, onClose])
+
   useEffect(() => {
     // Trigger enter animation
     requestAnimationFrame(() => {
@@ -118,19 +125,10 @@ const Toast: React.FC<ToastProps> = ({
     })
 
     // Auto-dismiss
-    const timer = setTimeout(() => {
-      handleClose()
-    }, duration)
+    const timer = setTimeout(handleClose, duration)
 
     return () => clearTimeout(timer)
-  }, [duration])
-
-  const handleClose = () => {
-    setIsLeaving(true)
-    setTimeout(() => {
-      onClose?.(id)
-    }, 300) // Match animation duration
-  }
+  }, [duration, handleClose])
 
   return (
     <div

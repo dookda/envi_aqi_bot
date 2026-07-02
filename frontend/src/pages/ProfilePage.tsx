@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth, useTheme, useLanguage } from '../contexts'
 import { Card, Icon, Spinner } from '../components/atoms'
@@ -13,7 +13,6 @@ const ProfilePage: React.FC = () => {
     const [isEditing, setIsEditing] = useState(false)
     const [fullName, setFullName] = useState(user?.full_name || '')
     const [email, setEmail] = useState(user?.email || '')
-    const [currentPassword, setCurrentPassword] = useState('')
     const [newPassword, setNewPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
     const [isLoading, setIsLoading] = useState(false)
@@ -21,8 +20,12 @@ const ProfilePage: React.FC = () => {
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
 
+    // Redirect must happen in an effect, not during render
+    useEffect(() => {
+        if (!user) navigate('/login')
+    }, [user, navigate])
+
     if (!user) {
-        navigate('/login')
         return null
     }
 
@@ -66,7 +69,6 @@ const ProfilePage: React.FC = () => {
             await updateProfile(updateData)
             setSuccess(lang === 'th' ? 'บันทึกข้อมูลสำเร็จ' : 'Profile updated successfully')
             setIsEditing(false)
-            setCurrentPassword('')
             setNewPassword('')
             setConfirmPassword('')
         } catch (err) {
@@ -80,7 +82,6 @@ const ProfilePage: React.FC = () => {
         setIsEditing(false)
         setFullName(user.full_name || '')
         setEmail(user.email || '')
-        setCurrentPassword('')
         setNewPassword('')
         setConfirmPassword('')
         setError(null)

@@ -75,7 +75,6 @@ const SearchFilterPanel: React.FC<SearchFilterPanelProps> = ({
     todayStationsCount,
     className = ''
 }) => {
-    const currentStation = stations.find(s => s.station_id === selectedStation)
 
     const clearDateFilter = () => {
         onStartDateChange('')

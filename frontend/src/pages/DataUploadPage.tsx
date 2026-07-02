@@ -5,7 +5,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, Card, Badge, Spinner, Icon } from '../components/atoms'
-import { Navbar } from '../components/organisms'
 import { useLanguage, useTheme, useToast } from '../contexts'
 import api from '../services/api'
 
@@ -57,7 +56,7 @@ export default function DataUpload(): React.ReactElement {
     // CSV type detection: 'station' | 'aqi' | null
     const [csvType, setCsvType] = useState<'station' | 'aqi' | null>(null)
 
-    const { t, lang } = useLanguage()
+    const { lang } = useLanguage()
     const { isLight } = useTheme()
     const { toast } = useToast()
 
@@ -209,76 +208,6 @@ export default function DataUpload(): React.ReactElement {
         }
     }
 
-    // Handle station form submission
-    const handleStationSubmit = async () => {
-        // Validate form
-        if (!stationForm.station_id || !stationForm.name_en || !stationForm.lat || !stationForm.lon) {
-            toast.error('Please fill in all required fields')
-            return
-        }
-
-        // Validate coordinates
-        const lat = parseFloat(stationForm.lat)
-        const lon = parseFloat(stationForm.lon)
-        if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-            toast.error('Invalid latitude or longitude')
-            return
-        }
-
-        setLoading(true)
-        setUploadResult(null)
-
-        try {
-            // Create station data array
-            const csvData = `station_id,name_th,name_en,lat,lon,station_type
-${stationForm.station_id},${stationForm.name_th || stationForm.name_en},${stationForm.name_en},${stationForm.lat},${stationForm.lon},${stationForm.station_type}`
-
-            const blob = new Blob([csvData], { type: 'text/csv' })
-            const file = new File([blob], 'station.csv', { type: 'text/csv' })
-
-            const formData = new FormData()
-            formData.append('file', file)
-
-            const res = await fetch(`${import.meta.env.BASE_URL}api/upload/import-stations-csv`.replace(/\/+/g, '/'), {
-                method: 'POST',
-                body: formData
-            })
-
-            if (!res.ok) {
-                const error = await res.json()
-                throw new Error(error.detail || 'Failed to add station')
-            }
-
-            const response = await res.json()
-            setUploadResult(response)
-
-            if (response.success) {
-                toast.success(`Successfully added station: ${stationForm.station_id}`)
-                // Reset form
-                setStationForm({
-                    station_id: '',
-                    name_th: '',
-                    name_en: '',
-                    lat: '',
-                    lon: '',
-                    station_type: 'urban'
-                })
-            } else {
-                toast.error(response.message || 'Failed to add station')
-            }
-        } catch (err: any) {
-            toast.error(err.message || 'Failed to add station')
-            setUploadResult({
-                success: false,
-                records_inserted: 0,
-                records_updated: 0,
-                records_failed: 0,
-                message: err.message
-            })
-        } finally {
-            setLoading(false)
-        }
-    }
 
     // Handle combined station + CSV upload
     const handleApplyAll = async () => {

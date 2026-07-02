@@ -2,11 +2,10 @@
  * Models Page
  * Shows LSTM model status and gap-fill availability for each station
  */
-import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button, Card, Badge, Spinner, Icon } from '../components/atoms'
 import { StatCard } from '../components/molecules'
-import { Navbar } from '../components/organisms'
 import { useLanguage, useTheme, useToast } from '../contexts'
 import api from '../services/api'
 
@@ -75,8 +74,16 @@ export default function Models(): React.ReactElement {
         }
     }
 
+    // Cancel training-status polling when the page unmounts
+    const pollCancelledRef = useRef(false)
+    const pollTimeoutRef = useRef<number | null>(null)
+
     useEffect(() => {
         fetchModelsStatus()
+        return () => {
+            pollCancelledRef.current = true
+            if (pollTimeoutRef.current !== null) clearTimeout(pollTimeoutRef.current)
+        }
     }, [])
 
     const handleTrainModel = async (stationId: string): Promise<void> => {
@@ -94,6 +101,8 @@ export default function Models(): React.ReactElement {
             const maxAttempts = 300 // 10 minutes
 
             const pollStatus = async (): Promise<void> => {
+                if (pollCancelledRef.current) return
+
                 if (attempts >= maxAttempts) {
                     setTrainingStation(null)
                     toast.warning('Training is taking longer than expected. Please check the model status page.')
@@ -109,8 +118,10 @@ export default function Models(): React.ReactElement {
 
                     // If we have updated training info, training is complete
                     if (station && station.model_status.training_info) {
-                        setData(result)
-                        setTrainingStation(null)
+                        if (!pollCancelledRef.current) {
+                            setData(result)
+                            setTrainingStation(null)
+                        }
                         return
                     }
                 } catch (error) {
@@ -118,11 +129,11 @@ export default function Models(): React.ReactElement {
                 }
 
                 // Continue polling
-                setTimeout(pollStatus, 2000)
+                pollTimeoutRef.current = window.setTimeout(pollStatus, 2000)
             }
 
             // Start polling after 5 seconds (give training time to start)
-            setTimeout(pollStatus, 5000)
+            pollTimeoutRef.current = window.setTimeout(pollStatus, 5000)
 
         } catch (err) {
             console.error('Failed to trigger training:', err)

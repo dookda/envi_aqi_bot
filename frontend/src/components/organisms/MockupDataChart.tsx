@@ -338,7 +338,7 @@ const MockupDataChart: React.FC<MockupDataChartProps> = ({
                                         borderColor: selectedParams.includes(key)
                                             ? config.color
                                             : undefined,
-                                        // @ts-ignore
+                                        // @ts-expect-error CSS custom property not in CSSProperties
                                         '--tw-ring-color': config.color,
                                     }}
                                 >
@@ -374,7 +374,7 @@ const MockupDataChart: React.FC<MockupDataChartProps> = ({
                                         color: selectedParams.includes(key)
                                             ? config.color
                                             : undefined,
-                                        // @ts-ignore
+                                        // @ts-expect-error CSS custom property not in CSSProperties
                                         '--tw-ring-color': config.color,
                                     }}
                                 >

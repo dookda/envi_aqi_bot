@@ -3,7 +3,7 @@
  * Manage stations - view, edit, delete stations and their data
  */
 import { useState, useEffect } from 'react'
-import { Button, Card, Badge, Spinner, Icon } from '../components/atoms'
+import { Button, Badge, Spinner, Icon } from '../components/atoms'
 import { useLanguage, useTheme, useToast } from '../contexts'
 import api from '../services/api'
 

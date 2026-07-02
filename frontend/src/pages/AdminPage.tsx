@@ -4,7 +4,7 @@
  * Redesigned with improved readability and theme support
  */
 import { useState, useEffect } from 'react'
-import { Button, Card, Badge, Spinner, Icon } from '../components/atoms'
+import { Button, Badge, Spinner, Icon } from '../components/atoms'
 import { useLanguage, useTheme, useToast } from '../contexts'
 import api from '../services/api'
 
@@ -76,7 +76,7 @@ export default function Admin(): React.ReactElement {
     const [autoRefresh, setAutoRefresh] = useState<boolean>(false)
     const [activeTab, setActiveTab] = useState<TabId>('overview')
 
-    const { t, lang } = useLanguage()
+    const { lang } = useLanguage()
     const { isLight } = useTheme()
     const { toast } = useToast()
 
@@ -137,14 +137,6 @@ export default function Admin(): React.ReactElement {
         }
     }
 
-    const getHealthColor = (status?: string): 'success' | 'warning' | 'danger' | 'secondary' => {
-        switch (status) {
-            case 'healthy': return 'success'
-            case 'degraded': return 'warning'
-            case 'critical': return 'danger'
-            default: return 'secondary'
-        }
-    }
 
     const getHealthIcon = (status?: string): string => {
         switch (status) {

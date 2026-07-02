@@ -182,10 +182,6 @@ export const aqiService = {
     api.get(`/aqi/${stationId}/missing?days=${days}`),
 }
 
-interface BatchIngestionRequest {
-  station_ids: string[]
-  days: number
-}
 
 interface IngestionStatus {
   status: string
@@ -199,13 +195,7 @@ export const ingestionService = {
   getStatus: (): Promise<IngestionStatus> => api.get<IngestionStatus>('/ingest/status'),
 }
 
-interface ImputationRequest {
-  station_id: string
-}
 
-interface CycleRequest {
-  station_ids: string[]
-}
 
 interface ImputationResponse {
   status: string
